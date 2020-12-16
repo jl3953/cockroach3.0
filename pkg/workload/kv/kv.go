@@ -16,6 +16,8 @@ import (
 	gosql "database/sql"
 	"encoding/binary"
 	"fmt"
+	"github.com/cockroachdb/cockroach-go/crdb"
+	"github.com/jackc/pgx"
 	"hash"
 	"math"
 	"sort"
@@ -23,13 +25,13 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"golang.org/x/exp/rand"
 	"github.com/cockroachdb/cockroach/pkg/util/timeutil"
 	"github.com/cockroachdb/cockroach/pkg/workload"
 	"github.com/cockroachdb/cockroach/pkg/workload/histogram"
 	"github.com/cockroachdb/cockroach/pkg/workload/ycsb"
 	"github.com/cockroachdb/errors"
 	"github.com/spf13/pflag"
+	"golang.org/x/exp/rand"
 )
 
 const (
@@ -324,6 +326,7 @@ func (w *kv) Ops(
 			config:          w,
 			hists:           reg.GetHandle(),
 			numEmptyResults: numEmptyResults,
+			mcp: mcp,
 		}
 		op.readStmt = op.sr.Define(readStmtStr)
 		op.writeStmt = op.sr.Define(writeStmtStr)
@@ -353,6 +356,7 @@ type kvOp struct {
 	spanStmt        workload.StmtHandle
 	g               keyGenerator
 	numEmptyResults *int64 // accessed atomically
+	mcp *workload.MultiConnPool
 }
 
 type byInt []int64
@@ -394,6 +398,12 @@ func correctTxnParams(batchSize int, generateKey generateKeyFunc, greatestHotKey
 }
 
 func (o *kvOp) run(ctx context.Context) error {
+
+	tx, _ := o.mcp.Get().BeginEx(ctx, &pgx.TxOptions{
+		IsoLevel:   pgx.Serializable,
+		AccessMode: pgx.ReadWrite,
+	})
+
 	statementProbability := o.g.rand().Intn(100) // Determines what statement is executed.
 	if statementProbability < o.config.readPercent {
 
@@ -410,20 +420,28 @@ func (o *kvOp) run(ctx context.Context) error {
 		}
 
 		start := timeutil.Now()
-		rows, err := o.readStmt.Query(ctx, args...)
-		if err != nil {
-			return err
-		}
-		empty := true
-		for rows.Next() {
-			empty = false
-		}
-		if empty {
-			atomic.AddInt64(o.numEmptyResults, 1)
-		}
+		err := crdb.ExecuteInTx(ctx, (*workload.PgxTx)(tx), func() error {
+			rows, err := o.readStmt.QueryTx(ctx, tx, args...)
+			if err != nil {
+				return err
+			}
+			empty := true
+			for rows.Next() {
+				empty = false
+			}
+			if empty {
+				atomic.AddInt64(o.numEmptyResults, 1)
+			}
+			if rowErr := rows.Err(); rowErr != nil {
+				return rowErr
+			} else {
+				rows.Close()
+				return nil
+			}
+		})
 		elapsed := timeutil.Since(start)
 		o.hists.Get(`read`).Record(elapsed)
-		return rows.Err()
+		return err
 	}
 	// Since we know the statement is not a read, we recalibrate
 	// statementProbability to only consider the other statements.
@@ -444,8 +462,13 @@ func (o *kvOp) run(ctx context.Context) error {
 		args[j+0] = argsInt[i]
 		args[j+1] = randomBlock(o.config, o.g.rand())
 	}
+
+
 	start := timeutil.Now()
-	_, err := o.writeStmt.Exec(ctx, args...)
+	err := crdb.ExecuteInTx(ctx, (*workload.PgxTx)(tx), func() error {
+		_, err := o.writeStmt.ExecTx(ctx, tx, args...)
+		return err
+	})
 	elapsed := timeutil.Since(start)
 	o.hists.Get(`write`).Record(elapsed)
 	return err
