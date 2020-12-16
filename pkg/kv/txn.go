@@ -12,6 +12,7 @@ package kv
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"time"
 
@@ -49,6 +50,9 @@ type Txn struct {
 	// systemConfigTrigger is set to true when modifying keys from the SystemConfig
 	// span. This sets the SystemConfigTrigger on EndTxnRequest.
 	systemConfigTrigger bool
+
+	writeHotkeys [][]byte
+	readHotkeys  [][]byte
 
 	// mu holds fields that need to be synchronized for concurrent request execution.
 	mu struct {
@@ -580,6 +584,15 @@ func (txn *Txn) Run(ctx context.Context, b *Batch) error {
 }
 
 func (txn *Txn) commit(ctx context.Context) error {
+	if txn.HasWriteHotkeys() || txn.HasReadHotkeys() {
+		if _, succeeded := txn.ContactHotshard(txn.GetAndClearWriteHotkeys(),
+			txn.GetAndClearReadHotKeys(),
+			txn.ProvisionalCommitTimestamp()); !succeeded {
+			// jenndebug TODO how do I abort a txn?
+			log.Fatal(ctx, "jenndebug the hotshard could not commit txn")
+		}
+	}
+
 	var ba roachpb.BatchRequest
 	ba.Add(endTxnReq(true /* commit */, txn.deadline(), txn.systemConfigTrigger))
 	_, pErr := txn.Send(ctx, ba)
@@ -1289,4 +1302,54 @@ func (txn *Txn) ReleaseSavepoint(ctx context.Context, s SavepointToken) error {
 	txn.mu.Lock()
 	defer txn.mu.Unlock()
 	return txn.mu.sender.ReleaseSavepoint(ctx, s)
+}
+
+func (txn *Txn) AddWriteHotkeys(hotkeys [][]byte) {
+	txn.writeHotkeys = append(txn.writeHotkeys, hotkeys...)
+}
+
+func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
+	readHotkeys [][]byte,
+	provisionalCommitTimestamp hlc.Timestamp) ([][]byte, bool) {
+
+	// jenndebug TODO I need to do something about the writes
+
+	// jenndebug TODO I need to stop making up the reads
+	readResults := make([][]byte, len(readHotkeys))
+	for i, readHotkey := range readHotkeys {
+		result := make([]byte, 8)
+		binary.BigEndian.PutUint64(result, 214)
+
+		readResults[2*i], readResults[2*i + 1] = readHotkey, result
+	}
+
+	return readResults, true
+}
+
+func (txn *Txn) GetAndClearWriteHotkeys() [][]byte {
+	if len(txn.writeHotkeys) > 0 {
+		temp := txn.writeHotkeys
+		txn.writeHotkeys = make([][]byte, 0)
+		return temp
+	} else {
+		return nil
+	}
+}
+
+func (txn *Txn) GetAndClearReadHotKeys() [][]byte {
+	if len(txn.readHotkeys) > 0 {
+		temp := txn.readHotkeys
+		txn.readHotkeys = make([][]byte, 0)
+		return temp
+	} else {
+		return nil
+	}
+}
+
+func (txn *Txn) HasWriteHotkeys() bool {
+	return len(txn.writeHotkeys) > 0
+}
+
+func (txn *Txn) HasReadHotkeys() bool {
+	return len(txn.readHotkeys) > 0
 }
