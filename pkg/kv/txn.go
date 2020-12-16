@@ -14,6 +14,10 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
+	"google.golang.org/grpc"
+
+	// smdbrpc "smdbrpc/go"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
@@ -1311,6 +1315,32 @@ func (txn *Txn) AddWriteHotkeys(hotkeys [][]byte) {
 func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	readHotkeys [][]byte,
 	provisionalCommitTimestamp hlc.Timestamp) ([][]byte, bool) {
+
+	address := "localhost:50051"
+
+	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithBlock())
+	if err != nil {
+		log.Fatalf(context.Background(), "jenndebug rpc failed")
+	}
+	defer conn.Close()
+	c := execinfrapb.NewHotshardGatewayClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	defaultString := "JENNDEBUG QUERY"
+	var year, date int64 = 1994, 214
+	_, err = c.ContactHotshard(ctx, &execinfrapb.HotshardRequest{
+		Sqlstring:    &defaultString,
+		Hlctimestamp: &execinfrapb.HLCTimestamp{
+			Walltime:    &year,
+			Logicaltime: &date,
+		},
+	})
+	if err != nil {
+		log.Warningf(context.Background(), "jenndebug we suck")
+	} else {
+		log.Warningf(context.Background(), "jenndebug we did it")
+	}
 
 	// jenndebug TODO I need to do something about the writes
 
