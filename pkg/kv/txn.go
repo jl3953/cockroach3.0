@@ -16,8 +16,6 @@ import (
 	"fmt"
 	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
 	"google.golang.org/grpc"
-
-	// smdbrpc "smdbrpc/go"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
@@ -1353,7 +1351,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 		readResults[2*i], readResults[2*i + 1] = readHotkey, result
 	}
 
-	return readResults, true
+	return readResults, succeeded
 }
 
 func (txn *Txn) GetAndClearWriteHotkeys() [][]byte {
