@@ -1351,7 +1351,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 		readResults[2*i], readResults[2*i + 1] = readHotkey, result
 	}
 
-	return readResults, succeeded
+	return readResults, true
 }
 
 func (txn *Txn) GetAndClearWriteHotkeys() [][]byte {
