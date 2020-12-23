@@ -592,6 +592,8 @@ func (txn *Txn) commit(ctx context.Context) error {
 			txn.ProvisionalCommitTimestamp()); !succeeded {
 			// jenndebug TODO how do I abort a txn?
 			log.Fatal(ctx, "jenndebug the hotshard could not commit txn")
+		} else {
+			log.Warningf(ctx, "jenndebug we did it")
 		}
 	}
 
@@ -1328,7 +1330,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	defaultString := "JENNDEBUG QUERY"
 	var year, date int64 = 1994, 214
 	_, err = c.ContactHotshard(ctx, &execinfrapb.HotshardRequest{
-		Sqlstring:    &defaultString,
+		Sqlstring: &defaultString,
 		Hlctimestamp: &execinfrapb.HLCTimestamp{
 			Walltime:    &year,
 			Logicaltime: &date,
@@ -1348,7 +1350,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 		result := make([]byte, 8)
 		binary.BigEndian.PutUint64(result, 214)
 
-		readResults[2*i], readResults[2*i + 1] = readHotkey, result
+		readResults[2*i], readResults[2*i+1] = readHotkey, result
 	}
 
 	return readResults, true
