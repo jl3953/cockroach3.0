@@ -400,6 +400,13 @@ func extendWarmArgsWrite(warmArgs [][]byte, byHowMuch int) [][]byte {
 }
 
 func stripHotkeysWrite(bindCmd BindStmt) (hotkeys[][]byte, warmArgs[][]byte, hasWarmKeys bool) {
+	/**
+	@param bindCmd
+
+	@returns hotkeys slice with each key followed by its value.
+	@returns warmArgs slice with each key followed by its value.
+	@returns hasWarmKeys whether or not warmArgs is populated/
+	 */
 
 	var key, val []byte
 	for i := 0; i < len(bindCmd.Args); i += 2 {

@@ -1309,51 +1309,84 @@ func (txn *Txn) ReleaseSavepoint(ctx context.Context, s SavepointToken) error {
 }
 
 func (txn *Txn) AddWriteHotkeys(hotkeys [][]byte) {
+	/**
+	@param hotkeys slice each key followed by its value.
+	 */
 	txn.writeHotkeys = append(txn.writeHotkeys, hotkeys...)
+}
+
+func initializeAndPopulateHotshardRequest(
+	writeHotkeys [][]byte,
+	readHotkeys [][]byte,
+	provisionalCommitTimestamp hlc.Timestamp) execinfrapb.HotshardRequest {
+
+	// populate request timestamp
+	request := execinfrapb.HotshardRequest{
+		Hlctimestamp: &execinfrapb.HLCTimestamp{
+			Walltime: &provisionalCommitTimestamp.WallTime,
+		},
+	}
+
+	// populate request write hotkey set
+	for i := 0; i < len(writeHotkeys); i+=2 {
+		kvPair := execinfrapb.KVPair{
+			Key:   writeHotkeys[i],
+			Value: writeHotkeys[i+1],
+		}
+		request.WriteKeyset = append(request.WriteKeyset, &kvPair)
+	}
+
+	// populate request read hotkey set
+	for _, readKey := range readHotkeys {
+		request.ReadKeyset = append(request.ReadKeyset, readKey)
+	}
+
+	return request
+
 }
 
 func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	readHotkeys [][]byte,
-	provisionalCommitTimestamp hlc.Timestamp) ([][]byte, bool) {
+	provisionalCommitTimestamp hlc.Timestamp) (readResults[][]byte, succeeded bool) {
+	/**
+	@param writeHotkeys each key followed by its value
+	@param readHotkeys slice of read hotkeys
+	@param provisionalCommitTimestamp timestamp to commit on hotshard
 
+	@return readResults each key followed by its value
+	@param succeeded whether rpc succeeded
+	 */
+
+	// address of hotshard
 	address := "localhost:50051"
 
+	// grpc client boilerplate connection code
 	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Fatalf(context.Background(), "jenndebug rpc failed")
 	}
 	defer conn.Close()
 	c := execinfrapb.NewHotshardGatewayClient(conn)
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	defaultString := "JENNDEBUG QUERY"
-	var year, date int64 = 1994, 214
-	_, err = c.ContactHotshard(ctx, &execinfrapb.HotshardRequest{
-		Sqlstring: &defaultString,
-		Hlctimestamp: &execinfrapb.HLCTimestamp{
-			Walltime:    &year,
-			Logicaltime: &date,
-		},
-	})
-	if err != nil {
-		log.Warningf(context.Background(), "jenndebug we suck")
+
+	// populate hotshard request
+	request := initializeAndPopulateHotshardRequest(writeHotkeys, readHotkeys,
+		provisionalCommitTimestamp)
+
+	// contact hotshard
+	if reply, err := c.ContactHotshard(ctx, &request); err != nil {
+
+		// rpc failed
+		return nil, false
 	} else {
-		log.Warningf(context.Background(), "jenndebug we did it")
+
+		// rpc succeeded
+		for i, kvPair := range reply.ReadValueset {
+			readResults[2*i], readResults[2*i+1] = kvPair.Key, kvPair.Value
+		}
+		return readResults, *reply.IsCommitted
 	}
-
-	// jenndebug TODO I need to do something about the writes
-
-	// jenndebug TODO I need to stop making up the reads
-	readResults := make([][]byte, len(readHotkeys))
-	for i, readHotkey := range readHotkeys {
-		result := make([]byte, 8)
-		binary.BigEndian.PutUint64(result, 214)
-
-		readResults[2*i], readResults[2*i+1] = readHotkey, result
-	}
-
-	return readResults, true
 }
 
 func (txn *Txn) GetAndClearWriteHotkeys() [][]byte {
