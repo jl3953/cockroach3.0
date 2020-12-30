@@ -30,15 +30,14 @@ var _ = math.Inf
 const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 type HLCTimestamp struct {
-	Walltime    *int64 `protobuf:"varint,1,opt,name=walltime" json:"walltime,omitempty"`
-	Logicaltime *int64 `protobuf:"varint,2,opt,name=logicaltime" json:"logicaltime,omitempty"`
+	Walltime *int64 `protobuf:"varint,1,opt,name=walltime" json:"walltime,omitempty"`
 }
 
 func (m *HLCTimestamp) Reset()         { *m = HLCTimestamp{} }
 func (m *HLCTimestamp) String() string { return proto.CompactTextString(m) }
 func (*HLCTimestamp) ProtoMessage()    {}
 func (*HLCTimestamp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_e2d281b1b26c79f4, []int{0}
+	return fileDescriptor_smdbrpc_3ce012c60fc25c9d, []int{0}
 }
 func (m *HLCTimestamp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -63,16 +62,51 @@ func (m *HLCTimestamp) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_HLCTimestamp proto.InternalMessageInfo
 
+type KVPair struct {
+	Key   []byte `protobuf:"bytes,1,opt,name=key" json:"key,omitempty"`
+	Value []byte `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
+}
+
+func (m *KVPair) Reset()         { *m = KVPair{} }
+func (m *KVPair) String() string { return proto.CompactTextString(m) }
+func (*KVPair) ProtoMessage()    {}
+func (*KVPair) Descriptor() ([]byte, []int) {
+	return fileDescriptor_smdbrpc_3ce012c60fc25c9d, []int{1}
+}
+func (m *KVPair) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *KVPair) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalTo(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (dst *KVPair) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_KVPair.Merge(dst, src)
+}
+func (m *KVPair) XXX_Size() int {
+	return m.Size()
+}
+func (m *KVPair) XXX_DiscardUnknown() {
+	xxx_messageInfo_KVPair.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_KVPair proto.InternalMessageInfo
+
 type HotshardRequest struct {
-	Sqlstring    *string       `protobuf:"bytes,1,opt,name=sqlstring" json:"sqlstring,omitempty"`
-	Hlctimestamp *HLCTimestamp `protobuf:"bytes,2,opt,name=hlctimestamp" json:"hlctimestamp,omitempty"`
+	Hlctimestamp *HLCTimestamp `protobuf:"bytes,1,opt,name=hlctimestamp" json:"hlctimestamp,omitempty"`
+	WriteKeyset  []*KVPair     `protobuf:"bytes,2,rep,name=write_keyset,json=writeKeyset" json:"write_keyset,omitempty"`
+	ReadKeyset   [][]byte      `protobuf:"bytes,3,rep,name=read_keyset,json=readKeyset" json:"read_keyset,omitempty"`
 }
 
 func (m *HotshardRequest) Reset()         { *m = HotshardRequest{} }
 func (m *HotshardRequest) String() string { return proto.CompactTextString(m) }
 func (*HotshardRequest) ProtoMessage()    {}
 func (*HotshardRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_e2d281b1b26c79f4, []int{1}
+	return fileDescriptor_smdbrpc_3ce012c60fc25c9d, []int{2}
 }
 func (m *HotshardRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -99,15 +133,15 @@ var xxx_messageInfo_HotshardRequest proto.InternalMessageInfo
 
 // The response message containing the greetings
 type HotshardReply struct {
-	IsCommitted  *bool         `protobuf:"varint,1,opt,name=is_committed,json=isCommitted" json:"is_committed,omitempty"`
-	Hlctimestamp *HLCTimestamp `protobuf:"bytes,2,opt,name=hlctimestamp" json:"hlctimestamp,omitempty"`
+	IsCommitted  *bool     `protobuf:"varint,1,opt,name=is_committed,json=isCommitted" json:"is_committed,omitempty"`
+	ReadValueset []*KVPair `protobuf:"bytes,2,rep,name=read_valueset,json=readValueset" json:"read_valueset,omitempty"`
 }
 
 func (m *HotshardReply) Reset()         { *m = HotshardReply{} }
 func (m *HotshardReply) String() string { return proto.CompactTextString(m) }
 func (*HotshardReply) ProtoMessage()    {}
 func (*HotshardReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_e2d281b1b26c79f4, []int{2}
+	return fileDescriptor_smdbrpc_3ce012c60fc25c9d, []int{3}
 }
 func (m *HotshardReply) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -134,6 +168,7 @@ var xxx_messageInfo_HotshardReply proto.InternalMessageInfo
 
 func init() {
 	proto.RegisterType((*HLCTimestamp)(nil), "smdbrpc.HLCTimestamp")
+	proto.RegisterType((*KVPair)(nil), "smdbrpc.KVPair")
 	proto.RegisterType((*HotshardRequest)(nil), "smdbrpc.HotshardRequest")
 	proto.RegisterType((*HotshardReply)(nil), "smdbrpc.HotshardReply")
 }
@@ -232,10 +267,35 @@ func (m *HLCTimestamp) MarshalTo(dAtA []byte) (int, error) {
 		i++
 		i = encodeVarintSmdbrpc(dAtA, i, uint64(*m.Walltime))
 	}
-	if m.Logicaltime != nil {
-		dAtA[i] = 0x10
+	return i, nil
+}
+
+func (m *KVPair) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *KVPair) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Key != nil {
+		dAtA[i] = 0xa
 		i++
-		i = encodeVarintSmdbrpc(dAtA, i, uint64(*m.Logicaltime))
+		i = encodeVarintSmdbrpc(dAtA, i, uint64(len(m.Key)))
+		i += copy(dAtA[i:], m.Key)
+	}
+	if m.Value != nil {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintSmdbrpc(dAtA, i, uint64(len(m.Value)))
+		i += copy(dAtA[i:], m.Value)
 	}
 	return i, nil
 }
@@ -255,14 +315,8 @@ func (m *HotshardRequest) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if m.Sqlstring != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintSmdbrpc(dAtA, i, uint64(len(*m.Sqlstring)))
-		i += copy(dAtA[i:], *m.Sqlstring)
-	}
 	if m.Hlctimestamp != nil {
-		dAtA[i] = 0x12
+		dAtA[i] = 0xa
 		i++
 		i = encodeVarintSmdbrpc(dAtA, i, uint64(m.Hlctimestamp.Size()))
 		n1, err := m.Hlctimestamp.MarshalTo(dAtA[i:])
@@ -270,6 +324,26 @@ func (m *HotshardRequest) MarshalTo(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i += n1
+	}
+	if len(m.WriteKeyset) > 0 {
+		for _, msg := range m.WriteKeyset {
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintSmdbrpc(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	if len(m.ReadKeyset) > 0 {
+		for _, b := range m.ReadKeyset {
+			dAtA[i] = 0x1a
+			i++
+			i = encodeVarintSmdbrpc(dAtA, i, uint64(len(b)))
+			i += copy(dAtA[i:], b)
+		}
 	}
 	return i, nil
 }
@@ -299,15 +373,17 @@ func (m *HotshardReply) MarshalTo(dAtA []byte) (int, error) {
 		}
 		i++
 	}
-	if m.Hlctimestamp != nil {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintSmdbrpc(dAtA, i, uint64(m.Hlctimestamp.Size()))
-		n2, err := m.Hlctimestamp.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+	if len(m.ReadValueset) > 0 {
+		for _, msg := range m.ReadValueset {
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintSmdbrpc(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
 		}
-		i += n2
 	}
 	return i, nil
 }
@@ -330,8 +406,22 @@ func (m *HLCTimestamp) Size() (n int) {
 	if m.Walltime != nil {
 		n += 1 + sovSmdbrpc(uint64(*m.Walltime))
 	}
-	if m.Logicaltime != nil {
-		n += 1 + sovSmdbrpc(uint64(*m.Logicaltime))
+	return n
+}
+
+func (m *KVPair) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Key != nil {
+		l = len(m.Key)
+		n += 1 + l + sovSmdbrpc(uint64(l))
+	}
+	if m.Value != nil {
+		l = len(m.Value)
+		n += 1 + l + sovSmdbrpc(uint64(l))
 	}
 	return n
 }
@@ -342,13 +432,21 @@ func (m *HotshardRequest) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if m.Sqlstring != nil {
-		l = len(*m.Sqlstring)
-		n += 1 + l + sovSmdbrpc(uint64(l))
-	}
 	if m.Hlctimestamp != nil {
 		l = m.Hlctimestamp.Size()
 		n += 1 + l + sovSmdbrpc(uint64(l))
+	}
+	if len(m.WriteKeyset) > 0 {
+		for _, e := range m.WriteKeyset {
+			l = e.Size()
+			n += 1 + l + sovSmdbrpc(uint64(l))
+		}
+	}
+	if len(m.ReadKeyset) > 0 {
+		for _, b := range m.ReadKeyset {
+			l = len(b)
+			n += 1 + l + sovSmdbrpc(uint64(l))
+		}
 	}
 	return n
 }
@@ -362,9 +460,11 @@ func (m *HotshardReply) Size() (n int) {
 	if m.IsCommitted != nil {
 		n += 2
 	}
-	if m.Hlctimestamp != nil {
-		l = m.Hlctimestamp.Size()
-		n += 1 + l + sovSmdbrpc(uint64(l))
+	if len(m.ReadValueset) > 0 {
+		for _, e := range m.ReadValueset {
+			l = e.Size()
+			n += 1 + l + sovSmdbrpc(uint64(l))
+		}
 	}
 	return n
 }
@@ -431,11 +531,61 @@ func (m *HLCTimestamp) Unmarshal(dAtA []byte) error {
 				}
 			}
 			m.Walltime = &v
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Logicaltime", wireType)
+		default:
+			iNdEx = preIndex
+			skippy, err := skipSmdbrpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
 			}
-			var v int64
+			if skippy < 0 {
+				return ErrInvalidLengthSmdbrpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *KVPair) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowSmdbrpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: KVPair: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: KVPair: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Key", wireType)
+			}
+			var byteLen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowSmdbrpc
@@ -445,12 +595,54 @@ func (m *HLCTimestamp) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				v |= (int64(b) & 0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			m.Logicaltime = &v
+			if byteLen < 0 {
+				return ErrInvalidLengthSmdbrpc
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Key = append(m.Key[:0], dAtA[iNdEx:postIndex]...)
+			if m.Key == nil {
+				m.Key = []byte{}
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Value", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSmdbrpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthSmdbrpc
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Value = append(m.Value[:0], dAtA[iNdEx:postIndex]...)
+			if m.Value == nil {
+				m.Value = []byte{}
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipSmdbrpc(dAtA[iNdEx:])
@@ -503,36 +695,6 @@ func (m *HotshardRequest) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Sqlstring", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowSmdbrpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthSmdbrpc
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			s := string(dAtA[iNdEx:postIndex])
-			m.Sqlstring = &s
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Hlctimestamp", wireType)
 			}
 			var msglen int
@@ -563,6 +725,66 @@ func (m *HotshardRequest) Unmarshal(dAtA []byte) error {
 			if err := m.Hlctimestamp.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field WriteKeyset", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSmdbrpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthSmdbrpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.WriteKeyset = append(m.WriteKeyset, &KVPair{})
+			if err := m.WriteKeyset[len(m.WriteKeyset)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ReadKeyset", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSmdbrpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthSmdbrpc
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ReadKeyset = append(m.ReadKeyset, make([]byte, postIndex-iNdEx))
+			copy(m.ReadKeyset[len(m.ReadKeyset)-1], dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -637,7 +859,7 @@ func (m *HotshardReply) Unmarshal(dAtA []byte) error {
 			m.IsCommitted = &b
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Hlctimestamp", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ReadValueset", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -661,10 +883,8 @@ func (m *HotshardReply) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Hlctimestamp == nil {
-				m.Hlctimestamp = &HLCTimestamp{}
-			}
-			if err := m.Hlctimestamp.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			m.ReadValueset = append(m.ReadValueset, &KVPair{})
+			if err := m.ReadValueset[len(m.ReadValueset)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -795,27 +1015,32 @@ var (
 )
 
 func init() {
-	proto.RegisterFile("smdbrpc/protos/smdbrpc.proto", fileDescriptor_smdbrpc_e2d281b1b26c79f4)
+	proto.RegisterFile("smdbrpc/protos/smdbrpc.proto", fileDescriptor_smdbrpc_3ce012c60fc25c9d)
 }
 
-var fileDescriptor_smdbrpc_e2d281b1b26c79f4 = []byte{
-	// 288 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x90, 0xb1, 0x4e, 0xc3, 0x30,
-	0x18, 0x84, 0x63, 0x18, 0x68, 0x9d, 0xa0, 0x4a, 0x96, 0x40, 0x55, 0x55, 0x59, 0x25, 0x13, 0x0b,
-	0xad, 0xd4, 0x8d, 0x95, 0x08, 0xd1, 0xa1, 0x53, 0xc4, 0x80, 0x58, 0x90, 0xeb, 0x98, 0xd6, 0xc8,
-	0x8e, 0xdd, 0xf8, 0x47, 0x25, 0x6f, 0xc1, 0x63, 0x75, 0xec, 0xd8, 0x11, 0x92, 0x17, 0x41, 0x0a,
-	0x0d, 0x69, 0x25, 0xb6, 0x8e, 0x77, 0x67, 0xdd, 0x77, 0xfe, 0x71, 0xdf, 0xe9, 0x64, 0x96, 0x59,
-	0x3e, 0xb2, 0x99, 0x01, 0xe3, 0x46, 0x3b, 0x39, 0xac, 0x24, 0x39, 0xdb, 0xc9, 0x70, 0x8a, 0x83,
-	0xc9, 0x34, 0x7a, 0x94, 0x5a, 0x38, 0x60, 0xda, 0x92, 0x1e, 0x6e, 0xad, 0x98, 0x52, 0x20, 0xb5,
-	0xe8, 0xa2, 0x01, 0xba, 0x3e, 0x8d, 0xff, 0x34, 0x19, 0x60, 0x5f, 0x99, 0xb9, 0xe4, 0xec, 0x37,
-	0x3e, 0xa9, 0xe2, 0x7d, 0x2b, 0x7c, 0xc3, 0x9d, 0x89, 0x01, 0xb7, 0x60, 0x59, 0x12, 0x8b, 0xe5,
-	0xbb, 0x70, 0x40, 0xfa, 0xb8, 0xed, 0x96, 0xca, 0x41, 0x26, 0xd3, 0x79, 0xd5, 0xd8, 0x8e, 0x1b,
-	0x83, 0xdc, 0xe2, 0x60, 0xa1, 0x38, 0xd4, 0xf8, 0xaa, 0xd3, 0x1f, 0x5f, 0x0c, 0xeb, 0xb5, 0xfb,
-	0xdb, 0xe2, 0x83, 0xa7, 0xa1, 0xc6, 0xe7, 0x0d, 0xcb, 0xaa, 0x9c, 0x5c, 0xe1, 0x40, 0xba, 0x17,
-	0x6e, 0xb4, 0x96, 0x00, 0x22, 0xa9, 0x60, 0xad, 0xd8, 0x97, 0x2e, 0xaa, 0xad, 0x23, 0x70, 0xe3,
-	0xa7, 0xe6, 0x6b, 0x0f, 0x0c, 0xc4, 0x8a, 0xe5, 0xe4, 0x1e, 0x77, 0x22, 0x93, 0x02, 0xe3, 0x50,
-	0x27, 0xa4, 0xdb, 0x54, 0x1d, 0xde, 0xa1, 0x77, 0xf9, 0x4f, 0x62, 0x55, 0x1e, 0x7a, 0x77, 0x37,
-	0xeb, 0x6f, 0xea, 0xad, 0x0b, 0x8a, 0x36, 0x05, 0x45, 0xdb, 0x82, 0xa2, 0xaf, 0x82, 0xa2, 0xcf,
-	0x92, 0x7a, 0x9b, 0x92, 0x7a, 0xdb, 0x92, 0x7a, 0xcf, 0xbe, 0xf8, 0x10, 0x5c, 0xa6, 0xaf, 0x19,
-	0xb3, 0xb3, 0x9f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x3b, 0x79, 0x09, 0x35, 0xd9, 0x01, 0x00, 0x00,
+var fileDescriptor_smdbrpc_3ce012c60fc25c9d = []byte{
+	// 356 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x90, 0x41, 0x6b, 0xea, 0x40,
+	0x10, 0xc7, 0x13, 0xc3, 0x7b, 0x4f, 0x26, 0x11, 0x1f, 0xcb, 0x7b, 0x25, 0x48, 0xd9, 0xda, 0x9c,
+	0xa4, 0x50, 0x2d, 0xa1, 0x97, 0x5e, 0x2b, 0xa5, 0x82, 0x3d, 0x94, 0x50, 0xa4, 0xf4, 0x22, 0x6b,
+	0x32, 0xc5, 0xc5, 0xc4, 0xa4, 0xd9, 0xb5, 0x36, 0xdf, 0xa2, 0x5f, 0xa1, 0xdf, 0xc6, 0xa3, 0x47,
+	0x8f, 0x6d, 0xfc, 0x22, 0xc5, 0xd5, 0x68, 0x85, 0xd2, 0x5b, 0xfe, 0x33, 0xbf, 0x99, 0xfc, 0x76,
+	0xe0, 0x50, 0x44, 0xc1, 0x20, 0x4d, 0xfc, 0x56, 0x92, 0xc6, 0x32, 0x16, 0xad, 0x4d, 0x6c, 0xaa,
+	0x48, 0xfe, 0x6c, 0xa2, 0x73, 0x02, 0x56, 0xe7, 0xa6, 0x7d, 0xc7, 0x23, 0x14, 0x92, 0x45, 0x09,
+	0xa9, 0x41, 0x79, 0xca, 0xc2, 0x50, 0xf2, 0x08, 0x6d, 0xbd, 0xae, 0x37, 0x0c, 0x6f, 0x9b, 0x9d,
+	0x33, 0xf8, 0xdd, 0xed, 0xdd, 0x32, 0x9e, 0x92, 0xbf, 0x60, 0x8c, 0x30, 0x53, 0x80, 0xe5, 0xad,
+	0x3e, 0xc9, 0x3f, 0xf8, 0xf5, 0xcc, 0xc2, 0x09, 0xda, 0x25, 0x55, 0x5b, 0x07, 0xe7, 0x4d, 0x87,
+	0x6a, 0x27, 0x96, 0x62, 0xc8, 0xd2, 0xc0, 0xc3, 0xa7, 0x09, 0x0a, 0x49, 0x2e, 0xc0, 0x1a, 0x86,
+	0xbe, 0x2c, 0xfe, 0xa8, 0x96, 0x98, 0xee, 0xff, 0x66, 0x21, 0xf8, 0x55, 0xc7, 0xdb, 0x43, 0x89,
+	0x0b, 0xd6, 0x34, 0xe5, 0x12, 0xfb, 0x23, 0xcc, 0x04, 0x4a, 0xbb, 0x54, 0x37, 0x1a, 0xa6, 0x5b,
+	0xdd, 0x8e, 0xae, 0xed, 0x3c, 0x53, 0x41, 0x5d, 0xc5, 0x90, 0x23, 0x30, 0x53, 0x64, 0x41, 0x31,
+	0x62, 0xd4, 0x8d, 0x86, 0xe5, 0xc1, 0xaa, 0xb4, 0x06, 0x9c, 0x21, 0x54, 0x76, 0x8a, 0x49, 0x98,
+	0x91, 0x63, 0xb0, 0xb8, 0xe8, 0xfb, 0x71, 0x14, 0x71, 0x29, 0x31, 0x50, 0x82, 0x65, 0xcf, 0xe4,
+	0xa2, 0x5d, 0x94, 0xc8, 0x39, 0x54, 0xd4, 0x52, 0xf5, 0xca, 0x1f, 0x4c, 0xac, 0x15, 0xd5, 0xdb,
+	0x40, 0xee, 0xfd, 0xee, 0x18, 0xd7, 0x4c, 0xe2, 0x94, 0x65, 0xe4, 0x0a, 0xaa, 0xed, 0x78, 0x2c,
+	0x99, 0x2f, 0x8b, 0x0e, 0xb1, 0x77, 0x97, 0xd8, 0xbf, 0x5c, 0xed, 0xe0, 0x9b, 0x4e, 0x12, 0x66,
+	0x8e, 0x76, 0x79, 0x3a, 0xfb, 0xa0, 0xda, 0x2c, 0xa7, 0xfa, 0x3c, 0xa7, 0xfa, 0x22, 0xa7, 0xfa,
+	0x7b, 0x4e, 0xf5, 0xd7, 0x25, 0xd5, 0xe6, 0x4b, 0xaa, 0x2d, 0x96, 0x54, 0x7b, 0x30, 0xf1, 0x05,
+	0x7d, 0x3e, 0x7e, 0x4c, 0x59, 0x32, 0xf8, 0x0c, 0x00, 0x00, 0xff, 0xff, 0xb0, 0x7a, 0x68, 0xaa,
+	0x1c, 0x02, 0x00, 0x00,
 }
