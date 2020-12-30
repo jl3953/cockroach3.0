@@ -592,8 +592,6 @@ func (txn *Txn) commit(ctx context.Context) error {
 			txn.ProvisionalCommitTimestamp()); !succeeded {
 			// jenndebug TODO how do I abort a txn?
 			log.Fatal(ctx, "jenndebug the hotshard could not commit txn")
-		} else {
-			log.Warningf(ctx, "jenndebug we did it")
 		}
 	}
 
@@ -1382,8 +1380,8 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	} else {
 
 		// rpc succeeded
-		for i, kvPair := range reply.ReadValueset {
-			readResults[2*i], readResults[2*i+1] = kvPair.Key, kvPair.Value
+		for _, kvPair := range reply.ReadValueset {
+			readResults = append(readResults, kvPair.Key, kvPair.Value)
 		}
 		return readResults, *reply.IsCommitted
 	}
