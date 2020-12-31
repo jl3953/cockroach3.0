@@ -44,8 +44,8 @@ message HLCTimestamp {
 //}
 
 message KVPair {
-  optional bytes key = 1;
-  optional bytes value = 2;
+  optional uint64 key = 1;
+  optional uint64 value = 2;
 }
 
 // The greeting service definition.
@@ -75,7 +75,7 @@ message HotshardRequest {
 
   repeated KVPair write_keyset = 2;
 
-  repeated bytes read_keyset = 3;
+  repeated uint64 read_keyset = 3;
 
 }
 

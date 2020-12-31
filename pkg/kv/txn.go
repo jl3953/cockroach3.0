@@ -1327,16 +1327,19 @@ func initializeAndPopulateHotshardRequest(
 
 	// populate request write hotkey set
 	for i := 0; i < len(writeHotkeys); i+=2 {
+		var key uint64 = binary.BigEndian.Uint64(writeHotkeys[i])
+		var value uint64 = binary.BigEndian.Uint64(writeHotkeys[i+1])
 		kvPair := execinfrapb.KVPair{
-			Key:   writeHotkeys[i],
-			Value: writeHotkeys[i+1],
+			Key:   &key,
+			Value: &value,
 		}
 		request.WriteKeyset = append(request.WriteKeyset, &kvPair)
 	}
 
 	// populate request read hotkey set
 	for _, readKey := range readHotkeys {
-		request.ReadKeyset = append(request.ReadKeyset, readKey)
+		var key uint64 = binary.BigEndian.Uint64(readKey)
+		request.ReadKeyset = append(request.ReadKeyset, key)
 	}
 
 	return request
@@ -1381,7 +1384,10 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 
 		// rpc succeeded
 		for _, kvPair := range reply.ReadValueset {
-			readResults = append(readResults, kvPair.Key, kvPair.Value)
+			var key, value []byte = make([]byte, 8), make([]byte, 8)
+			binary.BigEndian.PutUint64(key, *kvPair.Key)
+			binary.BigEndian.PutUint64(value, *kvPair.Value)
+			readResults = append(readResults, key, value)
 		}
 		return readResults, *reply.IsCommitted
 	}
