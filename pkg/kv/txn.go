@@ -1309,7 +1309,7 @@ func (txn *Txn) ReleaseSavepoint(ctx context.Context, s SavepointToken) error {
 func (txn *Txn) AddWriteHotkeys(hotkeys [][]byte) {
 	/**
 	@param hotkeys slice each key followed by its value.
-	 */
+	*/
 	txn.writeHotkeys = append(txn.writeHotkeys, hotkeys...)
 }
 
@@ -1326,7 +1326,8 @@ func initializeAndPopulateHotshardRequest(
 	}
 
 	// populate request write hotkey set
-	for i := 0; i < len(writeHotkeys); i+=2 {
+	for i := 0; i < len(writeHotkeys); i += 2 {
+
 		var key uint64 = binary.BigEndian.Uint64(writeHotkeys[i])
 		var value uint64 = binary.BigEndian.Uint64(writeHotkeys[i+1])
 		kvPair := execinfrapb.KVPair{
@@ -1346,9 +1347,23 @@ func initializeAndPopulateHotshardRequest(
 
 }
 
+func extractHotshardReply(readResults [][]byte, reply *execinfrapb.HotshardReply) ([][]byte, bool){
+	for _, kvPair := range reply.ReadValueset {
+		key, value := make([]byte, 8), make([]byte, 8)
+		binary.BigEndian.PutUint64(key, *kvPair.Key)
+		binary.BigEndian.PutUint64(value, *kvPair.Value)
+		readResults = append(readResults, key, value)
+
+		log.Warningf(context.Background(), "jenndebug read(%d)=%d\n",
+			*kvPair.Key, *kvPair.Value)
+	}
+
+	return readResults, *reply.IsCommitted
+}
+
 func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	readHotkeys [][]byte,
-	provisionalCommitTimestamp hlc.Timestamp) (readResults[][]byte, succeeded bool) {
+	provisionalCommitTimestamp hlc.Timestamp) (readResults [][]byte, succeeded bool) {
 	/**
 	@param writeHotkeys each key followed by its value
 	@param readHotkeys slice of read hotkeys
@@ -1356,7 +1371,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 
 	@return readResults each key followed by its value
 	@param succeeded whether rpc succeeded
-	 */
+	*/
 
 	// address of hotshard
 	address := "localhost:50051"
@@ -1383,13 +1398,8 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	} else {
 
 		// rpc succeeded
-		for _, kvPair := range reply.ReadValueset {
-			var key, value []byte = make([]byte, 8), make([]byte, 8)
-			binary.BigEndian.PutUint64(key, *kvPair.Key)
-			binary.BigEndian.PutUint64(value, *kvPair.Value)
-			readResults = append(readResults, key, value)
-		}
-		return readResults, *reply.IsCommitted
+		readResults, succeeded = extractHotshardReply(readResults, reply)
+		return readResults, succeeded
 	}
 }
 
