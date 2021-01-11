@@ -16,6 +16,7 @@ import (
 	"fmt"
 	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
 	"google.golang.org/grpc"
+	"runtime/debug"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
@@ -586,14 +587,6 @@ func (txn *Txn) Run(ctx context.Context, b *Batch) error {
 }
 
 func (txn *Txn) commit(ctx context.Context) error {
-	if txn.HasWriteHotkeys() || txn.HasReadHotkeys() {
-		if _, succeeded := txn.ContactHotshard(txn.GetAndClearWriteHotkeys(),
-			txn.GetAndClearReadHotKeys(),
-			txn.ProvisionalCommitTimestamp()); !succeeded {
-			// jenndebug TODO how do I abort a txn?
-			log.Fatal(ctx, "jenndebug the hotshard could not commit txn")
-		}
-	}
 
 	var ba roachpb.BatchRequest
 	ba.Add(endTxnReq(true /* commit */, txn.deadline(), txn.systemConfigTrigger))
@@ -624,6 +617,21 @@ func (txn *Txn) CleanupOnError(ctx context.Context, err error) {
 	}
 }
 
+func (txn *Txn) ContactHotshardWrapper(ctx context.Context) error {
+	if txn.HasWriteHotkeys() || txn.HasReadHotkeys() {
+		// TODO jenndebug implement reads here
+		if _, succeeded := txn.ContactHotshard(txn.GetAndClearWriteHotkeys(),
+			txn.GetAndClearReadHotKeys(),
+			txn.ProvisionalCommitTimestamp()); !succeeded {
+			debug.PrintStack()
+			hotshardErr := txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard")
+			return hotshardErr
+		}
+	}
+
+	return nil
+}
+
 // Commit is the same as CommitOrCleanup but will not attempt to clean
 // up on failure. This can be used when the caller is prepared to do proper
 // cleanup.
@@ -632,6 +640,9 @@ func (txn *Txn) Commit(ctx context.Context) error {
 		return errors.WithContextTags(errors.AssertionFailedf("Commit() called on leaf txn"), ctx)
 	}
 
+	if hotshardErr := txn.ContactHotshardWrapper(ctx); nil != hotshardErr {
+		return hotshardErr
+	}
 	return txn.commit(ctx)
 }
 
@@ -651,6 +662,12 @@ func (txn *Txn) CommitInBatch(ctx context.Context, b *Batch) error {
 	if txn != b.txn {
 		return errors.Errorf("a batch b can only be committed by b.txn")
 	}
+
+	//if hotshardErr := txn.ContactHotshardWrapper(); hotshardErr != nil {
+	//	return hotshardErr
+	//}
+
+	log.Warningf(ctx, "jenndebug oh boy we should not be hitting this\n")
 	b.appendReqs(endTxnReq(true /* commit */, txn.deadline(), txn.systemConfigTrigger))
 	b.initResult(1 /* calls */, 0, b.raw, nil)
 	return txn.Run(ctx, b)
@@ -664,6 +681,9 @@ func (txn *Txn) CommitOrCleanup(ctx context.Context) error {
 		return errors.WithContextTags(errors.AssertionFailedf("CommitOrCleanup() called on leaf txn"), ctx)
 	}
 
+	if hotshardErr := txn.ContactHotshardWrapper(ctx); hotshardErr != nil {
+		return hotshardErr
+	}
 	err := txn.commit(ctx)
 	if err != nil {
 		txn.CleanupOnError(ctx, err)
