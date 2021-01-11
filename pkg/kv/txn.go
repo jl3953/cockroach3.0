@@ -1342,6 +1342,7 @@ func initializeAndPopulateHotshardRequest(
 	request := execinfrapb.HotshardRequest{
 		Hlctimestamp: &execinfrapb.HLCTimestamp{
 			Walltime: &provisionalCommitTimestamp.WallTime,
+			Logicaltime: &provisionalCommitTimestamp.Logical,
 		},
 	}
 

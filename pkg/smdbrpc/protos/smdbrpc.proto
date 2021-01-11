@@ -31,8 +31,8 @@ package smdbrpc;
 //}
 
 message HLCTimestamp {
-  optional int64 walltime = 1; // the 64 bit timestampe value
-  // optional int64 logicaltime = 2; // the causality counter
+  optional int64 walltime = 1; // the 64 bit timestamp value
+  optional int32 logicaltime = 2; // the causality counter
 }
 
 //message Key {
