@@ -79,7 +79,7 @@ type kv struct {
 	shards                               int
 	targetCompressionRatio               float64
 	enum                                 bool
-	skewS                                    float64
+	skewS                                float64
 	zipfVerbose                          bool
 	useOriginal                          bool
 	maxHotkey                            int64
@@ -113,9 +113,9 @@ var kvMeta = workload.Meta{
 		}
 		g.flags.IntVar(&g.batchSize, `batch`, 1,
 			`Number of blocks to read/insert in a single SQL statement.`)
-		g.flags.IntVar(&g.minBlockSizeBytes, `min-block-bytes`, 1,
+		g.flags.IntVar(&g.minBlockSizeBytes, `min-block-bytes`, 8,
 			`Minimum amount of raw data written with each insertion.`)
-		g.flags.IntVar(&g.maxBlockSizeBytes, `max-block-bytes`, 1,
+		g.flags.IntVar(&g.maxBlockSizeBytes, `max-block-bytes`, 8,
 			`Maximum amount of raw data written with each insertion`)
 		g.flags.Int64Var(&g.cycleLength, `cycle-length`, math.MaxInt64,
 			`Number of keys repeatedly accessed by each writer through upserts.`)
@@ -326,7 +326,7 @@ func (w *kv) Ops(
 			config:          w,
 			hists:           reg.GetHandle(),
 			numEmptyResults: numEmptyResults,
-			mcp: mcp,
+			mcp:             mcp,
 		}
 		op.readStmt = op.sr.Define(readStmtStr)
 		op.writeStmt = op.sr.Define(writeStmtStr)
@@ -356,7 +356,7 @@ type kvOp struct {
 	spanStmt        workload.StmtHandle
 	g               keyGenerator
 	numEmptyResults *int64 // accessed atomically
-	mcp *workload.MultiConnPool
+	mcp             *workload.MultiConnPool
 }
 
 type byInt []int64
@@ -462,7 +462,6 @@ func (o *kvOp) run(ctx context.Context) error {
 		args[j+0] = argsInt[i]
 		args[j+1] = randomBlock(o.config, o.g.rand())
 	}
-
 
 	start := timeutil.Now()
 	err := crdb.ExecuteInTx(ctx, (*workload.PgxTx)(tx), func() error {
