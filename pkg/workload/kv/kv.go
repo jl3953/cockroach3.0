@@ -381,8 +381,14 @@ func correctTxnParams(batchSize int, generateKey generateKeyFunc, greatestHotKey
 
 	// sort the keys first
 	argsInt := make([]int64, batchSize)
+	duplicates := make(map[int64]bool)
 	for i := 0; i < batchSize; i++ {
-		argsInt[i] = generateKey()
+		key := generateKey()
+		for duplicates[key] {
+			key = generateKey()
+		}
+		duplicates[key] = true
+		argsInt[i] = key
 	}
 	sort.Sort(byInt(argsInt))
 
