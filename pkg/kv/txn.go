@@ -15,7 +15,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
-	"google.golang.org/grpc"
 	"runtime/debug"
 	"time"
 
@@ -1394,7 +1393,8 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	@param succeeded whether rpc succeeded
 	*/
 
-	// address of hotshard
+	return nil, true
+	/*// address of hotshard
 	address := "localhost:50051"
 
 	// grpc client boilerplate connection code
@@ -1421,7 +1421,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 		// rpc succeeded
 		readResults, succeeded = extractHotshardReply(readResults, reply)
 		return readResults, succeeded
-	}
+	}*/
 }
 
 func (txn *Txn) GetAndClearWriteHotkeys() [][]byte {
