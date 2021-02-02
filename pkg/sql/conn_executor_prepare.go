@@ -399,14 +399,14 @@ func extendWarmArgsWrite(warmArgs [][]byte, byHowMuch int) [][]byte {
 	return warmArgs
 }
 
-func stripHotkeysWrite(bindCmd BindStmt) (hotkeys[][]byte, warmArgs[][]byte, hasWarmKeys bool) {
+func stripHotkeysWrite(bindCmd BindStmt) (hotkeys [][]byte, warmArgs [][]byte, hasWarmKeys bool) {
 	/**
 	@param bindCmd
 
 	@returns hotkeys slice with each key followed by its value.
 	@returns warmArgs slice with each key followed by its value.
 	@returns hasWarmKeys whether or not warmArgs is populated/
-	 */
+	*/
 
 	var key, val []byte
 	for i := 0; i < len(bindCmd.Args); i += 2 {
@@ -429,7 +429,7 @@ func stripHotkeysWrite(bindCmd BindStmt) (hotkeys[][]byte, warmArgs[][]byte, has
 func isHotkey(key []byte) bool {
 
 	// jenndebug We're just...hardcoding some hotkeys here
-	hotkeys := []uint64{0, 1, 2}
+	hotkeys := []uint64{0}
 
 	keyInt := binary.BigEndian.Uint64(key)
 	for _, hotkey := range hotkeys {
