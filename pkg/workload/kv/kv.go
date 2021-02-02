@@ -379,20 +379,33 @@ type generateKeyFunc func() int64
 
 func correctTxnParams(batchSize int, generateKey generateKeyFunc, greatestHotKey int64) []int64 {
 
-	// sort the keys first
+	// sort the keys first and remove duplicates
 	argsInt := make([]int64, batchSize)
+	duplicates := make(map[int64]bool)
 	for i := 0; i < batchSize; i++ {
-		argsInt[i] = generateKey()
+		key := generateKey()
+		for duplicates[key] {
+			key = generateKey()
+		}
+		duplicates[key] = true
+		argsInt[i] = key
 	}
-	sort.Sort(byInt(argsInt))
 
-	//jenndebug hot replacing hot keys
-	//for i := 0; i < len(argsInt); i++ {
-	//	if argsInt[i] <= greatestHotKey {
-	//		argsInt[i] = argsInt[0]
-	//	}
-	//}
-	//sort.Sort(byInt(argsInt))
+	sort.Slice(argsInt, func(i, j int) bool {
+		return argsInt[i] < argsInt[j]
+	})
+
+	// jenndebug hot replacing hot keys with the
+	// least likely key
+	max := argsInt[len(argsInt)-1]
+	for i := 0; i < len(argsInt); i++ {
+		if argsInt[i] <= greatestHotKey {
+			argsInt[i] = max
+		}
+	}
+	sort.Slice(argsInt, func(i, j int) bool {
+		return argsInt[i] < argsInt[j]
+	})
 
 	return argsInt
 }
