@@ -429,13 +429,11 @@ func stripHotkeysWrite(bindCmd BindStmt) (hotkeys[][]byte, warmArgs[][]byte, has
 func isHotkey(key []byte) bool {
 
 	// jenndebug We're just...hardcoding some hotkeys here
-	hotkeys := []uint64{0}
+	//hotkeys := []uint64{0}
 
 	keyInt := binary.BigEndian.Uint64(key)
-	for _, hotkey := range hotkeys {
-		if keyInt == hotkey {
-			return true
-		}
+	if keyInt < 250000 {
+		return true
 	}
 
 	return false
