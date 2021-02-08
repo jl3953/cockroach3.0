@@ -17,21 +17,21 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/cockroachdb/cockroach-go/crdb"
+	"github.com/cockroachdb/cockroach/pkg/util/timeutil"
+	"github.com/cockroachdb/cockroach/pkg/workload"
+	"github.com/cockroachdb/cockroach/pkg/workload/histogram"
+	"github.com/cockroachdb/cockroach/pkg/workload/ycsb"
+	"github.com/cockroachdb/errors"
 	"github.com/jackc/pgx"
+	"github.com/spf13/pflag"
+	"golang.org/x/exp/rand"
 	"hash"
 	"math"
 	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
-
-	"github.com/cockroachdb/cockroach/pkg/util/timeutil"
-	"github.com/cockroachdb/cockroach/pkg/workload"
-	"github.com/cockroachdb/cockroach/pkg/workload/histogram"
-	"github.com/cockroachdb/cockroach/pkg/workload/ycsb"
-	"github.com/cockroachdb/errors"
-	"github.com/spf13/pflag"
-	"golang.org/x/exp/rand"
+	"time"
 )
 
 const (
@@ -410,6 +410,14 @@ func correctTxnParams(batchSize int, generateKey generateKeyFunc, greatestHotKey
 	return argsInt
 }
 
+func containsOnlyHotkeys(argsInt []int64, maxHotkey int64) bool {
+	sort.Slice(argsInt, func(i, j int) bool {
+		return argsInt[i]< argsInt[j]
+	})
+
+	return argsInt[len(argsInt)-1] <= maxHotkey
+}
+
 func (o *kvOp) run(ctx context.Context) error {
 
 	tx, _ := o.mcp.Get().BeginEx(ctx, &pgx.TxOptions{
@@ -421,12 +429,11 @@ func (o *kvOp) run(ctx context.Context) error {
 	if statementProbability < o.config.readPercent {
 
 		argsInt := correctTxnParams(o.config.batchSize, o.g.readKey, o.config.maxHotkey)
-
-		/* if argsInt[0] <= o.config.hotkey { //jenndebug hot
-			o.hists.Get(`read`).Record(0 * time.Millisecond)
-			return nil
-		}*/
-
+		for containsOnlyHotkeys(argsInt, o.config.maxHotkey) {
+			argsInt = correctTxnParams(o.config.batchSize, o.g.readKey, o.config.maxHotkey)
+			o.hists.Get(`read`).Record(0*time.Millisecond)
+			//time.Sleep(1*time.Millisecond)
+		}
 		args := make([]interface{}, o.config.batchSize)
 		for i := 0; i < o.config.batchSize; i++ {
 			args[i] = argsInt[i]
@@ -469,6 +476,11 @@ func (o *kvOp) run(ctx context.Context) error {
 	const argCount = 2
 
 	argsInt := correctTxnParams(o.config.batchSize, o.g.writeKey, o.config.maxHotkey)
+	for containsOnlyHotkeys(argsInt, o.config.maxHotkey) {
+		argsInt = correctTxnParams(o.config.batchSize, o.g.writeKey, o.config.maxHotkey)
+		o.hists.Get(`write`).Record(0*time.Millisecond)
+	}
+
 	args := make([]interface{}, argCount*o.config.batchSize)
 	for i := 0; i < o.config.batchSize; i++ {
 		j := i * argCount
