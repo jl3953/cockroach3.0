@@ -16,9 +16,11 @@ import (
 	gosql "database/sql"
 	"encoding/binary"
 	"fmt"
+	"github.com/cockroachdb/cockroach-go/crdb"
+	"github.com/jackc/pgx"
 	"hash"
 	"math"
-	"math/rand"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -26,8 +28,10 @@ import (
 	"github.com/cockroachdb/cockroach/pkg/util/timeutil"
 	"github.com/cockroachdb/cockroach/pkg/workload"
 	"github.com/cockroachdb/cockroach/pkg/workload/histogram"
+	"github.com/cockroachdb/cockroach/pkg/workload/ycsb"
 	"github.com/cockroachdb/errors"
 	"github.com/spf13/pflag"
+	"golang.org/x/exp/rand"
 )
 
 const (
@@ -75,6 +79,11 @@ type kv struct {
 	shards                               int
 	targetCompressionRatio               float64
 	enum                                 bool
+	skewS                                float64
+	zipfVerbose                          bool
+	useOriginal                          bool
+	maxHotkey                            int64
+	keyspace                             int64
 }
 
 func init() {
@@ -104,9 +113,9 @@ var kvMeta = workload.Meta{
 		}
 		g.flags.IntVar(&g.batchSize, `batch`, 1,
 			`Number of blocks to read/insert in a single SQL statement.`)
-		g.flags.IntVar(&g.minBlockSizeBytes, `min-block-bytes`, 1,
+		g.flags.IntVar(&g.minBlockSizeBytes, `min-block-bytes`, 8,
 			`Minimum amount of raw data written with each insertion.`)
-		g.flags.IntVar(&g.maxBlockSizeBytes, `max-block-bytes`, 1,
+		g.flags.IntVar(&g.maxBlockSizeBytes, `max-block-bytes`, 8,
 			`Maximum amount of raw data written with each insertion`)
 		g.flags.Int64Var(&g.cycleLength, `cycle-length`, math.MaxInt64,
 			`Number of keys repeatedly accessed by each writer through upserts.`)
@@ -133,6 +142,11 @@ var kvMeta = workload.Meta{
 			`Target compression ratio for data blocks. Must be >= 1.0`)
 		g.flags.BoolVar(&g.enum, `enum`, false,
 			`Inject an enum column and use it`)
+		g.flags.Float64Var(&g.skewS, `s`, 1.2, `s parameter in the zipfian generator, default 1.2`)
+		g.flags.BoolVar(&g.zipfVerbose, `zipfVerbose`, false, `whether zipfian generator is verbose`)
+		g.flags.BoolVar(&g.useOriginal, `useOriginal`, true, `whether or not to use original fake zipfian generator.`)
+		g.flags.Int64Var(&g.maxHotkey, `hotkey`, -1, `the largest hot key on the hot shard.`)
+		g.flags.Int64Var(&g.keyspace, `keyspace`, 1000000, `key range starting from 0`)
 		g.connFlags = workload.NewConnFlags(&g.flags)
 		return g
 	},
@@ -312,6 +326,7 @@ func (w *kv) Ops(
 			config:          w,
 			hists:           reg.GetHandle(),
 			numEmptyResults: numEmptyResults,
+			mcp:             mcp,
 		}
 		op.readStmt = op.sr.Define(readStmtStr)
 		op.writeStmt = op.sr.Define(writeStmtStr)
@@ -322,7 +337,7 @@ func (w *kv) Ops(
 		if w.sequential {
 			op.g = newSequentialGenerator(seq)
 		} else if w.zipfian {
-			op.g = newZipfianGenerator(seq)
+			op.g = newZipfianGenerator(seq, w.skewS, w.zipfVerbose, w.useOriginal, w.keyspace)
 		} else {
 			op.g = newHashGenerator(seq)
 		}
@@ -341,30 +356,98 @@ type kvOp struct {
 	spanStmt        workload.StmtHandle
 	g               keyGenerator
 	numEmptyResults *int64 // accessed atomically
+	mcp             *workload.MultiConnPool
+}
+
+type byInt []int64
+
+func (s byInt) Len() int {
+	return len(s)
+}
+
+func (s byInt) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s byInt) Less(i, j int) bool {
+	return s[i] < s[j]
+	// reverse
+	// return s[i] > s[j]
+}
+
+type generateKeyFunc func() int64
+
+func correctTxnParams(batchSize int, generateKey generateKeyFunc, greatestHotKey int64) []int64 {
+
+	// sort the keys first
+	argsInt := make([]int64, batchSize)
+	duplicates := make(map[int64]bool)
+	for i := 0; i < batchSize; i++ {
+		key := generateKey()
+		for duplicates[key] {
+			key = generateKey()
+		}
+		duplicates[key] = true
+		argsInt[i] = key
+	}
+	sort.Sort(byInt(argsInt))
+
+	//jenndebug hot replacing hot keys
+	//for i := 0; i < len(argsInt); i++ {
+	//	if argsInt[i] <= greatestHotKey {
+	//		argsInt[i] = argsInt[0]
+	//	}
+	//}
+	//sort.Sort(byInt(argsInt))
+
+	return argsInt
 }
 
 func (o *kvOp) run(ctx context.Context) error {
+
+	tx, _ := o.mcp.Get().BeginEx(ctx, &pgx.TxOptions{
+		IsoLevel:   pgx.Serializable,
+		AccessMode: pgx.ReadWrite,
+	})
+
 	statementProbability := o.g.rand().Intn(100) // Determines what statement is executed.
 	if statementProbability < o.config.readPercent {
+
+		argsInt := correctTxnParams(o.config.batchSize, o.g.readKey, o.config.maxHotkey)
+
+		/* if argsInt[0] <= o.config.hotkey { //jenndebug hot
+			o.hists.Get(`read`).Record(0 * time.Millisecond)
+			return nil
+		}*/
+
 		args := make([]interface{}, o.config.batchSize)
 		for i := 0; i < o.config.batchSize; i++ {
-			args[i] = o.g.readKey()
+			args[i] = argsInt[i]
 		}
+
 		start := timeutil.Now()
-		rows, err := o.readStmt.Query(ctx, args...)
-		if err != nil {
-			return err
-		}
-		empty := true
-		for rows.Next() {
-			empty = false
-		}
-		if empty {
-			atomic.AddInt64(o.numEmptyResults, 1)
-		}
+		err := crdb.ExecuteInTx(ctx, (*workload.PgxTx)(tx), func() error {
+			rows, err := o.readStmt.QueryTx(ctx, tx, args...)
+			if err != nil {
+				return err
+			}
+			empty := true
+			for rows.Next() {
+				empty = false
+			}
+			if empty {
+				atomic.AddInt64(o.numEmptyResults, 1)
+			}
+			if rowErr := rows.Err(); rowErr != nil {
+				return rowErr
+			} else {
+				rows.Close()
+				return nil
+			}
+		})
 		elapsed := timeutil.Since(start)
 		o.hists.Get(`read`).Record(elapsed)
-		return rows.Err()
+		return err
 	}
 	// Since we know the statement is not a read, we recalibrate
 	// statementProbability to only consider the other statements.
@@ -377,14 +460,20 @@ func (o *kvOp) run(ctx context.Context) error {
 		return err
 	}
 	const argCount = 2
+
+	argsInt := correctTxnParams(o.config.batchSize, o.g.writeKey, o.config.maxHotkey)
 	args := make([]interface{}, argCount*o.config.batchSize)
 	for i := 0; i < o.config.batchSize; i++ {
 		j := i * argCount
-		args[j+0] = o.g.writeKey()
+		args[j+0] = argsInt[i]
 		args[j+1] = randomBlock(o.config, o.g.rand())
 	}
+
 	start := timeutil.Now()
-	_, err := o.writeStmt.Exec(ctx, args...)
+	err := crdb.ExecuteInTx(ctx, (*workload.PgxTx)(tx), func() error {
+		_, err := o.writeStmt.ExecTx(ctx, tx, args...)
+		return err
+	})
 	elapsed := timeutil.Since(start)
 	o.hists.Get(`write`).Record(elapsed)
 	return err
@@ -440,7 +529,7 @@ type hashGenerator struct {
 func newHashGenerator(seq *sequence) *hashGenerator {
 	return &hashGenerator{
 		seq:    seq,
-		random: rand.New(rand.NewSource(timeutil.Now().UnixNano())),
+		random: rand.New(rand.NewSource(uint64(timeutil.Now().UnixNano()))),
 		hasher: sha1.New(),
 	}
 }
@@ -482,7 +571,7 @@ type sequentialGenerator struct {
 func newSequentialGenerator(seq *sequence) *sequentialGenerator {
 	return &sequentialGenerator{
 		seq:    seq,
-		random: rand.New(rand.NewSource(timeutil.Now().UnixNano())),
+		random: rand.New(rand.NewSource(uint64(timeutil.Now().UnixNano()))),
 	}
 }
 
@@ -506,27 +595,42 @@ func (g *sequentialGenerator) sequence() int64 {
 	return atomic.LoadInt64(&g.seq.val)
 }
 
+type zipfWrapper interface {
+	Uint64Jenn(*rand.Rand) uint64
+}
+
 type zipfGenerator struct {
 	seq    *sequence
 	random *rand.Rand
-	zipf   *zipf
+	zipf   zipfWrapper
 }
 
 // Creates a new zipfian generator.
-func newZipfianGenerator(seq *sequence) *zipfGenerator {
-	random := rand.New(rand.NewSource(timeutil.Now().UnixNano()))
+func newZipfianGenerator(seq *sequence, s float64, verbose bool, useOriginal bool,
+	keyspace int64) *zipfGenerator {
+	random := rand.New(rand.NewSource(uint64(timeutil.Now().UnixNano())))
+	max := uint64(keyspace)
+	//var hey zipfWrapper
+	//if useOriginal {
+	//	hey = newZipf(s, 1, max)
+	//} else {
+	//	hey, _ = ycsb.NewZipfGenerator(random, 0, max, s, verbose)
+	//
+	//}
+	hey, _ := ycsb.NewZipfGenerator(random, 0, max, s, verbose)
 	return &zipfGenerator{
 		seq:    seq,
 		random: random,
-		zipf:   newZipf(1.1, 1, uint64(math.MaxInt64)),
+		// zipf:   hey,
+		zipf: hey,
 	}
 }
 
 // Get a random number seeded by v that follows the
 // zipfian distribution.
 func (g *zipfGenerator) zipfian(seed int64) int64 {
-	randomWithSeed := rand.New(rand.NewSource(seed))
-	return int64(g.zipf.Uint64(randomWithSeed))
+	randomWithSeed := rand.New(rand.NewSource(uint64(seed)))
+	return int64(g.zipf.Uint64Jenn(randomWithSeed))
 }
 
 // Get a zipf write key appropriately.

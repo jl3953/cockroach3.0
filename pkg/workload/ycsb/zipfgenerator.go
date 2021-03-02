@@ -125,6 +125,9 @@ func computeZetaFromScratch(n uint64, theta float64) (float64, error) {
 	return zeta, nil
 }
 
+func (z *ZipfGenerator) Uint64Jenn(_ *rand.Rand) uint64 {
+	return z.Uint64()
+}
 // Uint64 draws a new value between iMin and iMax, with probabilities
 // according to the Zipf distribution.
 func (z *ZipfGenerator) Uint64() uint64 {
