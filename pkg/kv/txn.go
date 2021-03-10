@@ -1404,7 +1404,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	}
 	defer conn.Close()
 	c := execinfrapb.NewHotshardGatewayClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 500 * time.Millisecond)
 	defer cancel()
 
 	// populate hotshard request
