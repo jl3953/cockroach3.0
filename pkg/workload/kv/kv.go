@@ -393,6 +393,7 @@ func correctTxnParams(batchSize int, generateKey generateKeyFunc, greatestHotKey
 		argsInt[i] = key
 	}
 	sort.Sort(byInt(argsInt))
+	fmt.Printf("jenndebug argsInt %+v\n", argsInt)
 
 	//jenndebug hot replacing hot keys
 	//for i := 0; i < len(argsInt); i++ {
