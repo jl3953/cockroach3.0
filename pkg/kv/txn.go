@@ -1395,7 +1395,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	*/
 
 	// address of hotshard
-	address := "node-3:50051"
+	address := "node-1:50051"
 
 	// grpc client boilerplate connection code
 	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithBlock())
@@ -1404,7 +1404,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	}
 	defer conn.Close()
 	c := execinfrapb.NewHotshardGatewayClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 500 * time.Millisecond)
 	defer cancel()
 
 	// populate hotshard request
