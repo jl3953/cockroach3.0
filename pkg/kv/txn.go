@@ -1402,17 +1402,22 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	if err != nil {
 		log.Fatalf(context.Background(), "jenndebug rpc failed")
 	}
+    log.Warningf(context.Background(), "jenndebug passed Dial\n")
 	defer conn.Close()
 	c := execinfrapb.NewHotshardGatewayClient(conn)
+    log.Warningf(context.Background(), "jenndebug passed new client\n")
 	ctx, cancel := context.WithTimeout(context.Background(), 500 * time.Millisecond)
+    log.Warningf(context.Background(), "jenndebug passed timeout context\n")
 	defer cancel()
 
 	// populate hotshard request
 	request := initializeAndPopulateHotshardRequest(writeHotkeys, readHotkeys,
 		provisionalCommitTimestamp)
+    log.Warningf(context.Background(), "jenndebug passed initializeHotshard\n")
 
 	// contact hotshard
 	if reply, err := c.ContactHotshard(ctx, &request); err != nil {
+        log.Warningf(context.Background(), "jenndebug rpc failed\n")
 
 		// rpc failed
 		return nil, false
@@ -1420,6 +1425,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 
 		// rpc succeeded
 		readResults, succeeded = extractHotshardReply(readResults, reply)
+        log.Warningf(context.Background(), "jenndebug rpc passed\n")
 		return readResults, succeeded
 	}
 }
