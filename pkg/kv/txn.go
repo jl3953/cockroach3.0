@@ -1398,7 +1398,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	address := "node-0:50051"
 
 	// grpc client boilerplate connection code
-	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithBlock())
+	conn, err := grpc.Dial(address, grpc.WithInsecure())//, grpc.WithBlock())
 	if err != nil {
 		log.Fatalf(context.Background(), "jenndebug rpc failed")
 	}
