@@ -16,7 +16,7 @@ import (
 	"fmt"
 	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
 	"google.golang.org/grpc"
-	"runtime/debug"
+	//"runtime/debug"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
