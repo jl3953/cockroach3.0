@@ -1395,7 +1395,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	*/
 
 	// address of hotshard
-	address := "node-1:50051"
+	address := "node-0:50051"
 
 	// grpc client boilerplate connection code
 	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithBlock())
