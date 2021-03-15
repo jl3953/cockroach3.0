@@ -623,7 +623,6 @@ func (txn *Txn) ContactHotshardWrapper(ctx context.Context) error {
 		if _, succeeded := txn.ContactHotshard(txn.GetAndClearWriteHotkeys(),
 			txn.GetAndClearReadHotKeys(),
 			txn.ProvisionalCommitTimestamp()); !succeeded {
-			debug.PrintStack()
 			hotshardErr := txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard")
 			return hotshardErr
 		}
