@@ -272,6 +272,10 @@ func (ex *connExecutor) execBind(
 			"unknown prepared statement %q", bindCmd.PreparedStatementName))
 	}
 
+	if bindCmd.PreparedStatementName == "kv-2" {
+		ps.AST = nil
+	}
+
 	numQArgs := uint16(len(ps.InferredTypes))
 
 	// Decode the arguments, except for internal queries for which we just verify
