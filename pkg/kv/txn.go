@@ -15,7 +15,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
-	"google.golang.org/grpc"
+	//"google.golang.org/grpc"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
