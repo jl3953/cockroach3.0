@@ -13,7 +13,11 @@ package kv
 import (
 	"context"
 	"fmt"
+	execinfrapbgrpc "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
+	"google.golang.org/grpc"
+	"math/rand"
 	"strings"
+	"sync"
 
 	"github.com/cockroachdb/cockroach/pkg/base"
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
@@ -259,6 +263,68 @@ type DB struct {
 	ctx     DBContext
 	// crs is the sender used for non-transactional requests.
 	crs CrossRangeTxnWrapperSender
+
+	cicadaClients	sync.Map
+	numClients	int
+}
+type ConnectionObjectWrapper struct {
+
+	serializer chan bool
+	clientConn execinfrapbgrpc.HotshardGatewayClient
+}
+
+func NewConnectionObjectWrapper(address string) (*ConnectionObjectWrapper, error) {
+
+	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithBlock())
+	if err != nil {
+		log.Fatalf(context.Background(), "jenndebug rpc failed")
+	}
+	//defer conn.Close()
+	client := execinfrapbgrpc.NewHotshardGatewayClient(conn)
+
+	connObj := &ConnectionObjectWrapper{
+		serializer: make(chan bool, 1),
+		clientConn: client,
+	}
+
+	return connObj, nil
+}
+
+func (connObj *ConnectionObjectWrapper) GetClient() *execinfrapbgrpc.HotshardGatewayClient {
+
+	// block until it can access the client
+	connObj.serializer <- true
+	return &connObj.clientConn
+}
+
+func (connObj *ConnectionObjectWrapper) ReturnClient() {
+	_ = <-connObj.serializer
+}
+
+func (db *DB) GetConnObj() *ConnectionObjectWrapper {
+	i := rand.Intn(db.numClients)
+	if connObj, ok := db.cicadaClients.Load(i); ok {
+		c := connObj.(*ConnectionObjectWrapper)
+		return c
+	} else {
+		log.Fatalf(context.Background(), "jenndebug GetClient failed\n")
+		return nil
+	}
+}
+
+func (db *DB) CreateCicadaClients(numClients int, address string) {
+
+	for i := 0; i < numClients; i++ {
+
+		if connObj, err := NewConnectionObjectWrapper(address); err == nil {
+			db.cicadaClients.Store(i, connObj)
+		} else {
+			log.Fatalf(context.Background(), "jenndebug createCicadaClients failed %+v\n", err)
+		}
+
+		log.Warningf(context.Background(), "jenndebug cicada clients created\n")
+	}
+	db.numClients = numClients
 }
 
 // NonTransactionalSender returns a Sender that can be used for sending

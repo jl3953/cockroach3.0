@@ -15,7 +15,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
-	"google.golang.org/grpc"
 	"runtime/debug"
 	"time"
 
@@ -1395,15 +1394,16 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	*/
 
 	// address of hotshard
-	address := "node-1:50051"
+	//address := "localhost:50051"
 
-	// grpc client boilerplate connection code
-	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithBlock())
-	if err != nil {
-		log.Fatalf(context.Background(), "jenndebug rpc failed")
-	}
-	defer conn.Close()
-	c := execinfrapb.NewHotshardGatewayClient(conn)
+	//// grpc client boilerplate connection code
+	//conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithBlock())
+	//if err != nil {
+	//	log.Fatalf(context.Background(), "jenndebug rpc failed")
+	//}
+	//defer conn.Close()
+	//c := execinfrapb.NewHotshardGatewayClient(conn)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 500 * time.Millisecond)
 	defer cancel()
 
@@ -1411,7 +1411,13 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	request := initializeAndPopulateHotshardRequest(writeHotkeys, readHotkeys,
 		provisionalCommitTimestamp)
 
+
+
 	// contact hotshard
+	connObject := txn.DB().GetConnObj()
+	defer connObject.ReturnClient()
+	client := connObject.GetClient()
+	c := *client
 	if reply, err := c.ContactHotshard(ctx, &request); err != nil {
 
 		// rpc failed
