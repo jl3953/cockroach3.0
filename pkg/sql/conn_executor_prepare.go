@@ -441,7 +441,8 @@ func isHotkey(key []byte) bool {
 	//	}
 	//}
 
-	return false
+	//return false
+    return true
 }
 
 // addPortal creates a new PreparedPortal on the connExecutor.
