@@ -288,6 +288,21 @@ func (ex *connExecutor) execBind(
 		if len(hotkeys) > 0 {
 			ex.state.mu.txn.AddWriteHotkeys(hotkeys)
 		}
+	} else if bindCmd.PreparedStatementName == "kv-1" {
+		var hotkeys, warmArgs[][]byte
+		var hasWarmKeys bool
+
+		if hotkeys, warmArgs, hasWarmKeys = stripHotkeysRead(bindCmd); hasWarmKeys {
+			extendedWarmArgs := extendWarmArgsRead(warmArgs, len(hotkeys))
+			bindCmd.Args = extendedWarmArgs
+		} else {
+			//TODO jenndebug this is so wrong
+			ps.AST = nil
+		}
+
+		if len(hotkeys) > 0 {
+			ex.state.mu.txn.AddReadHotkeys(hotkeys)
+		}
 	}
 
 	numQArgs := uint16(len(ps.InferredTypes))
@@ -399,6 +414,16 @@ func extendWarmArgsWrite(warmArgs [][]byte, byHowMuch int) [][]byte {
 	return warmArgs
 }
 
+func extendWarmArgsRead(warmArgs [][]byte, byHowMuch int) [][]byte {
+	lastKey := warmArgs[len(warmArgs) -1]
+
+	for i := 0; i < byHowMuch; i++ {
+		warmArgs = append(warmArgs, lastKey)
+	}
+
+	return warmArgs
+}
+
 func stripHotkeysWrite(bindCmd BindStmt) (hotkeys [][]byte, warmArgs [][]byte, hasWarmKeys bool) {
 	/**
 	@param bindCmd
@@ -423,6 +448,23 @@ func stripHotkeysWrite(bindCmd BindStmt) (hotkeys [][]byte, warmArgs [][]byte, h
 
 	hasWarmKeys = len(warmArgs) > 0
 
+	return hotkeys, warmArgs, hasWarmKeys
+}
+
+func stripHotkeysRead(bindCmd BindStmt) (hotkeys [][]byte, warmArgs [][]byte, hasWarmKeys bool) {
+
+	var key []byte
+	for i := 0; i < len(bindCmd.Args); i++ {
+		key = bindCmd.Args[i]
+
+		if isHotkey(key) {
+			hotkeys = append(hotkeys, key)
+		} else {
+			warmArgs = append(warmArgs, key)
+		}
+	}
+
+	hasWarmKeys = len(warmArgs) > 0
 	return hotkeys, warmArgs, hasWarmKeys
 }
 

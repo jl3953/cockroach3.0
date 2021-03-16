@@ -15,7 +15,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
-	"google.golang.org/grpc"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
@@ -1329,6 +1328,10 @@ func (txn *Txn) AddWriteHotkeys(hotkeys [][]byte) {
 	@param hotkeys slice each key followed by its value.
 	*/
 	txn.writeHotkeys = append(txn.writeHotkeys, hotkeys...)
+}
+
+func (txn *Txn) AddReadHotkeys(hotkeys [][]byte) {
+	txn.readHotkeys = append(txn.readHotkeys, hotkeys...)
 }
 
 func initializeAndPopulateHotshardRequest(
