@@ -1393,12 +1393,15 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	*/
 
 	// address of hotshard
-	ctx, cancel := context.WithTimeout(context.Background(), 500 * time.Millisecond)
+	//ctx, cancel := context.WithTimeout(context.Background(), 500 * time.Millisecond)
+    _, cancel := context.WithTimeout(context.Background(), 500 * time.Millisecond)
 	defer cancel()
 
 	// populate hotshard request
-	request := initializeAndPopulateHotshardRequest(writeHotkeys, readHotkeys,
-		provisionalCommitTimestamp)
+	//request := initializeAndPopulateHotshardRequest(writeHotkeys, readHotkeys,
+	//	provisionalCommitTimestamp)
+    _ = initializeAndPopulateHotshardRequest(writeHotkeys, readHotkeys,
+        provisionalCommitTimestamp)
 
 
 
@@ -1406,17 +1409,19 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	connObject := txn.DB().GetConnObj()
 	defer connObject.ReturnClient()
 	client := connObject.GetClient()
-	c := *client
-	if reply, err := c.ContactHotshard(ctx, &request); err != nil {
+	//c := *client
+    _ = *client
+	//if reply, err := c.ContactHotshard(ctx, &request); err != nil {
 
-		// rpc failed
-		return nil, false
-	} else {
+	//	// rpc failed
+	//	return nil, false
+	//} else {
 
-		// rpc succeeded
-		readResults, succeeded = extractHotshardReply(readResults, reply)
-		return readResults, succeeded
-	}
+	//	// rpc succeeded
+	//	readResults, succeeded = extractHotshardReply(readResults, reply)
+	//	return readResults, succeeded
+	//}
+    return nil, true
 }
 
 func (txn *Txn) GetAndClearWriteHotkeys() [][]byte {
