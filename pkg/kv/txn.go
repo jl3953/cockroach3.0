@@ -15,7 +15,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
-	//"google.golang.org/grpc"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
@@ -1403,10 +1402,13 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 
 
 	// contact hotshard
-	connObject := txn.DB().GetConnObj()
-	defer connObject.ReturnClient()
-	client := connObject.GetClient()
-	c := *client
+	//connObject := txn.DB().GetConnObj()
+	//defer connObject.ReturnClient()
+	//client := connObject.GetClient()
+	//c := *client
+	clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
+	defer txn.DB().ReturnClient(index)
+	c := *clientPtr
 	if reply, err := c.ContactHotshard(ctx, &request); err != nil {
 
 		// rpc failed

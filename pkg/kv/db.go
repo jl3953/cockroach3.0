@@ -290,26 +290,47 @@ func NewConnectionObjectWrapper(address string) (*ConnectionObjectWrapper, error
 	return connObj, nil
 }
 
-func (connObj *ConnectionObjectWrapper) GetClient() *execinfrapbgrpc.HotshardGatewayClient {
-
-	// block until it can access the client
-	connObj.serializer <- true
-	return &connObj.clientConn
+func (connObj *ConnectionObjectWrapper) TryGetClient() (*execinfrapbgrpc.HotshardGatewayClient, bool) {
+	select{
+	case connObj.serializer <- true:
+		return &connObj.clientConn, true
+	default:
+		return nil, false
+	}
 }
+
+//func (connObj *ConnectionObjectWrapper) GetClient() *execinfrapbgrpc.HotshardGatewayClient {
+//
+//	// block until it can access the client
+//	connObj.serializer <- true
+//	return &connObj.clientConn
+//}
 
 func (connObj *ConnectionObjectWrapper) ReturnClient() {
 	_ = <-connObj.serializer
 }
 
-func (db *DB) GetConnObj() *ConnectionObjectWrapper {
+func (db *DB) GetClientPtrAndItsIndex() (*execinfrapbgrpc.HotshardGatewayClient, int) {
 	i := rand.Intn(db.numClients)
-	if connObj, ok := db.cicadaClients.Load(i); ok {
-		c := connObj.(*ConnectionObjectWrapper)
-		return c
-	} else {
-		log.Fatalf(context.Background(), "jenndebug GetClient failed\n")
-		return nil
+	for {
+		if connObj, ok := db.cicadaClients.Load(i); ok {
+			cObj := connObj.(*ConnectionObjectWrapper)
+			if clientPtr, acquired := cObj.TryGetClient(); acquired {
+				return clientPtr, i
+			} else {
+				i = (i + 1) % db.numClients
+				continue
+			}
+		} else {
+			log.Fatalf(context.Background(), "jenndebug GetClient failed\n")
+			return nil, -1
+		}
 	}
+}
+
+func (db *DB) ReturnClient(index int) {
+	connObj, _ := db.cicadaClients.Load(index)
+	connObj.(*ConnectionObjectWrapper).ReturnClient()
 }
 
 func (db *DB) CreateCicadaClients(numClients int, address string) {
