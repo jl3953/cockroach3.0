@@ -319,8 +319,8 @@ func (db *DB) GetClientPtrAndItsIndex() (*execinfrapbgrpc.HotshardGatewayClient,
 			if clientPtr, acquired := cObj.TryGetClient(); acquired {
 				return clientPtr, i
 			} else {
-                failed = failed + 1 
-                log.Warningf(context.Background(), "jenndebug sorry, love %d\n", failed)
+                //failed = failed + 1 
+                //log.Warningf(context.Background(), "jenndebug sorry, love %d\n", failed)
 				i = (i + 1) % db.numClients
 				continue
 			}
