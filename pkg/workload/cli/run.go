@@ -244,9 +244,9 @@ func workerRun(
 			if *maxOps > 0 && v >= *maxOps {
 				return
 			}
-		} ()
+		}()
 
-		time.Sleep(14 * time.Microsecond)
+		time.Sleep(7 * time.Microsecond)
 	}
 }
 
