@@ -231,18 +231,22 @@ func workerRun(
 			}
 		}
 
-		if err := workFn(ctx); err != nil {
-			if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+		go func() {
+			if err := workFn(ctx); err != nil {
+				if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+					return
+				}
+				errCh <- err
 				return
 			}
-			errCh <- err
-			continue
-		}
 
-		v := atomic.AddUint64(&numOps, 1)
-		if *maxOps > 0 && v >= *maxOps {
-			return
-		}
+			v := atomic.AddUint64(&numOps, 1)
+			if *maxOps > 0 && v >= *maxOps {
+				return
+			}
+		} ()
+
+		time.Sleep(14 * time.Microsecond)
 	}
 }
 
