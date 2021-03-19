@@ -232,7 +232,6 @@ func workerRun(
 		}
 
 		go func() {
-			time.Sleep(7 * time.Microsecond)
 			if err := workFn(ctx); err != nil {
 				if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
 					return
@@ -247,6 +246,7 @@ func workerRun(
 			}
 		}()
 
+		time.Sleep(time.Microsecond)
 	}
 }
 
