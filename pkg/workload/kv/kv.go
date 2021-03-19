@@ -263,7 +263,7 @@ func (w *kv) Ops(
 		return workload.QueryLoad{}, err
 	}
 	cfg := workload.MultiConnPoolCfg{
-		MaxTotalConnections: 160, //w.connFlags.Concurrency + 1,
+		MaxTotalConnections: 160 * w.connFlags.Concurrency, //w.connFlags.Concurrency + 1,
 	}
 	mcp, err := workload.NewMultiConnPool(cfg, urls...)
 	if err != nil {
