@@ -246,7 +246,7 @@ func workerRun(
 			}
 		}()
 
-		time.Sleep(2 * time.Microsecond)
+		time.Sleep(time.Microsecond)
 	}
 }
 
