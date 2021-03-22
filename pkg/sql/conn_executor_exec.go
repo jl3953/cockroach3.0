@@ -12,6 +12,7 @@ package sql
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"runtime/pprof"
 	"strings"
@@ -841,6 +842,21 @@ func (ex *connExecutor) dispatchToExecutionEngine(
 	)
 	if ex.server.cfg.TestingKnobs.AfterExecute != nil {
 		ex.server.cfg.TestingKnobs.AfterExecute(ctx, stmt.String(), res.Err())
+	}
+
+	if ex.state.mu.txn.HasResultReadHotkeys() {
+		hotkeys := ex.state.mu.txn.GetAndClearResultReadHotkeys()
+
+		for i := 0; i < len(hotkeys); i += 2 {
+			key := binary.BigEndian.Uint64(hotkeys[i])
+			val := hotkeys[i+1]
+
+			datum := tree.Datums{
+				tree.NewDInt(tree.DInt(key)),
+				tree.NewDBytes(tree.DBytes(val)),
+			}
+			res.(BufferResult).BufferRow(ctx, datum)
+		}
 	}
 
 	return err

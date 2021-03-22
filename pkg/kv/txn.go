@@ -54,6 +54,7 @@ type Txn struct {
 
 	writeHotkeys [][]byte
 	readHotkeys  [][]byte
+	resultReadHotkeys	[][]byte
 
 	// mu holds fields that need to be synchronized for concurrent request execution.
 	mu struct {
@@ -1329,6 +1330,9 @@ func (txn *Txn) AddWriteHotkeys(hotkeys [][]byte) {
 	*/
 	txn.writeHotkeys = append(txn.writeHotkeys, hotkeys...)
 }
+func (txn *Txn) AddReadHotkeys(hotkeys [][]byte) {
+	txn.readHotkeys = append(txn.readHotkeys, hotkeys...)
+}
 
 func initializeAndPopulateHotshardRequest(
 	writeHotkeys [][]byte,
@@ -1447,4 +1451,32 @@ func (txn *Txn) HasWriteHotkeys() bool {
 
 func (txn *Txn) HasReadHotkeys() bool {
 	return len(txn.readHotkeys) > 0
+}
+
+func (txn *Txn) GetAndClearReadHotkeys() [][]byte {
+       if len(txn.readHotkeys) > 0 {
+               temp := txn.readHotkeys
+               txn.readHotkeys = make([][]byte, 0)
+               return temp
+       } else {
+               return nil
+       }
+}
+
+func (txn *Txn) AddResultReadHotkeys(results [][]byte) {
+	txn.resultReadHotkeys = append(txn.resultReadHotkeys, results...)
+}
+
+func (txn *Txn) HasResultReadHotkeys() bool {
+	return len(txn.resultReadHotkeys) > 0
+}
+
+func (txn *Txn) GetAndClearResultReadHotkeys() [][]byte {
+	if len(txn.resultReadHotkeys) > 0 {
+		temp := txn.resultReadHotkeys
+		txn.resultReadHotkeys = make([][]byte, 0)
+		return temp
+	} else {
+		return nil
+	}
 }

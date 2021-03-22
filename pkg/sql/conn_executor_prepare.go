@@ -247,7 +247,7 @@ func (ex *connExecutor) populatePrepared(
 }
 
 func (ex *connExecutor) execBind(
-	ctx context.Context, bindCmd BindStmt,
+	ctx context.Context, bindCmd BindStmt, res BindResult,
 ) (fsm.Event, fsm.EventPayload) {
 
 	retErr := func(err error) (fsm.Event, fsm.EventPayload) {
@@ -287,6 +287,20 @@ func (ex *connExecutor) execBind(
 
 		if len(hotkeys) > 0 {
 			ex.state.mu.txn.AddWriteHotkeys(hotkeys)
+		}
+	} else if bindCmd.PreparedStatementName == "kv-1" {
+		var hotkeys, warmArgs [][]byte
+		var hasWarmKeys bool
+
+		if hotkeys, warmArgs, hasWarmKeys = stripHotkeysRead(bindCmd); hasWarmKeys {
+			extendedWarmArgs := extendWarmArgsRead(warmArgs, len(hotkeys))
+			bindCmd.Args = extendedWarmArgs
+		} else {
+			ps.AST = nil
+		}
+
+		if len(hotkeys) > 0 {
+			ex.state.mu.txn.AddReadHotkeys(hotkeys)
 		}
 	}
 
@@ -389,6 +403,16 @@ func (ex *connExecutor) execBind(
 	return nil, nil
 }
 
+func extendWarmArgsRead(warmArgs [][]byte, byHowMuch int) [][]byte {
+	lastKey := warmArgs[len(warmArgs)-1]
+
+	for i := 0; i < byHowMuch; i++ {
+		warmArgs = append(warmArgs, lastKey)
+	}
+
+	return warmArgs
+}
+
 func extendWarmArgsWrite(warmArgs [][]byte, byHowMuch int) [][]byte {
 	lastKey, lastVal := warmArgs[len(warmArgs)-2], warmArgs[len(warmArgs)-1]
 
@@ -397,6 +421,21 @@ func extendWarmArgsWrite(warmArgs [][]byte, byHowMuch int) [][]byte {
 	}
 
 	return warmArgs
+}
+
+func stripHotkeysRead(bindCmd BindStmt) (hotkeys [][]byte, warmArgs[][]byte,
+	hasWarmKeys bool) {
+
+	for _, key := range bindCmd.Args{
+		if isHotkey(key) {
+			hotkeys = append(hotkeys, key)
+		} else {
+			warmArgs = append(warmArgs, key)
+		}
+	}
+
+	hasWarmKeys = len(warmArgs) > 0
+	return hotkeys, warmArgs, hasWarmKeys
 }
 
 func stripHotkeysWrite(bindCmd BindStmt) (hotkeys [][]byte, warmArgs [][]byte, hasWarmKeys bool) {

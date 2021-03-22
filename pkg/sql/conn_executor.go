@@ -12,7 +12,10 @@ package sql
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
+	"github.com/cockroachdb/cockroach/pkg/sql/pgwire/pgwirebase"
+	"github.com/lib/pq/oid"
 	"io"
 	"math"
 	"strings"
@@ -1422,6 +1425,38 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 		}
 		if portal.Stmt.AST == nil {
 			res = ex.clientComm.CreateEmptyQueryResult(pos)
+
+			if ex.state.mu.txn.HasResultReadHotkeys() {
+				hotkeys := ex.state.mu.txn.GetAndClearResultReadHotkeys()
+
+				for i := 0; i < len(hotkeys); i += 2 {
+					key := binary.BigEndian.Uint64(hotkeys[i])
+					val := hotkeys[i+1]
+
+					data := tree.Datums{
+						tree.NewDInt(tree.DInt(key)),
+						tree.NewDBytes(tree.DBytes(val)),
+					}
+
+					formatCodes := []pgwirebase.FormatCode{
+						pgwirebase.FormatBinary, pgwirebase.FormatBinary,
+					}
+
+					conv := sessiondata.DataConversionConfig{
+						Location: time.UTC,
+						BytesEncodeFormat: sessiondata.BytesEncodeHex,
+						ExtraFloatDigits: 0,
+					}
+
+					//dataTypes := []*types.T{types.Int, types.Bytes}
+					oids := []oid.Oid{types.Int.Oid(), types.Bytes.Oid()}
+
+					res.(BufferResult).BufferRowRaw(ctx, data,
+						formatCodes, conv, oids)
+				}
+			}
+
+			res = ex.clientComm.(ClientCommRaw).CreateNewMiscResult(pos)
 			break
 		}
 
@@ -1473,7 +1508,7 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 		ev, payload = ex.execDescribe(ctx, tcmd, descRes)
 	case BindStmt:
 		res = ex.clientComm.CreateBindResult(pos)
-		ev, payload = ex.execBind(ctx, tcmd)
+		ev, payload = ex.execBind(ctx, tcmd, res)
 	case DeletePreparedStmt:
 		res = ex.clientComm.CreateDeleteResult(pos)
 		ev, payload = ex.execDelPrepStmt(ctx, tcmd)

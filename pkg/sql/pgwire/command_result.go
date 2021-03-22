@@ -13,7 +13,6 @@ package pgwire
 import (
 	"context"
 	"fmt"
-
 	"github.com/cockroachdb/cockroach/pkg/server/telemetry"
 	"github.com/cockroachdb/cockroach/pkg/sql"
 	"github.com/cockroachdb/cockroach/pkg/sql/pgwire/pgwirebase"
@@ -89,6 +88,10 @@ type commandResult struct {
 	released bool
 }
 
+func (r *commandResult) StmtType() tree.StatementType {
+	return r.stmtType
+}
+
 var _ sql.CommandResult = &commandResult{}
 
 // Close is part of the CommandResult interface.
@@ -160,6 +163,21 @@ func (r *commandResult) Err() error {
 func (r *commandResult) SetError(err error) {
 	r.assertNotReleased()
 	r.err = err
+}
+
+func (r *commandResult) BufferRow(
+	ctx context.Context,
+	row tree.Datums) {
+	r.conn.bufferRow(ctx, row, r.formatCodes, r.conv, r.oids)
+}
+
+func (r *commandResult) BufferRowRaw(
+	ctx context.Context,
+	row tree.Datums,
+	formatCodes []pgwirebase.FormatCode,
+	conv sessiondata.DataConversionConfig,
+	oids []oid.Oid) {
+	r.conn.bufferRow(ctx, row, formatCodes, conv, oids)
 }
 
 // AddRow is part of the CommandResult interface.
