@@ -432,7 +432,7 @@ func isHotkey(key []byte) bool {
 	//hotkeys := []uint64{0}
 
 	keyInt := binary.BigEndian.Uint64(key)
-    if keyInt < 0 {
+    if keyInt < 250000 {
         return true
     }
 	//for _, hotkey := range hotkeys {
@@ -441,8 +441,7 @@ func isHotkey(key []byte) bool {
 	//	}
 	//}
 
-	//return false
-    return true
+	return false
 }
 
 // addPortal creates a new PreparedPortal on the connExecutor.
