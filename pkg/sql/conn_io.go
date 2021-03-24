@@ -692,7 +692,11 @@ type CommandResultClose interface {
 	// never see any bytes pertaining to this result.
 	Discard()
 }
-
+type BufferCommandResult interface {
+	AddRowRaw (ctx context.Context, rows tree.Datums,
+		formatCodes []pgwirebase.FormatCode, oids []oid.Oid, pos CmdPos) error
+	CreateNewMiscResult(pos CmdPos) CommandResult
+}
 // RestrictedCommandResult is a subset of CommandResult meant to make it clear
 // that its clients don't close the CommandResult.
 type RestrictedCommandResult interface {

@@ -20,6 +20,7 @@ import (
 	"github.com/cockroachdb/cockroach/pkg/sql/sessiondata"
 	"github.com/cockroachdb/cockroach/pkg/sql/sqlbase"
 	"github.com/cockroachdb/cockroach/pkg/sql/sqltelemetry"
+	"github.com/cockroachdb/cockroach/pkg/util/log"
 	"github.com/cockroachdb/errors"
 	"github.com/lib/pq/oid"
 )
@@ -180,14 +181,21 @@ func (r *commandResult) BufferRowRaw(
 	r.conn.bufferRow(ctx, row, formatCodes, conv, oids)
 }
 
-// AddRow is part of the CommandResult interface.
-func (r *commandResult) AddRow(ctx context.Context, row tree.Datums) error {
+func (r *commandResult) CreateNewMiscResult(pos sql.CmdPos) sql.CommandResult {
+	return r.conn.newMiscResult(pos, commandComplete)
+}
+
+func (r* commandResult) AddRowRaw(ctx context.Context, row tree.Datums,
+	formatCodes []pgwirebase.FormatCode, oids []oid.Oid, pos sql.CmdPos) error {
+	r.oids = oids
+	log.Warningf(ctx, "jenndebug r %+v\n", *r)
 	r.assertNotReleased()
 	if r.err != nil {
 		panic(fmt.Sprintf("can't call AddRow after having set error: %s",
 			r.err))
 	}
-	r.conn.writerState.fi.registerCmd(r.pos)
+	r.conn.writerState.fi.registerCmd(pos)
+	log.Warningf(ctx, "jenndebug r.pos %+v\n", pos)
 	if err := r.conn.GetErr(); err != nil {
 		return err
 	}
@@ -195,15 +203,25 @@ func (r *commandResult) AddRow(ctx context.Context, row tree.Datums) error {
 		panic("can't send row after error")
 	}
 	r.rowsAffected++
+	log.Warningf(ctx, "jenndebug rows affected %+v\n", r.rowsAffected)
 
-	r.conn.bufferRow(ctx, row, r.formatCodes, r.conv, r.oids)
+	log.Warningf(ctx, "jenndebug row %+v, formatCodes %+v, conv %+v, oids %+v\n",
+		row, formatCodes, r.conv, oids)
+	r.conn.bufferRow(ctx, row, formatCodes, r.conv, oids)
 	var err error
 	if r.bufferingDisabled {
-		err = r.conn.Flush(r.pos)
+		err = r.conn.Flush(pos)
 	} else {
-		_ /* flushed */, err = r.conn.maybeFlush(r.pos)
+		_ /* flushed */, err = r.conn.maybeFlush(pos)
+		log.Warningf(ctx, "jenndebug flush\n")
 	}
+	log.Warningf(ctx, "jenndebug r after %+v\n", *r)
 	return err
+}
+
+// AddRow is part of the CommandResult interface.
+func (r *commandResult) AddRow(ctx context.Context, row tree.Datums) error {
+	return r.AddRowRaw(ctx, row, r.formatCodes, r.oids, r.pos)
 }
 
 // DisableBuffering is part of the CommandResult interface.

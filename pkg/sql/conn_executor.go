@@ -12,10 +12,10 @@ package sql
 
 import (
 	"context"
-	"encoding/binary"
+	//"encoding/binary"
 	"fmt"
-	"github.com/cockroachdb/cockroach/pkg/sql/pgwire/pgwirebase"
-	"github.com/lib/pq/oid"
+	//"github.com/cockroachdb/cockroach/pkg/sql/pgwire/pgwirebase"
+	//"github.com/lib/pq/oid"
 	"io"
 	"math"
 	"strings"
@@ -1410,6 +1410,7 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+
 	case ExecPortal:
 		// ExecPortal is handled like ExecStmt, except that the placeholder info
 		// is taken from the portal.
@@ -1426,37 +1427,37 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 		if portal.Stmt.AST == nil {
 			res = ex.clientComm.CreateEmptyQueryResult(pos)
 
-			if ex.state.mu.txn.HasResultReadHotkeys() {
-				hotkeys := ex.state.mu.txn.GetAndClearResultReadHotkeys()
+			//if ex.state.mu.txn.HasResultReadHotkeys() {
+			//	hotkeys := ex.state.mu.txn.GetAndClearResultReadHotkeys()
+			//
+			//	for i := 0; i < len(hotkeys); i += 2 {
+			//		key := binary.BigEndian.Uint64(hotkeys[i])
+			//		val := hotkeys[i+1]
+			//
+			//		data := tree.Datums{
+			//			tree.NewDInt(tree.DInt(key)),
+			//			tree.NewDBytes(tree.DBytes(val)),
+			//		}
+			//
+			//		formatCodes := []pgwirebase.FormatCode{
+			//			pgwirebase.FormatBinary, pgwirebase.FormatBinary,
+			//		}
+			//
+			//		conv := sessiondata.DataConversionConfig{
+			//			Location: time.UTC,
+			//			BytesEncodeFormat: sessiondata.BytesEncodeHex,
+			//			ExtraFloatDigits: 0,
+			//		}
+			//
+			//		//dataTypes := []*types.T{types.Int, types.Bytes}
+			//		oids := []oid.Oid{types.Int.Oid(), types.Bytes.Oid()}
+			//
+			//		res.(BufferResult).BufferRowRaw(ctx, data,
+			//			formatCodes, conv, oids)
+			//	}
+			//}
 
-				for i := 0; i < len(hotkeys); i += 2 {
-					key := binary.BigEndian.Uint64(hotkeys[i])
-					val := hotkeys[i+1]
-
-					data := tree.Datums{
-						tree.NewDInt(tree.DInt(key)),
-						tree.NewDBytes(tree.DBytes(val)),
-					}
-
-					formatCodes := []pgwirebase.FormatCode{
-						pgwirebase.FormatBinary, pgwirebase.FormatBinary,
-					}
-
-					conv := sessiondata.DataConversionConfig{
-						Location: time.UTC,
-						BytesEncodeFormat: sessiondata.BytesEncodeHex,
-						ExtraFloatDigits: 0,
-					}
-
-					//dataTypes := []*types.T{types.Int, types.Bytes}
-					oids := []oid.Oid{types.Int.Oid(), types.Bytes.Oid()}
-
-					res.(BufferResult).BufferRowRaw(ctx, data,
-						formatCodes, conv, oids)
-				}
-			}
-
-			res = ex.clientComm.(ClientCommRaw).CreateNewMiscResult(pos)
+			// res = ex.clientComm.(ClientCommRaw).CreateNewMiscResult(pos)
 			break
 		}
 
@@ -1517,6 +1518,36 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 		ev = eventNonRetriableErr{IsCommit: fsm.False}
 		payload = eventNonRetriableErrPayload{err: tcmd.Err}
 	case Sync:
+
+		if ex.state.mu.txn != nil && ex.state.mu.txn.HasResultReadHotkeys() {
+			//stmtRes := ex.clientComm.CreateStatementResult(
+			//	&tree.Select{}, DontNeedRowDesc, pos,
+			//	[]pgwirebase.FormatCode{pgwirebase.FormatBinary, pgwirebase.FormatBinary},
+			//	ex.sessionData.DataConversion, 0, "", ex.implicitTxn(),
+			//)
+			//
+			//log.Warningf(ctx, "jenndebug getting hotkeys\n")
+			//hotkeys := ex.state.mu.txn.GetAndClearResultReadHotkeys()
+			//
+			//for i := 0; i < len(hotkeys); i += 2 {
+			//	key := binary.BigEndian.Uint64(hotkeys[i])
+			//	val := hotkeys[i+1]
+			//
+			//	rows := tree.Datums{
+			//		tree.NewDInt(tree.DInt(key)),
+			//		tree.NewDBytes(tree.DBytes(val)),
+			//	}
+			//
+			//	formatCodes := []pgwirebase.FormatCode{pgwirebase.FormatBinary, pgwirebase.FormatBinary}
+			//	oids := []oid.Oid{types.Int.Oid(), types.Bytes.Oid()}
+			//	if ok := stmtRes.(BufferCommandResult).AddRowRaw(ctx, rows, formatCodes, oids, pos); ok != nil {
+			//		log.Warningf(ctx, "jenndebug something goofed\n")
+			//	}
+			//
+			//	stmtRes.(BufferCommandResult).CreateNewMiscResult(pos)
+			//	//res = stmtRes
+			//}
+		}
 		// Note that the Sync result will flush results to the network connection.
 		res = ex.clientComm.CreateSyncResult(pos)
 		if ex.draining {

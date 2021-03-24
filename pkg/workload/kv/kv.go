@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"github.com/cockroachdb/cockroach-go/crdb"
 	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/pgtype"
 	"hash"
 	"math"
 	"sort"
@@ -383,7 +384,7 @@ func correctTxnParams(batchSize int, generateKey generateKeyFunc, greatestHotKey
 	argsInt := make([]int64, batchSize)
 	duplicates := make(map[int64]bool)
 	for i := 0; i < batchSize; i++ {
-		key := generateKey()
+		var key int64 = generateKey()
 		for duplicates[key] {
 			key = generateKey()
 		}
@@ -434,7 +435,18 @@ func (o *kvOp) run(ctx context.Context) error {
 			empty := true
 			for rows.Next() {
 				empty = false
+				key := pgtype.Bytea{
+					Bytes:  make([]byte, 8),
+					Status: 0,
+				}
+				val := pgtype.Bytea{
+					Bytes:  make([]byte, 8),
+					Status: 0,
+				}
+				rows.Scan(&key, &val)
+				fmt.Printf("jenndebug %+v, %+v\n", key, val)
 			}
+
 			if empty {
 				atomic.AddInt64(o.numEmptyResults, 1)
 			}

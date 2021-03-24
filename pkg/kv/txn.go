@@ -15,6 +15,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
+	"runtime/debug"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
@@ -619,11 +620,15 @@ func (txn *Txn) CleanupOnError(ctx context.Context, err error) {
 func (txn *Txn) ContactHotshardWrapper(ctx context.Context) error {
 	if txn.HasWriteHotkeys() || txn.HasReadHotkeys() {
 		// TODO jenndebug implement reads here
-		if _, succeeded := txn.ContactHotshard(txn.GetAndClearWriteHotkeys(),
+		if readResults, succeeded := txn.ContactHotshard(txn.GetAndClearWriteHotkeys(),
 			txn.GetAndClearReadHotKeys(),
 			txn.ProvisionalCommitTimestamp()); !succeeded {
 			hotshardErr := txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard")
 			return hotshardErr
+		} else {
+
+			debug.PrintStack()
+			txn.AddResultReadHotkeys(readResults)
 		}
 	}
 
@@ -641,6 +646,7 @@ func (txn *Txn) Commit(ctx context.Context) error {
 	if hotshardErr := txn.ContactHotshardWrapper(ctx); nil != hotshardErr {
 		return hotshardErr
 	}
+
 	return txn.commit(ctx)
 }
 
@@ -1471,6 +1477,9 @@ func (txn *Txn) HasResultReadHotkeys() bool {
 	return len(txn.resultReadHotkeys) > 0
 }
 
+func (txn *Txn) GetResultReadHotkeys() [][]byte {
+	return txn.resultReadHotkeys
+}
 func (txn *Txn) GetAndClearResultReadHotkeys() [][]byte {
 	if len(txn.resultReadHotkeys) > 0 {
 		temp := txn.resultReadHotkeys
