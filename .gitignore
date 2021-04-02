@@ -30,3 +30,5 @@ customenv.mk
 # Generated files containing include paths.
 zcgo_flags*.go
 build/Railroad.jar
+pkg/storage/enginepb/mvcc3.pb.go
+pkg/util/hlc/timestamp.pb.go
