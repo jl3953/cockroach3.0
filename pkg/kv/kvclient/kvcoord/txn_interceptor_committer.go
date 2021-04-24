@@ -341,7 +341,7 @@ func (tc *txnCommitter) canCommitInParallel(
 		return false
 	}
 
-	// Check whether every request in the batch is compatable with a parallel
+	// Check whether every request in the batch is compatible with a parallel
 	// commit. If any are incompatible then we cannot perform a parallel commit.
 	// We ignore the last request in the slice because we know it is the EndTxn.
 	for _, ru := range ba.Requests[:len(ba.Requests)-1] {
@@ -361,7 +361,7 @@ func (tc *txnCommitter) canCommitInParallel(
 			// has already been done by the txnPipeliner.
 
 		case req.Method() == roachpb.QueryIntent:
-			// QueryIntent requests are compatable with parallel commits. The
+			// QueryIntent requests are compatible with parallel commits. The
 			// intents being queried are also attached to the EndTxn request's
 			// InFlightWrites set and are visible to the status resolution
 			// process for STAGING transactions. Populating InFlightWrites has

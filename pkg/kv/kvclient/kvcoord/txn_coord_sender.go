@@ -420,7 +420,7 @@ func generateTxnDeadlineExceededErr(
 // cheaper than, sending an EndTxnRequest. A read-only txn doesn't have a
 // transaction record, so there's no need to send any request to the server. An
 // EndTxnRequest for a read-only txn is elided by the txnCommitter interceptor.
-// However, calling this and short-circuting even earlier is even more efficient
+// However, calling this and short-circuiting even earlier is even more efficient
 // (and shows in benchmarks).
 // TODO(nvanbenschoten): we could have this call into txnCommitter's
 // sendLockedWithElidedEndTxn method, but we would want to confirm
