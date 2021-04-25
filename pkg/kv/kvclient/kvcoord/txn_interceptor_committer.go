@@ -25,7 +25,7 @@ import (
 var parallelCommitsEnabled = settings.RegisterBoolSetting(
 	"kv.transaction.parallel_commits_enabled",
 	"if enabled, transactional commits will be parallelized with transactional writes",
-	true,
+	false,
 )
 
 // txnCommitter is a txnInterceptor that concerns itself with committing and
