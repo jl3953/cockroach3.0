@@ -12,7 +12,9 @@ package kv
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
+	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
@@ -49,6 +51,9 @@ type Txn struct {
 	// systemConfigTrigger is set to true when modifying keys from the SystemConfig
 	// span. This sets the SystemConfigTrigger on EndTxnRequest.
 	systemConfigTrigger bool
+
+	writeHotkeys [][]byte
+	readHotkeys  [][]byte
 
 	// mu holds fields that need to be synchronized for concurrent request execution.
 	mu struct {
@@ -580,6 +585,7 @@ func (txn *Txn) Run(ctx context.Context, b *Batch) error {
 }
 
 func (txn *Txn) commit(ctx context.Context) error {
+
 	var ba roachpb.BatchRequest
 	ba.Add(endTxnReq(true /* commit */, txn.deadline(), txn.systemConfigTrigger))
 	_, pErr := txn.Send(ctx, ba)
@@ -609,6 +615,20 @@ func (txn *Txn) CleanupOnError(ctx context.Context, err error) {
 	}
 }
 
+func (txn *Txn) ContactHotshardWrapper(ctx context.Context) error {
+	if txn.HasWriteHotkeys() || txn.HasReadHotkeys() {
+		// TODO jenndebug implement reads here
+		if _, succeeded := txn.ContactHotshard(txn.GetAndClearWriteHotkeys(),
+			txn.GetAndClearReadHotKeys(),
+			txn.ProvisionalCommitTimestamp()); !succeeded {
+			hotshardErr := txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard")
+			return hotshardErr
+		}
+	}
+
+	return nil
+}
+
 // Commit is the same as CommitOrCleanup but will not attempt to clean
 // up on failure. This can be used when the caller is prepared to do proper
 // cleanup.
@@ -617,6 +637,9 @@ func (txn *Txn) Commit(ctx context.Context) error {
 		return errors.WithContextTags(errors.AssertionFailedf("Commit() called on leaf txn"), ctx)
 	}
 
+	if hotshardErr := txn.ContactHotshardWrapper(ctx); nil != hotshardErr {
+		return hotshardErr
+	}
 	return txn.commit(ctx)
 }
 
@@ -636,6 +659,12 @@ func (txn *Txn) CommitInBatch(ctx context.Context, b *Batch) error {
 	if txn != b.txn {
 		return errors.Errorf("a batch b can only be committed by b.txn")
 	}
+
+	//if hotshardErr := txn.ContactHotshardWrapper(); hotshardErr != nil {
+	//	return hotshardErr
+	//}
+
+	log.Warningf(ctx, "jenndebug oh boy we should not be hitting this\n")
 	b.appendReqs(endTxnReq(true /* commit */, txn.deadline(), txn.systemConfigTrigger))
 	b.initResult(1 /* calls */, 0, b.raw, nil)
 	return txn.Run(ctx, b)
@@ -649,6 +678,9 @@ func (txn *Txn) CommitOrCleanup(ctx context.Context) error {
 		return errors.WithContextTags(errors.AssertionFailedf("CommitOrCleanup() called on leaf txn"), ctx)
 	}
 
+	if hotshardErr := txn.ContactHotshardWrapper(ctx); hotshardErr != nil {
+		return hotshardErr
+	}
 	err := txn.commit(ctx)
 	if err != nil {
 		txn.CleanupOnError(ctx, err)
@@ -1289,4 +1321,130 @@ func (txn *Txn) ReleaseSavepoint(ctx context.Context, s SavepointToken) error {
 	txn.mu.Lock()
 	defer txn.mu.Unlock()
 	return txn.mu.sender.ReleaseSavepoint(ctx, s)
+}
+
+func (txn *Txn) AddWriteHotkeys(hotkeys [][]byte) {
+	/**
+	@param hotkeys slice each key followed by its value.
+	*/
+	txn.writeHotkeys = append(txn.writeHotkeys, hotkeys...)
+}
+
+func initializeAndPopulateHotshardRequest(
+	writeHotkeys [][]byte,
+	readHotkeys [][]byte,
+	provisionalCommitTimestamp hlc.Timestamp) execinfrapb.HotshardRequest {
+
+	// populate request timestamp
+	request := execinfrapb.HotshardRequest{
+		Hlctimestamp: &execinfrapb.HLCTimestamp{
+			Walltime: &provisionalCommitTimestamp.WallTime,
+			Logicaltime: &provisionalCommitTimestamp.Logical,
+		},
+	}
+
+	// populate request write hotkey set
+	for i := 0; i < len(writeHotkeys); i += 2 {
+
+		var key uint64 = binary.BigEndian.Uint64(writeHotkeys[i])
+		var value uint64 = binary.BigEndian.Uint64(writeHotkeys[i+1])
+		kvPair := execinfrapb.KVPair{
+			Key:   &key,
+			Value: &value,
+		}
+		request.WriteKeyset = append(request.WriteKeyset, &kvPair)
+	}
+
+	// populate request read hotkey set
+	for _, readKey := range readHotkeys {
+		var key uint64 = binary.BigEndian.Uint64(readKey)
+		request.ReadKeyset = append(request.ReadKeyset, key)
+	}
+
+	return request
+
+}
+
+func extractHotshardReply(readResults [][]byte, reply *execinfrapb.HotshardReply) ([][]byte, bool){
+	for _, kvPair := range reply.ReadValueset {
+		key, value := make([]byte, 8), make([]byte, 8)
+		binary.BigEndian.PutUint64(key, *kvPair.Key)
+		binary.BigEndian.PutUint64(value, *kvPair.Value)
+		readResults = append(readResults, key, value)
+
+		log.Warningf(context.Background(), "jenndebug read(%d)=%d\n",
+			*kvPair.Key, *kvPair.Value)
+	}
+
+	return readResults, *reply.IsCommitted
+}
+
+func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
+	readHotkeys [][]byte,
+	provisionalCommitTimestamp hlc.Timestamp) (readResults [][]byte, succeeded bool) {
+	/**
+	@param writeHotkeys each key followed by its value
+	@param readHotkeys slice of read hotkeys
+	@param provisionalCommitTimestamp timestamp to commit on hotshard
+
+	@return readResults each key followed by its value
+	@param succeeded whether rpc succeeded
+	*/
+
+	// address of hotshard
+	ctx, cancel := context.WithTimeout(context.Background(), 500 * time.Millisecond)
+	defer cancel()
+
+	// populate hotshard request
+	request := initializeAndPopulateHotshardRequest(writeHotkeys, readHotkeys,
+		provisionalCommitTimestamp)
+
+
+
+	// contact hotshard
+	//connObject := txn.DB().GetConnObj()
+	//defer connObject.ReturnClient()
+	//client := connObject.GetClient()
+	//c := *client
+	clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
+	defer txn.DB().ReturnClient(index)
+	c := *clientPtr
+	if reply, err := c.ContactHotshard(ctx, &request); err != nil {
+
+		// rpc failed
+		return nil, false
+	} else {
+
+		// rpc succeeded
+		readResults, succeeded = extractHotshardReply(readResults, reply)
+		return readResults, succeeded
+	}
+}
+
+func (txn *Txn) GetAndClearWriteHotkeys() [][]byte {
+	if len(txn.writeHotkeys) > 0 {
+		temp := txn.writeHotkeys
+		txn.writeHotkeys = make([][]byte, 0)
+		return temp
+	} else {
+		return nil
+	}
+}
+
+func (txn *Txn) GetAndClearReadHotKeys() [][]byte {
+	if len(txn.readHotkeys) > 0 {
+		temp := txn.readHotkeys
+		txn.readHotkeys = make([][]byte, 0)
+		return temp
+	} else {
+		return nil
+	}
+}
+
+func (txn *Txn) HasWriteHotkeys() bool {
+	return len(txn.writeHotkeys) > 0
+}
+
+func (txn *Txn) HasReadHotkeys() bool {
+	return len(txn.readHotkeys) > 0
 }
