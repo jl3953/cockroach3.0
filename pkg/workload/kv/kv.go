@@ -642,7 +642,8 @@ func (g *zipfGenerator) writeKey() int64 {
 func (g *zipfGenerator) readKey() int64 {
 	v := g.seq.read()
 	if v == 0 {
-		return 0
+		//return 0
+		v = 1
 	}
 	return g.zipfian(g.random.Int63n(v))
 }
