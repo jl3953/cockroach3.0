@@ -12,7 +12,9 @@ package storage
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
+	"github.com/cockroachdb/cockroach/pkg/util/log"
 	"sort"
 	"sync"
 
@@ -149,7 +151,8 @@ func (p *pebbleMVCCScanner) init(txn *roachpb.Transaction) {
 		p.txnEpoch = txn.Epoch
 		p.txnSequence = txn.Sequence
 		p.txnIgnoredSeqNums = txn.IgnoredSeqNums
-		p.checkUncertainty = p.ts.Less(txn.MaxTimestamp)
+		//p.checkUncertainty = p.ts.Less(txn.MaxTimestamp)
+		p.checkUncertainty = false
 	}
 }
 
@@ -279,6 +282,8 @@ func (p *pebbleMVCCScanner) uncertaintyError(ts hlc.Timestamp) bool {
 // continue.
 func (p *pebbleMVCCScanner) getAndAdvance() bool {
 	mvccKey := MVCCKey{p.curKey, p.curTS}
+	log.Warningf(context.Background(), "jenndebug p.checkUncertainty %+v, mvccKey %+v\n", p.checkUncertainty,
+		mvccKey)
 	if mvccKey.IsValue() {
 		if p.curTS.LessEq(p.ts) {
 			// 1. Fast path: there is no intent and our read timestamp is newer than
