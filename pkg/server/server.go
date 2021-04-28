@@ -739,6 +739,7 @@ func NewServer(cfg Config, stopper *stop.Stopper) (*Server, error) {
 	} else {
 		sqlExecutorTestingKnobs = sql.ExecutorTestingKnobs{}
 	}
+	sqlExecutorTestingKnobs.DisableAutoCommit = true
 
 	loggerCtx, _ := s.stopper.WithCancelOnStop(ctx)
 
