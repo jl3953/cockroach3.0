@@ -12,9 +12,7 @@ package storage
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
-	"github.com/cockroachdb/cockroach/pkg/util/log"
 	"sort"
 	"sync"
 
@@ -282,8 +280,7 @@ func (p *pebbleMVCCScanner) uncertaintyError(ts hlc.Timestamp) bool {
 // continue.
 func (p *pebbleMVCCScanner) getAndAdvance() bool {
 	mvccKey := MVCCKey{p.curKey, p.curTS}
-	log.Warningf(context.Background(), "jenndebug p.checkUncertainty %+v, mvccKey %+v\n", p.checkUncertainty,
-		mvccKey)
+
 	if mvccKey.IsValue() {
 		if p.curTS.LessEq(p.ts) {
 			// 1. Fast path: there is no intent and our read timestamp is newer than
