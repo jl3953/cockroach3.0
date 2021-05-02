@@ -108,6 +108,7 @@ func (s *Store) Send(
 		if r := recover(); r != nil {
 			// On panic, don't run the defer. It's probably just going to panic
 			// again due to undefined state.
+			log.Warningf(ctx, "jenndebug ba %+v\n", ba)
 			panic(r)
 		}
 		if ba.Txn != nil {
