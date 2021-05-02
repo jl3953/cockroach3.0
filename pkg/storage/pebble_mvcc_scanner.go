@@ -12,9 +12,7 @@ package storage
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
-	"github.com/cockroachdb/cockroach/pkg/util/log"
 	"sort"
 	"sync"
 
@@ -151,11 +149,11 @@ func (p *pebbleMVCCScanner) init(txn *roachpb.Transaction) {
 		p.txnEpoch = txn.Epoch
 		p.txnSequence = txn.Sequence
 		p.txnIgnoredSeqNums = txn.IgnoredSeqNums
-		p.checkUncertainty = p.ts.Less(txn.MaxTimestamp)
-		//p.checkUncertainty = false
-		if p.checkUncertainty {
+		//p.checkUncertainty = p.ts.Less(txn.MaxTimestamp)
+		p.checkUncertainty = false
+		/*if p.checkUncertainty {
 			log.Warningf(context.Background(), "jenndebug checkUncertainty txn %+v\n", txn)
-		}
+		}*/
 	}
 }
 
