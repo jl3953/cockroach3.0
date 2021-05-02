@@ -12,7 +12,9 @@ package storage
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
+	"github.com/cockroachdb/cockroach/pkg/util/log"
 	"sort"
 	"sync"
 
@@ -191,6 +193,7 @@ func (p *pebbleMVCCScanner) scan() (*roachpb.Span, error) {
 				Key:    p.start,
 				EndKey: roachpb.Key(p.curKey).Next(),
 			}
+			log.Warningf(context.Background(), "jenndebug reverse Key %+v, EndKey %+v\n", resume.Key, resume.EndKey)
 		} else {
 			resume = &roachpb.Span{
 				Key:    p.curKey,
