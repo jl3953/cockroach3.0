@@ -244,8 +244,6 @@ func (s *intervalSkl) AddRange(from, to []byte, opt rangeOptions, val cacheValue
 				}
 				d++
 			}
-			log.Warningf(context.Background(), "jenndebug from %+v, to %+v\n",
-				from, to)
 			msg := fmt.Sprintf("inverted range (issue #32149): key lens = [%d,%d), diff @ index %d",
 				len(from), len(to), d)
 			log.Errorf(context.Background(), "%s, [%s,%s)", msg, from, to)
