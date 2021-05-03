@@ -769,9 +769,9 @@ func mvccGet(
 	}
 
 	// If the iterator has a specialized implementation, defer to that.
-	//if mvccIter, ok := iter.(MVCCIterator); ok && mvccIter.MVCCOpsSpecialized() {
-	//	return mvccIter.MVCCGet(key, timestamp, opts)
-	//}
+	if mvccIter, ok := iter.(MVCCIterator); ok && mvccIter.MVCCOpsSpecialized() {
+		return mvccIter.MVCCGet(key, timestamp, opts)
+	}
 
 	mvccScanner := pebbleMVCCScannerPool.Get().(*pebbleMVCCScanner)
 	defer pebbleMVCCScannerPool.Put(mvccScanner)
@@ -2347,9 +2347,9 @@ func mvccScanToBytes(
 	}
 
 	// If the iterator has a specialized implementation, defer to that.
-	//if mvccIter, ok := iter.(MVCCIterator); ok && mvccIter.MVCCOpsSpecialized() {
-	//	return mvccIter.MVCCScan(key, endKey, timestamp, opts)
-	//}
+	if mvccIter, ok := iter.(MVCCIterator); ok && mvccIter.MVCCOpsSpecialized() {
+		return mvccIter.MVCCScan(key, endKey, timestamp, opts)
+	}
 
 	mvccScanner := pebbleMVCCScannerPool.Get().(*pebbleMVCCScanner)
 	defer pebbleMVCCScannerPool.Put(mvccScanner)
