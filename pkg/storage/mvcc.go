@@ -2367,7 +2367,6 @@ func mvccScanToBytes(
 		failOnMoreRecent: opts.FailOnMoreRecent,
 	}
 
-	log.Warningf(ctx, "jenndebug start %+v, endKey %+v\n", key, endKey)
 	mvccScanner.init(opts.Txn)
 
 	var res MVCCScanResult
