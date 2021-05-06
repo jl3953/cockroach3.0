@@ -566,6 +566,10 @@ const (
 	DontNeedRowDesc RowDescOpt = true
 )
 
+type ClientCommRaw interface {
+	CreateNewMiscResult(pos CmdPos) CommandResult
+}
+
 // ClientComm is the interface used by the connExecutor for creating results to
 // be communicated to client and for exerting some control over this
 // communication.
@@ -637,6 +641,12 @@ type ClientComm interface {
 type CommandResult interface {
 	RestrictedCommandResult
 	CommandResultClose
+}
+
+type BufferResult interface {
+	BufferRow(ctx context.Context, datums tree.Datums)
+	BufferRowRaw(context.Context, tree.Datums, []pgwirebase.FormatCode,
+		sessiondata.DataConversionConfig, []oid.Oid)
 }
 
 // CommandResultErrBase is the subset of CommandResult dealing with setting a

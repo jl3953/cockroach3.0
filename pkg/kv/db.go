@@ -337,7 +337,6 @@ func (db *DB) CreateCicadaClients(numClients int, address string) {
 			log.Fatalf(context.Background(), "jenndebug createCicadaClients failed %+v\n", err)
 		}
 
-		log.Warningf(context.Background(), "jenndebug cicada clients created\n")
 	}
 	db.numClients = numClients
 }

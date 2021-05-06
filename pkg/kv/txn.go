@@ -54,6 +54,7 @@ type Txn struct {
 
 	writeHotkeys [][]byte
 	readHotkeys  [][]byte
+	resultReadHotkeys [][]byte
 
 	// mu holds fields that need to be synchronized for concurrent request execution.
 	mu struct {
@@ -618,9 +619,11 @@ func (txn *Txn) CleanupOnError(ctx context.Context, err error) {
 func (txn *Txn) ContactHotshardWrapper(ctx context.Context) error {
 	if txn.HasWriteHotkeys() || txn.HasReadHotkeys() {
 		// TODO jenndebug implement reads here
-		if _, succeeded := txn.ContactHotshard(txn.GetAndClearWriteHotkeys(),
+		if readResults, succeeded := txn.ContactHotshard(txn.GetAndClearWriteHotkeys(),
 			txn.GetAndClearReadHotKeys(),
-			txn.ProvisionalCommitTimestamp()); !succeeded {
+			txn.ProvisionalCommitTimestamp()); succeeded {
+			txn.AddResultReadHotkeys(readResults)
+		} else {
 			hotshardErr := txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard")
 			return hotshardErr
 		}
@@ -1330,6 +1333,10 @@ func (txn *Txn) AddWriteHotkeys(hotkeys [][]byte) {
 	txn.writeHotkeys = append(txn.writeHotkeys, hotkeys...)
 }
 
+func (txn *Txn) AddReadHotkeys(hotkeys [][]byte) {
+	txn.readHotkeys = append(txn.readHotkeys, hotkeys...)
+}
+
 func initializeAndPopulateHotshardRequest(
 	writeHotkeys [][]byte,
 	readHotkeys [][]byte,
@@ -1372,8 +1379,8 @@ func extractHotshardReply(readResults [][]byte, reply *execinfrapb.HotshardReply
 		binary.BigEndian.PutUint64(value, *kvPair.Value)
 		readResults = append(readResults, key, value)
 
-		log.Warningf(context.Background(), "jenndebug read(%d)=%d\n",
-			*kvPair.Key, *kvPair.Value)
+		//log.Warningf(context.Background(), "jenndebug read(%d)=%d\n",
+		//	*kvPair.Key, *kvPair.Value)
 	}
 
 	return readResults, *reply.IsCommitted
@@ -1447,4 +1454,22 @@ func (txn *Txn) HasWriteHotkeys() bool {
 
 func (txn *Txn) HasReadHotkeys() bool {
 	return len(txn.readHotkeys) > 0
+}
+
+func (txn *Txn) AddResultReadHotkeys(results [][]byte) {
+	txn.resultReadHotkeys = append(txn.resultReadHotkeys, results...)
+}
+
+func (txn *Txn) HasResultReadHotkeys() bool {
+	return len(txn.resultReadHotkeys) > 0
+}
+
+func(txn *Txn) GetAndClearResultReadHotkeys() [][]byte {
+	if txn.HasResultReadHotkeys() {
+		temp := txn.resultReadHotkeys
+		txn.resultReadHotkeys = make([][]byte, 0)
+		return temp
+	} else {
+		return nil
+	}
 }
