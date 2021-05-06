@@ -1415,17 +1415,19 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	//c := *client
 	clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
 	defer txn.DB().ReturnClient(index)
-	c := *clientPtr
-	if reply, err := c.ContactHotshard(ctx, &request); err != nil {
-
-		// rpc failed
-		return nil, false
-	} else {
-
-		// rpc succeeded
-		readResults, succeeded = extractHotshardReply(readResults, reply)
-		return readResults, succeeded
-	}
+	//c := *clientPtr
+	//if reply, err := c.ContactHotshard(ctx, &request); err != nil {
+	//
+	//	// rpc failed
+	//	return nil, false
+	//} else {
+	//
+	//	// rpc succeeded
+	//	readResults, succeeded = extractHotshardReply(readResults, reply)
+	//	return readResults, succeeded
+	//}
+	_, _, _ = *clientPtr, ctx, request
+	return nil, false
 }
 
 func (txn *Txn) GetAndClearWriteHotkeys() [][]byte {
