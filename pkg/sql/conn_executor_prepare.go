@@ -472,9 +472,9 @@ func isHotkey(key []byte) bool {
 	//hotkeys := []uint64{0}
 
 	keyInt := binary.BigEndian.Uint64(key)
-    if keyInt < 250000 {
-        return true
-    }
+	if keyInt < 250 {
+		return true
+	}
 	//for _, hotkey := range hotkeys {
 	//	if keyInt == hotkey {
 	//		return true

@@ -52,8 +52,8 @@ type Txn struct {
 	// span. This sets the SystemConfigTrigger on EndTxnRequest.
 	systemConfigTrigger bool
 
-	writeHotkeys [][]byte
-	readHotkeys  [][]byte
+	writeHotkeys      [][]byte
+	readHotkeys       [][]byte
 	resultReadHotkeys [][]byte
 
 	// mu holds fields that need to be synchronized for concurrent request execution.
@@ -616,20 +616,23 @@ func (txn *Txn) CleanupOnError(ctx context.Context, err error) {
 	}
 }
 
-func (txn *Txn) ContactHotshardWrapper(ctx context.Context) error {
+func (txn *Txn) ContactHotshardHelper(ctx context.Context) bool {
 	if txn.HasWriteHotkeys() || txn.HasReadHotkeys() {
 		// TODO jenndebug implement reads here
-		if readResults, succeeded := txn.ContactHotshard(txn.GetAndClearWriteHotkeys(),
-			txn.GetAndClearReadHotKeys(),
+		if readResults, succeeded := txn.ContactHotshard(txn.GetWriteHotkeys(),
+			txn.GetReadHotkeys(),
 			txn.ProvisionalCommitTimestamp()); succeeded {
 			txn.AddResultReadHotkeys(readResults)
+			txn.ClearWriteHotkeys()
+			txn.ClearReadHotkeys()
+			return true
 		} else {
-			hotshardErr := txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard")
-			return hotshardErr
+			return false
 		}
+	} else {
+		// no hotkeys!
+		return true
 	}
-
-	return nil
 }
 
 // Commit is the same as CommitOrCleanup but will not attempt to clean
@@ -640,8 +643,8 @@ func (txn *Txn) Commit(ctx context.Context) error {
 		return errors.WithContextTags(errors.AssertionFailedf("Commit() called on leaf txn"), ctx)
 	}
 
-	if hotshardErr := txn.ContactHotshardWrapper(ctx); nil != hotshardErr {
-		return hotshardErr
+	if succeeded := txn.ContactHotshardHelper(ctx); !succeeded {
+		return txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard retryable err")
 	}
 	return txn.commit(ctx)
 }
@@ -663,8 +666,8 @@ func (txn *Txn) CommitInBatch(ctx context.Context, b *Batch) error {
 		return errors.Errorf("a batch b can only be committed by b.txn")
 	}
 
-	//if hotshardErr := txn.ContactHotshardWrapper(); hotshardErr != nil {
-	//	return hotshardErr
+	//if succeeded := txn.ContactHotshardHelper(ctx); !succeeded {
+	//	return txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard retryable err")
 	//}
 
 	log.Warningf(ctx, "jenndebug oh boy we should not be hitting this\n")
@@ -681,8 +684,8 @@ func (txn *Txn) CommitOrCleanup(ctx context.Context) error {
 		return errors.WithContextTags(errors.AssertionFailedf("CommitOrCleanup() called on leaf txn"), ctx)
 	}
 
-	if hotshardErr := txn.ContactHotshardWrapper(ctx); hotshardErr != nil {
-		return hotshardErr
+	if succeeded := txn.ContactHotshardHelper(ctx); !succeeded {
+		return txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard retryable err")
 	}
 	err := txn.commit(ctx)
 	if err != nil {
@@ -1345,7 +1348,7 @@ func initializeAndPopulateHotshardRequest(
 	// populate request timestamp
 	request := execinfrapb.HotshardRequest{
 		Hlctimestamp: &execinfrapb.HLCTimestamp{
-			Walltime: &provisionalCommitTimestamp.WallTime,
+			Walltime:    &provisionalCommitTimestamp.WallTime,
 			Logicaltime: &provisionalCommitTimestamp.Logical,
 		},
 	}
@@ -1372,7 +1375,7 @@ func initializeAndPopulateHotshardRequest(
 
 }
 
-func extractHotshardReply(readResults [][]byte, reply *execinfrapb.HotshardReply) ([][]byte, bool){
+func extractHotshardReply(readResults [][]byte, reply *execinfrapb.HotshardReply) ([][]byte, bool) {
 	for _, kvPair := range reply.ReadValueset {
 		key, value := make([]byte, 8), make([]byte, 8)
 		binary.BigEndian.PutUint64(key, *kvPair.Key)
@@ -1383,12 +1386,16 @@ func extractHotshardReply(readResults [][]byte, reply *execinfrapb.HotshardReply
 		//	*kvPair.Key, *kvPair.Value)
 	}
 
-	return readResults, *reply.IsCommitted
+	if len(readResults) > 0 {
+		return readResults, *reply.IsCommitted
+	} else {
+		return nil, *reply.IsCommitted
+	}
 }
 
 func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	readHotkeys [][]byte,
-	provisionalCommitTimestamp hlc.Timestamp) (readResults [][]byte, succeeded bool) {
+	provisionalCommitTimestamp hlc.Timestamp) ([][]byte, bool) {
 	/**
 	@param writeHotkeys each key followed by its value
 	@param readHotkeys slice of read hotkeys
@@ -1399,14 +1406,12 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	*/
 
 	// address of hotshard
-	ctx, cancel := context.WithTimeout(context.Background(), 500 * time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
 	// populate hotshard request
 	request := initializeAndPopulateHotshardRequest(writeHotkeys, readHotkeys,
 		provisionalCommitTimestamp)
-
-
 
 	// contact hotshard
 	//connObject := txn.DB().GetConnObj()
@@ -1415,36 +1420,50 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	//c := *client
 	clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
 	defer txn.DB().ReturnClient(index)
-	//c := *clientPtr
-	//if reply, err := c.ContactHotshard(ctx, &request); err != nil {
-	//
-	//	// rpc failed
+	c := *clientPtr
+	log.Warningf(ctx, "jenndebug contactHotshard txn %+v, request %+v\n", txn, request)
+	if reply, err := c.ContactHotshard(ctx, &request); err != nil {
+
+		// rpc failed
+		//log.Warningf(ctx, "jenndebug err txn %+v, request %+v, err %+v\n", txn, request, err)
+		return nil, false
+	} else {
+
+		// rpc succeeded
+		readResults := make([][]byte, 0)
+		succeeded := false
+		readResults, succeeded = extractHotshardReply(readResults, reply)
+		//log.Warningf(ctx, "jenndebug 'succeeded' txn %+v, request %+v, succeeded %+v\n", txn, request, succeeded)
+		_ = succeeded
+		return readResults, true
+	}
+	//_, _, _ = c, ctx, request
+	//if rand.Int()%20 == 0 {
 	//	return nil, false
 	//} else {
-	//
-	//	// rpc succeeded
-	//	readResults, succeeded = extractHotshardReply(readResults, reply)
-	//	return readResults, succeeded
+	//	return nil, true
 	//}
-	_, _, _ = *clientPtr, ctx, request
-	return nil, false
 }
 
-func (txn *Txn) GetAndClearWriteHotkeys() [][]byte {
+func (txn *Txn) GetWriteHotkeys() [][]byte {
 	if len(txn.writeHotkeys) > 0 {
-		temp := txn.writeHotkeys
-		txn.writeHotkeys = make([][]byte, 0)
-		return temp
+		return txn.writeHotkeys
 	} else {
 		return nil
 	}
 }
 
-func (txn *Txn) GetAndClearReadHotKeys() [][]byte {
+func (txn *Txn) ClearWriteHotkeys() {
+	txn.writeHotkeys = make([][]byte, 0)
+}
+
+func (txn *Txn) ClearReadHotkeys() {
+	txn.readHotkeys = make([][]byte, 0)
+}
+
+func (txn *Txn) GetReadHotkeys() [][]byte {
 	if len(txn.readHotkeys) > 0 {
-		temp := txn.readHotkeys
-		txn.readHotkeys = make([][]byte, 0)
-		return temp
+		return txn.readHotkeys
 	} else {
 		return nil
 	}
@@ -1466,7 +1485,7 @@ func (txn *Txn) HasResultReadHotkeys() bool {
 	return len(txn.resultReadHotkeys) > 0
 }
 
-func(txn *Txn) GetAndClearResultReadHotkeys() [][]byte {
+func (txn *Txn) GetAndClearResultReadHotkeys() [][]byte {
 	if txn.HasResultReadHotkeys() {
 		temp := txn.resultReadHotkeys
 		txn.resultReadHotkeys = make([][]byte, 0)

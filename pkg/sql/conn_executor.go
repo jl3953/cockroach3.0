@@ -18,6 +18,7 @@ import (
 	"github.com/lib/pq/oid"
 	"io"
 	"math"
+	//"math/rand"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -1428,7 +1429,10 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 
 			if ex.state.mu.txn != nil &&
 				(ex.state.mu.txn.HasReadHotkeys() || ex.state.mu.txn.HasWriteHotkeys()) {
-				for err := ex.state.mu.txn.ContactHotshardWrapper(ctx); err != nil; {}
+				for succeeded := ex.state.mu.txn.ContactHotshardHelper(ctx); !succeeded; {
+					//time.Sleep(time.Duration(rand.Intn(100)) * time.Microsecond)
+					succeeded = ex.state.mu.txn.ContactHotshardHelper(ctx)
+				}
 
 				if ex.state.mu.txn.HasResultReadHotkeys() {
 					hotkeys := ex.state.mu.txn.GetAndClearResultReadHotkeys()
@@ -1448,9 +1452,9 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 						}
 
 						conv := sessiondata.DataConversionConfig{
-							Location: time.UTC,
+							Location:          time.UTC,
 							BytesEncodeFormat: sessiondata.BytesEncodeHex,
-							ExtraFloatDigits: 0,
+							ExtraFloatDigits:  0,
 						}
 
 						oids := []oid.Oid{types.Int.Oid(), types.Bytes.Oid()}
@@ -1503,7 +1507,9 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 		}
 		if ex.state.mu.txn != nil &&
 			(ex.state.mu.txn.HasReadHotkeys() || ex.state.mu.txn.HasWriteHotkeys()) {
-			for err := ex.state.mu.txn.ContactHotshardWrapper(ctx); err != nil; {}
+			for succeeded := ex.state.mu.txn.ContactHotshardHelper(ctx); !succeeded; {
+				//time.Sleep(time.Duration(rand.Intn(100)) * time.Microsecond)
+			}
 
 			if ex.state.mu.txn.HasResultReadHotkeys() {
 				hotkeys := ex.state.mu.txn.GetAndClearResultReadHotkeys()
@@ -1523,9 +1529,9 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 					}
 
 					conv := sessiondata.DataConversionConfig{
-						Location: time.UTC,
+						Location:          time.UTC,
 						BytesEncodeFormat: sessiondata.BytesEncodeHex,
-						ExtraFloatDigits: 0,
+						ExtraFloatDigits:  0,
 					}
 
 					oids := []oid.Oid{types.Int.Oid(), types.Bytes.Oid()}
