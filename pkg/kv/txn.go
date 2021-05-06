@@ -52,8 +52,8 @@ type Txn struct {
 	// span. This sets the SystemConfigTrigger on EndTxnRequest.
 	systemConfigTrigger bool
 
-	writeHotkeys [][]byte
-	readHotkeys  [][]byte
+	writeHotkeys      [][]byte
+	readHotkeys       [][]byte
 	resultReadHotkeys [][]byte
 
 	// mu holds fields that need to be synchronized for concurrent request execution.
@@ -1345,7 +1345,7 @@ func initializeAndPopulateHotshardRequest(
 	// populate request timestamp
 	request := execinfrapb.HotshardRequest{
 		Hlctimestamp: &execinfrapb.HLCTimestamp{
-			Walltime: &provisionalCommitTimestamp.WallTime,
+			Walltime:    &provisionalCommitTimestamp.WallTime,
 			Logicaltime: &provisionalCommitTimestamp.Logical,
 		},
 	}
@@ -1372,7 +1372,7 @@ func initializeAndPopulateHotshardRequest(
 
 }
 
-func extractHotshardReply(readResults [][]byte, reply *execinfrapb.HotshardReply) ([][]byte, bool){
+func extractHotshardReply(readResults [][]byte, reply *execinfrapb.HotshardReply) ([][]byte, bool) {
 	for _, kvPair := range reply.ReadValueset {
 		key, value := make([]byte, 8), make([]byte, 8)
 		binary.BigEndian.PutUint64(key, *kvPair.Key)
@@ -1399,14 +1399,12 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	*/
 
 	// address of hotshard
-	ctx, cancel := context.WithTimeout(context.Background(), 500 * time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
 	// populate hotshard request
 	request := initializeAndPopulateHotshardRequest(writeHotkeys, readHotkeys,
 		provisionalCommitTimestamp)
-
-
 
 	// contact hotshard
 	//connObject := txn.DB().GetConnObj()
@@ -1415,19 +1413,19 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	//c := *client
 	clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
 	defer txn.DB().ReturnClient(index)
-	//c := *clientPtr
-	//if reply, err := c.ContactHotshard(ctx, &request); err != nil {
-	//
-	//	// rpc failed
-	//	return nil, false
-	//} else {
-	//
-	//	// rpc succeeded
-	//	readResults, succeeded = extractHotshardReply(readResults, reply)
-	//	return readResults, succeeded
-	//}
-	_, _, _ = *clientPtr, ctx, request
-	return nil, false
+	c := *clientPtr
+	if reply, err := c.ContactHotshard(ctx, &request); err != nil {
+
+		// rpc failed
+		return nil, false
+	} else {
+
+		// rpc succeeded
+		readResults, succeeded = extractHotshardReply(readResults, reply)
+		return readResults, succeeded
+	}
+	//_, _, _ = *clientPtr, ctx, request
+	//return nil, false
 }
 
 func (txn *Txn) GetAndClearWriteHotkeys() [][]byte {
@@ -1466,7 +1464,7 @@ func (txn *Txn) HasResultReadHotkeys() bool {
 	return len(txn.resultReadHotkeys) > 0
 }
 
-func(txn *Txn) GetAndClearResultReadHotkeys() [][]byte {
+func (txn *Txn) GetAndClearResultReadHotkeys() [][]byte {
 	if txn.HasResultReadHotkeys() {
 		temp := txn.resultReadHotkeys
 		txn.resultReadHotkeys = make([][]byte, 0)
