@@ -18,7 +18,7 @@ import (
 	"github.com/lib/pq/oid"
 	"io"
 	"math"
-	"math/rand"
+	//"math/rand"
 	"strings"
 	"sync/atomic"
 	"time"
