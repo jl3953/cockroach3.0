@@ -1417,6 +1417,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	if reply, err := c.ContactHotshard(ctx, &request); err != nil {
 
 		// rpc failed
+		log.Warningf(ctx, "jenndebug hotshard rpc failed\n")
 		return nil, false
 	} else {
 
