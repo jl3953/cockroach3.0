@@ -625,6 +625,7 @@ func (txn *Txn) ContactHotshardWrapper(ctx context.Context) error {
 			txn.ProvisionalCommitTimestamp()); succeeded {
 			txn.AddResultReadHotkeys(readResults)
 		} else {
+			debug.PrintStack()
 			hotshardErr := txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard")
 			return hotshardErr
 		}
