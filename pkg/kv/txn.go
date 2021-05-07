@@ -15,6 +15,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
+	"runtime/debug"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
@@ -641,6 +642,7 @@ func (txn *Txn) Commit(ctx context.Context) error {
 	}
 
 	if hotshardErr := txn.ContactHotshardWrapper(ctx); nil != hotshardErr {
+		debug.PrintStack()
 		return hotshardErr
 	}
 	return txn.commit(ctx)
