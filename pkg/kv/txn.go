@@ -620,13 +620,14 @@ func (txn *Txn) CleanupOnError(ctx context.Context, err error) {
 func (txn *Txn) ContactHotshardWrapper(ctx context.Context) error {
 	if txn.HasWriteHotkeys() || txn.HasReadHotkeys() {
 		// TODO jenndebug implement reads here
+		readHotkeys := txn.GetAndClearReadHotKeys()
 		if readResults, succeeded := txn.ContactHotshard(txn.GetAndClearWriteHotkeys(),
-			txn.GetAndClearReadHotKeys(),
+			readHotkeys,
 			txn.ProvisionalCommitTimestamp()); succeeded {
 			txn.AddResultReadHotkeys(readResults)
 		} else {
 			debug.PrintStack()
-			log.Warningf(ctx, "jenndebug err txn %+v\n", txn)
+			log.Warningf(ctx, "jenndebug err txn %+v, readHotkeys %d\n", txn, readHotkeys)
 			hotshardErr := txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard")
 			return hotshardErr
 		}
