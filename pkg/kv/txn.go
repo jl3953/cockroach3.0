@@ -1423,6 +1423,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	} else {
 
 		// rpc succeeded
+		log.Warningf(ctx, "jenndebug hotshard success\n")
 		readResults, succeeded = extractHotshardReply(readResults, reply)
 		return readResults, succeeded
 	}
