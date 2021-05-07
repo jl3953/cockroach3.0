@@ -684,6 +684,7 @@ func (txn *Txn) CommitOrCleanup(ctx context.Context) error {
 	}
 
 	if hotshardErr := txn.ContactHotshardWrapper(ctx); hotshardErr != nil {
+		debug.PrintStack()
 		return hotshardErr
 	}
 	err := txn.commit(ctx)
