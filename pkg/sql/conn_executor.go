@@ -1430,7 +1430,7 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 			if ex.state.mu.txn != nil &&
 				(ex.state.mu.txn.HasReadHotkeys() || ex.state.mu.txn.HasWriteHotkeys()) {
 				for err := ex.state.mu.txn.ContactHotshardWrapper(ctx); err != nil; {
-					time.Sleep(time.Duration(rand.Intn(900)) * time.Nanosecond)
+					time.Sleep(time.Duration(rand.Intn(5)) * time.Microsecond)
 				}
 
 				if ex.state.mu.txn.HasResultReadHotkeys() {
