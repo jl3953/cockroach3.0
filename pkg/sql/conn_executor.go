@@ -18,7 +18,7 @@ import (
 	"github.com/lib/pq/oid"
 	"io"
 	"math"
-	//"math/rand"
+	"math/rand"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -1430,6 +1430,7 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 			if ex.state.mu.txn != nil &&
 				(ex.state.mu.txn.HasReadHotkeys() || ex.state.mu.txn.HasWriteHotkeys()) {
 				for err := ex.state.mu.txn.ContactHotshardWrapper(ctx); err != nil; {
+					time.Sleep(time.Duration(rand.Intn(5)) * time.Microsecond)
 				}
 
 				if ex.state.mu.txn.HasResultReadHotkeys() {
@@ -1506,7 +1507,7 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 		if ex.state.mu.txn != nil &&
 			(ex.state.mu.txn.HasReadHotkeys() || ex.state.mu.txn.HasWriteHotkeys()) {
 			for err := ex.state.mu.txn.ContactHotshardWrapper(ctx); err != nil; {
-				//time.Sleep(time.Duration(rand.Intn(5)) * time.Microsecond)
+				time.Sleep(time.Duration(rand.Intn(5)) * time.Microsecond)
 			}
 
 			if ex.state.mu.txn.HasResultReadHotkeys() {
