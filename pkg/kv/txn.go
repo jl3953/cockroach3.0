@@ -1414,6 +1414,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
 	defer txn.DB().ReturnClient(index)
 	c := *clientPtr
+	log.Warningf(context.Background(), "jenndebug last call\n")
 	if reply, err := c.ContactHotshard(ctx, &request); err != nil {
 
 		// rpc failed
