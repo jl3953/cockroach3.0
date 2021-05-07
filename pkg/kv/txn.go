@@ -626,7 +626,7 @@ func (txn *Txn) ContactHotshardWrapper(ctx context.Context) error {
 			txn.AddResultReadHotkeys(readResults)
 		} else {
 			debug.PrintStack()
-			log.Warningf(ctx, "jenndebug err txn %+v\n")
+			log.Warningf(ctx, "jenndebug err txn %+v\n", txn)
 			hotshardErr := txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard")
 			return hotshardErr
 		}
