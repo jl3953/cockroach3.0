@@ -1389,12 +1389,16 @@ func extractHotshardReply(readResults [][]byte, reply *execinfrapb.HotshardReply
 			*kvPair.Key, *kvPair.Value)
 	}
 
-	return readResults, *reply.IsCommitted
+	if len(readResults) > 0 {
+		return readResults, *reply.IsCommitted
+	} else {
+		return nil, *reply.IsCommitted
+	}
 }
 
 func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	readHotkeys [][]byte,
-	provisionalCommitTimestamp hlc.Timestamp) (readResults [][]byte, succeeded bool) {
+	provisionalCommitTimestamp hlc.Timestamp) ([][]byte, bool) {
 	/**
 	@param writeHotkeys each key followed by its value
 	@param readHotkeys slice of read hotkeys
@@ -1420,7 +1424,6 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
 	defer txn.DB().ReturnClient(index)
 	c := *clientPtr
-	log.Warningf(context.Background(), "jenndebug last call\n")
 	if reply, err := c.ContactHotshard(ctx, &request); err != nil {
 
 		// rpc failed
@@ -1429,7 +1432,8 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	} else {
 
 		// rpc succeeded
-		log.Warningf(ctx, "jenndebug hotshard success\n")
+		readResults := make([][]byte, 0)
+		succeeded := false
 		readResults, succeeded = extractHotshardReply(readResults, reply)
 		return readResults, succeeded
 	}
