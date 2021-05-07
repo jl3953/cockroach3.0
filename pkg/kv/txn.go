@@ -1399,7 +1399,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	*/
 
 	// address of hotshard
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
 	// populate hotshard request
