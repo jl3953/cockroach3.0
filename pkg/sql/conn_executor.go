@@ -1430,6 +1430,7 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 			if ex.state.mu.txn != nil &&
 				(ex.state.mu.txn.HasReadHotkeys() || ex.state.mu.txn.HasWriteHotkeys()) {
 				for err := ex.state.mu.txn.ContactHotshardWrapper(ctx); err != nil; {
+					log.Warningf(ctx, "jenndebug sleep, txn: %+v\n", ex.state.mu.txn)
 					time.Sleep(time.Duration(rand.Intn(100)) * time.Microsecond)
 				}
 
