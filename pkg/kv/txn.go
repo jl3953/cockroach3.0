@@ -11,6 +11,7 @@
 package kv
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -621,15 +622,16 @@ func (txn *Txn) CleanupOnError(ctx context.Context, err error) {
 func (txn *Txn) ContactHotshardWrapper(ctx context.Context) error {
 	if txn.HasWriteHotkeys() || txn.HasReadHotkeys() {
 		// TODO jenndebug implement reads here
-		readHotkeys := txn.GetAndClearReadHotKeys()
-		if readResults, succeeded := txn.ContactHotshard(txn.GetAndClearWriteHotkeys(),
-			readHotkeys,
+		if readResults, succeeded := txn.ContactHotshard(txn.GetWriteHotkeys(),
+			txn.GetReadHotkeys(),
 			txn.ProvisionalCommitTimestamp()); succeeded {
 			//txn.AddResultReadHotkeys(readResults)
+			txn.ClearWriteHotkeys()
+			txn.ClearReadHotkeys()
 			_ = readResults
 		} else {
 			//hotshardErr := txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard")
-			return nil
+			return bytes.ErrTooLarge
 		}
 	}
 
@@ -1449,21 +1451,25 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	}
 }
 
-func (txn *Txn) GetAndClearWriteHotkeys() [][]byte {
+func (txn *Txn) GetWriteHotkeys() [][]byte {
 	if len(txn.writeHotkeys) > 0 {
-		temp := txn.writeHotkeys
-		txn.writeHotkeys = make([][]byte, 0)
-		return temp
+		return txn.writeHotkeys
 	} else {
 		return nil
 	}
 }
 
-func (txn *Txn) GetAndClearReadHotKeys() [][]byte {
+func (txn *Txn) ClearWriteHotkeys() {
+	txn.writeHotkeys = make([][]byte, 0)
+}
+
+func (txn *Txn) ClearReadHotkeys() {
+	txn.readHotkeys = make([][]byte, 0)
+}
+
+func (txn *Txn) GetReadHotkeys() [][]byte {
 	if len(txn.readHotkeys) > 0 {
-		temp := txn.readHotkeys
-		txn.readHotkeys = make([][]byte, 0)
-		return temp
+		return txn.readHotkeys
 	} else {
 		return nil
 	}
