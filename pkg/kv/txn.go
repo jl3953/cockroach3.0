@@ -15,6 +15,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
+	"math/rand"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
@@ -1422,20 +1423,26 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	defer txn.DB().ReturnClient(index)
 	c := *clientPtr
 	log.Warningf(ctx, "jenndebug contactHotshard txn %+v, request %+v\n", txn, request)
-	if reply, err := c.ContactHotshard(ctx, &request); err != nil {
-
-		// rpc failed
-		//log.Warningf(ctx, "jenndebug err txn %+v, request %+v, err %+v\n", txn, request, err)
+	//if reply, err := c.ContactHotshard(ctx, &request); err != nil {
+	//
+	//	// rpc failed
+	//	//log.Warningf(ctx, "jenndebug err txn %+v, request %+v, err %+v\n", txn, request, err)
+	//	return nil, false
+	//} else {
+	//
+	//	// rpc succeeded
+	//	readResults := make([][]byte, 0)
+	//	succeeded := false
+	//	readResults, succeeded = extractHotshardReply(readResults, reply)
+	//	//log.Warningf(ctx, "jenndebug 'succeeded' txn %+v, request %+v, succeeded %+v\n", txn, request, succeeded)
+	//	_ = succeeded
+	//	return readResults, true
+	//}
+	_, _, _ = c, ctx, request
+	if rand.Int()%20 == 0 {
 		return nil, false
 	} else {
-
-		// rpc succeeded
-		readResults := make([][]byte, 0)
-		succeeded := false
-		readResults, succeeded = extractHotshardReply(readResults, reply)
-		//log.Warningf(ctx, "jenndebug 'succeeded' txn %+v, request %+v, succeeded %+v\n", txn, request, succeeded)
-		_ = succeeded
-		return readResults, true
+		return nil, true
 	}
 }
 
