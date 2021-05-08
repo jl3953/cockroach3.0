@@ -626,8 +626,6 @@ func (txn *Txn) ContactHotshardWrapper(ctx context.Context) error {
 			txn.ProvisionalCommitTimestamp()); succeeded {
 			txn.AddResultReadHotkeys(readResults)
 		} else {
-			debug.PrintStack()
-			log.Warningf(ctx, "jenndebug err txn %+v, readHotkeys %d\n", txn, readHotkeys)
 			hotshardErr := txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard")
 			return hotshardErr
 		}
@@ -1385,8 +1383,8 @@ func extractHotshardReply(readResults [][]byte, reply *execinfrapb.HotshardReply
 		binary.BigEndian.PutUint64(value, *kvPair.Value)
 		readResults = append(readResults, key, value)
 
-		log.Warningf(context.Background(), "jenndebug read(%d)=%d\n",
-			*kvPair.Key, *kvPair.Value)
+		//log.Warningf(context.Background(), "jenndebug read(%d)=%d\n",
+		//	*kvPair.Key, *kvPair.Value)
 	}
 
 	if len(readResults) > 0 {
@@ -1424,21 +1422,20 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
 	defer txn.DB().ReturnClient(index)
 	c := *clientPtr
-	if reply, err := c.ContactHotshard(ctx, &request); err != nil {
-
-		// rpc failed
-		log.Warningf(ctx, "jenndebug hotshard rpc failed err %+v\n", err)
-		return nil, false
-	} else {
-
-		// rpc succeeded
-		readResults := make([][]byte, 0)
-		succeeded := false
-		readResults, succeeded = extractHotshardReply(readResults, reply)
-		return readResults, succeeded
-	}
-	//_, _, _ = *clientPtr, ctx, request
-	//return nil, false
+	//if reply, err := c.ContactHotshard(ctx, &request); err != nil {
+	//
+	//	// rpc failed
+	//	return nil, false
+	//} else {
+	//
+	//	// rpc succeeded
+	//	readResults := make([][]byte, 0)
+	//	succeeded := false
+	//	readResults, succeeded = extractHotshardReply(readResults, reply)
+	//	return readResults, succeeded
+	//}
+	_, _, _ = c, ctx, request
+	return nil, false
 }
 
 func (txn *Txn) GetAndClearWriteHotkeys() [][]byte {
