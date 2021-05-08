@@ -1410,21 +1410,21 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	*/
 
 	// address of hotshard
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-
-	// populate hotshard request
-	request := initializeAndPopulateHotshardRequest(writeHotkeys, readHotkeys,
-		provisionalCommitTimestamp)
-
-	// contact hotshard
-	//connObject := txn.DB().GetConnObj()
-	//defer connObject.ReturnClient()
-	//client := connObject.GetClient()
-	//c := *client
-	clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
-	defer txn.DB().ReturnClient(index)
-	c := *clientPtr
+	//ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	//defer cancel()
+	//
+	//// populate hotshard request
+	//request := initializeAndPopulateHotshardRequest(writeHotkeys, readHotkeys,
+	//	provisionalCommitTimestamp)
+	//
+	//// contact hotshard
+	////connObject := txn.DB().GetConnObj()
+	////defer connObject.ReturnClient()
+	////client := connObject.GetClient()
+	////c := *client
+	//clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
+	//defer txn.DB().ReturnClient(index)
+	//c := *clientPtr
 	//log.Warningf(ctx, "jenndebug contactHotshard txn %+v, request %+v\n", txn, request)
 	//if reply, err := c.ContactHotshard(ctx, &request); err != nil {
 	//
@@ -1441,7 +1441,6 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	//	_ = succeeded
 	//	return readResults, true
 	//}
-	_, _, _ = c, ctx, request
 
 	if rand.Int()%100 == 0 {
 		return nil, false
