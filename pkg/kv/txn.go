@@ -17,7 +17,6 @@ import (
 	"fmt"
 	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
 	"golang.org/x/exp/rand"
-	"runtime/debug"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
@@ -646,10 +645,10 @@ func (txn *Txn) Commit(ctx context.Context) error {
 		return errors.WithContextTags(errors.AssertionFailedf("Commit() called on leaf txn"), ctx)
 	}
 
-	if hotshardErr := txn.ContactHotshardWrapper(ctx); nil != hotshardErr {
-		debug.PrintStack()
-		return hotshardErr
-	}
+	//if hotshardErr := txn.ContactHotshardWrapper(ctx); nil != hotshardErr {
+	//	debug.PrintStack()
+	//	return hotshardErr
+	//}
 	return txn.commit(ctx)
 }
 
@@ -688,10 +687,10 @@ func (txn *Txn) CommitOrCleanup(ctx context.Context) error {
 		return errors.WithContextTags(errors.AssertionFailedf("CommitOrCleanup() called on leaf txn"), ctx)
 	}
 
-	if hotshardErr := txn.ContactHotshardWrapper(ctx); hotshardErr != nil {
-		debug.PrintStack()
-		return hotshardErr
-	}
+	//if hotshardErr := txn.ContactHotshardWrapper(ctx); hotshardErr != nil {
+	//	debug.PrintStack()
+	//	return hotshardErr
+	//}
 	err := txn.commit(ctx)
 	if err != nil {
 		txn.CleanupOnError(ctx, err)
