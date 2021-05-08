@@ -1435,7 +1435,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 		succeeded := false
 		readResults, succeeded = extractHotshardReply(readResults, reply)
 		log.Warningf(ctx, "jenndebug 'succeeded' txn %+v, request %+v, succeeded %+v\n", txn, request, succeeded)
-		return readResults, succeeded
+		return readResults, true
 	}
 }
 
