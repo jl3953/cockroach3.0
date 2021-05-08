@@ -1426,7 +1426,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	if reply, err := c.ContactHotshard(ctx, &request); err != nil {
 
 		// rpc failed
-		log.Warningf(ctx, "jenndebug err txn %+v, request %+v, err %+v\n", txn, request, err)
+		//log.Warningf(ctx, "jenndebug err txn %+v, request %+v, err %+v\n", txn, request, err)
 		return nil, false
 	} else {
 
@@ -1434,7 +1434,8 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 		readResults := make([][]byte, 0)
 		succeeded := false
 		readResults, succeeded = extractHotshardReply(readResults, reply)
-		log.Warningf(ctx, "jenndebug 'succeeded' txn %+v, request %+v, succeeded %+v\n", txn, request, succeeded)
+		//log.Warningf(ctx, "jenndebug 'succeeded' txn %+v, request %+v, succeeded %+v\n", txn, request, succeeded)
+		_ = succeeded
 		return readResults, true
 	}
 }
