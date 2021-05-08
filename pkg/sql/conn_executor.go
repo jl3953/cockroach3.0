@@ -1432,6 +1432,7 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 				for i, err := 0, ex.state.mu.txn.ContactHotshardWrapper(ctx); err != nil; i++ {
 					//time.Sleep(time.Duration(rand.Intn(100)) * time.Microsecond)
 					log.Warningf(ctx, "jenndebug fake failed i %d\n", i)
+					err = ex.state.mu.txn.ContactHotshardWrapper(ctx)
 				}
 
 				if ex.state.mu.txn.HasResultReadHotkeys() {
