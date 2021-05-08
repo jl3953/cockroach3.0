@@ -15,6 +15,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
+	"golang.org/x/exp/rand"
 	"runtime/debug"
 	"time"
 
@@ -1439,7 +1440,12 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	//	return readResults, true
 	//}
 	_, _, _ = c, ctx, request
-	return nil, true
+
+	if rand.Int()%2 == 0 {
+		return nil, true
+	} else {
+		return nil, false
+	}
 }
 
 func (txn *Txn) GetAndClearWriteHotkeys() [][]byte {
