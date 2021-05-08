@@ -11,7 +11,6 @@
 package kv
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -630,7 +629,7 @@ func (txn *Txn) ContactHotshardWrapper(ctx context.Context) error {
 			_ = readResults
 		} else {
 			//hotshardErr := txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard")
-			return bytes.ErrTooLarge
+			return nil
 		}
 	}
 
