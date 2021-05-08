@@ -1510,34 +1510,34 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 				//time.Sleep(time.Duration(rand.Intn(100)) * time.Microsecond)
 			}
 
-			if ex.state.mu.txn.HasResultReadHotkeys() {
-				hotkeys := ex.state.mu.txn.GetAndClearResultReadHotkeys()
-
-				for i := 0; i < len(hotkeys); i += 2 {
-					key := binary.BigEndian.Uint64(hotkeys[i])
-					val := hotkeys[i+1]
-
-					data := tree.Datums{
-						tree.NewDInt(tree.DInt(key)),
-						tree.NewDBytes(tree.DBytes(val)),
-					}
-
-					formatCodes := []pgwirebase.FormatCode{
-						pgwirebase.FormatBinary,
-						pgwirebase.FormatBinary,
-					}
-
-					conv := sessiondata.DataConversionConfig{
-						Location:          time.UTC,
-						BytesEncodeFormat: sessiondata.BytesEncodeHex,
-						ExtraFloatDigits:  0,
-					}
-
-					oids := []oid.Oid{types.Int.Oid(), types.Bytes.Oid()}
-
-					res.(BufferResult).BufferRowRaw(ctx, data, formatCodes, conv, oids)
-				}
-			}
+			//if ex.state.mu.txn.HasResultReadHotkeys() {
+			//	hotkeys := ex.state.mu.txn.GetAndClearResultReadHotkeys()
+			//
+			//	for i := 0; i < len(hotkeys); i += 2 {
+			//		key := binary.BigEndian.Uint64(hotkeys[i])
+			//		val := hotkeys[i+1]
+			//
+			//		data := tree.Datums{
+			//			tree.NewDInt(tree.DInt(key)),
+			//			tree.NewDBytes(tree.DBytes(val)),
+			//		}
+			//
+			//		formatCodes := []pgwirebase.FormatCode{
+			//			pgwirebase.FormatBinary,
+			//			pgwirebase.FormatBinary,
+			//		}
+			//
+			//		conv := sessiondata.DataConversionConfig{
+			//			Location:          time.UTC,
+			//			BytesEncodeFormat: sessiondata.BytesEncodeHex,
+			//			ExtraFloatDigits:  0,
+			//		}
+			//
+			//		oids := []oid.Oid{types.Int.Oid(), types.Bytes.Oid()}
+			//
+			//		res.(BufferResult).BufferRowRaw(ctx, data, formatCodes, conv, oids)
+			//	}
+			//}
 		}
 	case PrepareStmt:
 		ex.curStmt = tcmd.AST
