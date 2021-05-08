@@ -1441,10 +1441,10 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	//}
 	_, _, _ = c, ctx, request
 
-	if rand.Int()%2 == 0 {
-		return nil, true
-	} else {
+	if rand.Int()%5 == 0 {
 		return nil, false
+	} else {
+		return nil, true
 	}
 }
 
