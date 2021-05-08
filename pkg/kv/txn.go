@@ -619,28 +619,23 @@ func (txn *Txn) CleanupOnError(ctx context.Context, err error) {
 }
 
 func (txn *Txn) ContactHotshardWrapper(ctx context.Context) error {
-	//if txn.HasWriteHotkeys() || txn.HasReadHotkeys() {
-	//	// TODO jenndebug implement reads here
-	//	if readResults, succeeded := txn.ContactHotshard(txn.GetWriteHotkeys(),
-	//		txn.GetReadHotkeys(),
-	//		txn.ProvisionalCommitTimestamp()); succeeded {
-	//		//txn.AddResultReadHotkeys(readResults)
-	//		//txn.ClearWriteHotkeys()
-	//		//txn.ClearReadHotkeys()
-	//		_ = readResults
-	//	} else {
-	//		//hotshardErr := txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard")
-	//		return bytes.ErrTooLarge
-	//	}
-	//}
-
-	//return nil
-
-	if rand.Intn(100) == 0 {
-		return bytes.ErrTooLarge
-	} else {
-		return nil
+	if txn.HasWriteHotkeys() || txn.HasReadHotkeys() {
+		// TODO jenndebug implement reads here
+		if readResults, succeeded := txn.ContactHotshard(txn.GetWriteHotkeys(),
+			txn.GetReadHotkeys(),
+			txn.ProvisionalCommitTimestamp()); succeeded {
+			txn.AddResultReadHotkeys(readResults)
+			txn.ClearWriteHotkeys()
+			txn.ClearReadHotkeys()
+			_ = readResults
+		} else {
+			//hotshardErr := txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard")
+			return bytes.ErrTooLarge
+		}
 	}
+
+	return nil
+
 }
 
 // Commit is the same as CommitOrCleanup but will not attempt to clean
