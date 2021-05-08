@@ -646,10 +646,9 @@ func (txn *Txn) Commit(ctx context.Context) error {
 		return errors.WithContextTags(errors.AssertionFailedf("Commit() called on leaf txn"), ctx)
 	}
 
-	//if hotshardErr := txn.ContactHotshardWrapper(ctx); nil != hotshardErr {
-	//	debug.PrintStack()
-	//	return hotshardErr
-	//}
+	if succeeded := txn.ContactHotshardHelper(ctx); !succeeded {
+		return txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard retryable err")
+	}
 	return txn.commit(ctx)
 }
 
@@ -670,9 +669,9 @@ func (txn *Txn) CommitInBatch(ctx context.Context, b *Batch) error {
 		return errors.Errorf("a batch b can only be committed by b.txn")
 	}
 
-	//if hotshardErr := txn.ContactHotshardWrapper(); hotshardErr != nil {
-	//	return hotshardErr
-	//}
+	if succeeded := txn.ContactHotshardHelper(ctx); !succeeded {
+		return txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard retryable err")
+	}
 
 	log.Warningf(ctx, "jenndebug oh boy we should not be hitting this\n")
 	b.appendReqs(endTxnReq(true /* commit */, txn.deadline(), txn.systemConfigTrigger))
