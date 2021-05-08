@@ -1429,10 +1429,10 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 
 			if ex.state.mu.txn != nil &&
 				(ex.state.mu.txn.HasReadHotkeys() || ex.state.mu.txn.HasWriteHotkeys()) {
-				for i, err := 0, ex.state.mu.txn.ContactHotshardWrapper(ctx); err != nil; i++ {
+				for i, succeeded := 0, ex.state.mu.txn.ContactHotshardHelper(ctx); !succeeded; i++ {
 					//time.Sleep(time.Duration(rand.Intn(100)) * time.Microsecond)
 					log.Warningf(ctx, "jenndebug fake failed i %d\n", i)
-					err = ex.state.mu.txn.ContactHotshardWrapper(ctx)
+					succeeded = ex.state.mu.txn.ContactHotshardHelper(ctx)
 				}
 
 				if ex.state.mu.txn.HasResultReadHotkeys() {

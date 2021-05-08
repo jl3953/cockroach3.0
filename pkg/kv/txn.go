@@ -11,7 +11,6 @@
 package kv
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -618,7 +617,7 @@ func (txn *Txn) CleanupOnError(ctx context.Context, err error) {
 	}
 }
 
-func (txn *Txn) ContactHotshardWrapper(ctx context.Context) error {
+func (txn *Txn) ContactHotshardHelper(ctx context.Context) bool {
 	if txn.HasWriteHotkeys() || txn.HasReadHotkeys() {
 		// TODO jenndebug implement reads here
 		if readResults, succeeded := txn.ContactHotshard(txn.GetWriteHotkeys(),
@@ -627,15 +626,16 @@ func (txn *Txn) ContactHotshardWrapper(ctx context.Context) error {
 			txn.AddResultReadHotkeys(readResults)
 			txn.ClearWriteHotkeys()
 			txn.ClearReadHotkeys()
-			_ = readResults
+			return true
 		} else {
 			//hotshardErr := txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard")
-			return bytes.ErrTooLarge
+			//return hotshardErr
+			return false
 		}
+	} else {
+		// no hotkeys!
+		return true
 	}
-
-	return nil
-
 }
 
 // Commit is the same as CommitOrCleanup but will not attempt to clean
