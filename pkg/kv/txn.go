@@ -669,9 +669,9 @@ func (txn *Txn) CommitInBatch(ctx context.Context, b *Batch) error {
 		return errors.Errorf("a batch b can only be committed by b.txn")
 	}
 
-	if succeeded := txn.ContactHotshardHelper(ctx); !succeeded {
-		return txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard retryable err")
-	}
+	//if succeeded := txn.ContactHotshardHelper(ctx); !succeeded {
+	//	return txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard retryable err")
+	//}
 
 	log.Warningf(ctx, "jenndebug oh boy we should not be hitting this\n")
 	b.appendReqs(endTxnReq(true /* commit */, txn.deadline(), txn.systemConfigTrigger))
@@ -687,10 +687,9 @@ func (txn *Txn) CommitOrCleanup(ctx context.Context) error {
 		return errors.WithContextTags(errors.AssertionFailedf("CommitOrCleanup() called on leaf txn"), ctx)
 	}
 
-	//if hotshardErr := txn.ContactHotshardWrapper(ctx); hotshardErr != nil {
-	//	debug.PrintStack()
-	//	return hotshardErr
-	//}
+	if succeeded := txn.ContactHotshardHelper(ctx); !succeeded {
+		return txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard retryable err")
+	}
 	err := txn.commit(ctx)
 	if err != nil {
 		txn.CleanupOnError(ctx, err)
