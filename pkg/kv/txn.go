@@ -626,7 +626,8 @@ func (txn *Txn) ContactHotshardWrapper(ctx context.Context) error {
 		if readResults, succeeded := txn.ContactHotshard(txn.GetAndClearWriteHotkeys(),
 			readHotkeys,
 			txn.ProvisionalCommitTimestamp()); succeeded {
-			txn.AddResultReadHotkeys(readResults)
+			//txn.AddResultReadHotkeys(readResults)
+			_ = readResults
 		} else {
 			//hotshardErr := txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard")
 			return bytes.ErrTooLarge
