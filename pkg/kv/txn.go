@@ -11,6 +11,7 @@
 package kv
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -627,8 +628,8 @@ func (txn *Txn) ContactHotshardWrapper(ctx context.Context) error {
 			txn.ProvisionalCommitTimestamp()); succeeded {
 			txn.AddResultReadHotkeys(readResults)
 		} else {
-			hotshardErr := txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard")
-			return hotshardErr
+			//hotshardErr := txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard")
+			return bytes.ErrTooLarge
 		}
 	}
 
