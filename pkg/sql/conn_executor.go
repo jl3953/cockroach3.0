@@ -1429,9 +1429,8 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 
 			if ex.state.mu.txn != nil &&
 				(ex.state.mu.txn.HasReadHotkeys() || ex.state.mu.txn.HasWriteHotkeys()) {
-				for i, succeeded := 0, ex.state.mu.txn.ContactHotshardHelper(ctx); !succeeded; i++ {
+				for succeeded := ex.state.mu.txn.ContactHotshardHelper(ctx); !succeeded; {
 					//time.Sleep(time.Duration(rand.Intn(100)) * time.Microsecond)
-					log.Warningf(ctx, "jenndebug fake failed i %d\n", i)
 					succeeded = ex.state.mu.txn.ContactHotshardHelper(ctx)
 				}
 
@@ -1506,41 +1505,41 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		//if ex.state.mu.txn != nil &&
-		//	(ex.state.mu.txn.HasReadHotkeys() || ex.state.mu.txn.HasWriteHotkeys()) {
-		//	for err := ex.state.mu.txn.ContactHotshardWrapper(ctx); err != nil; {
-		//		//time.Sleep(time.Duration(rand.Intn(100)) * time.Microsecond)
-		//	}
-		//
-		//	if ex.state.mu.txn.HasResultReadHotkeys() {
-		//		hotkeys := ex.state.mu.txn.GetAndClearResultReadHotkeys()
-		//
-		//		for i := 0; i < len(hotkeys); i += 2 {
-		//			key := binary.BigEndian.Uint64(hotkeys[i])
-		//			val := hotkeys[i+1]
-		//
-		//			data := tree.Datums{
-		//				tree.NewDInt(tree.DInt(key)),
-		//				tree.NewDBytes(tree.DBytes(val)),
-		//			}
-		//
-		//			formatCodes := []pgwirebase.FormatCode{
-		//				pgwirebase.FormatBinary,
-		//				pgwirebase.FormatBinary,
-		//			}
-		//
-		//			conv := sessiondata.DataConversionConfig{
-		//				Location:          time.UTC,
-		//				BytesEncodeFormat: sessiondata.BytesEncodeHex,
-		//				ExtraFloatDigits:  0,
-		//			}
-		//
-		//			oids := []oid.Oid{types.Int.Oid(), types.Bytes.Oid()}
-		//
-		//			res.(BufferResult).BufferRowRaw(ctx, data, formatCodes, conv, oids)
-		//		}
-		//	}
-		//}
+		if ex.state.mu.txn != nil &&
+			(ex.state.mu.txn.HasReadHotkeys() || ex.state.mu.txn.HasWriteHotkeys()) {
+			for succeeded := ex.state.mu.txn.ContactHotshardHelper(ctx); !succeeded; {
+				//time.Sleep(time.Duration(rand.Intn(100)) * time.Microsecond)
+			}
+
+			if ex.state.mu.txn.HasResultReadHotkeys() {
+				hotkeys := ex.state.mu.txn.GetAndClearResultReadHotkeys()
+
+				for i := 0; i < len(hotkeys); i += 2 {
+					key := binary.BigEndian.Uint64(hotkeys[i])
+					val := hotkeys[i+1]
+
+					data := tree.Datums{
+						tree.NewDInt(tree.DInt(key)),
+						tree.NewDBytes(tree.DBytes(val)),
+					}
+
+					formatCodes := []pgwirebase.FormatCode{
+						pgwirebase.FormatBinary,
+						pgwirebase.FormatBinary,
+					}
+
+					conv := sessiondata.DataConversionConfig{
+						Location:          time.UTC,
+						BytesEncodeFormat: sessiondata.BytesEncodeHex,
+						ExtraFloatDigits:  0,
+					}
+
+					oids := []oid.Oid{types.Int.Oid(), types.Bytes.Oid()}
+
+					res.(BufferResult).BufferRowRaw(ctx, data, formatCodes, conv, oids)
+				}
+			}
+		}
 	case PrepareStmt:
 		ex.curStmt = tcmd.AST
 		res = ex.clientComm.CreatePrepareResult(pos)
