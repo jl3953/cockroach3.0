@@ -15,6 +15,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
+	"math/rand"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
@@ -1405,34 +1406,40 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	@param succeeded whether rpc succeeded
 	*/
 
-	// address of hotshard
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
+	//// address of hotshard
+	//ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	//defer cancel()
+	//
+	//// populate hotshard request
+	//request := initializeAndPopulateHotshardRequest(writeHotkeys, readHotkeys,
+	//	provisionalCommitTimestamp)
+	//
+	//// contact hotshard
+	////connObject := txn.DB().GetConnObj()
+	////defer connObject.ReturnClient()
+	////client := connObject.GetClient()
+	////c := *client
+	//clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
+	//defer txn.DB().ReturnClient(index)
+	//c := *clientPtr
+	//if reply, err := c.ContactHotshard(ctx, &request); err != nil {
+	//
+	//	// rpc failed
+	//	return nil, false
+	//} else {
+	//
+	//	// rpc succeeded
+	//	readResults := make([][]byte, 0)
+	//	succeeded := false
+	//	readResults, succeeded = extractHotshardReply(readResults, reply)
+	//	_ = succeeded
+	//	return readResults, true
+	//}
 
-	// populate hotshard request
-	request := initializeAndPopulateHotshardRequest(writeHotkeys, readHotkeys,
-		provisionalCommitTimestamp)
-
-	// contact hotshard
-	//connObject := txn.DB().GetConnObj()
-	//defer connObject.ReturnClient()
-	//client := connObject.GetClient()
-	//c := *client
-	clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
-	defer txn.DB().ReturnClient(index)
-	c := *clientPtr
-	if reply, err := c.ContactHotshard(ctx, &request); err != nil {
-
-		// rpc failed
+	if rand.Intn(100) < 10 {
 		return nil, false
 	} else {
-
-		// rpc succeeded
-		readResults := make([][]byte, 0)
-		succeeded := false
-		readResults, succeeded = extractHotshardReply(readResults, reply)
-		_ = succeeded
-		return readResults, true
+		return nil, true
 	}
 }
 

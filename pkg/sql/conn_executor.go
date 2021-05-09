@@ -1507,7 +1507,7 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 		if ex.state.mu.txn != nil &&
 			(ex.state.mu.txn.HasReadHotkeys() || ex.state.mu.txn.HasWriteHotkeys()) {
 			for succeeded := ex.state.mu.txn.ContactHotshardHelper(ctx); !succeeded; {
-				succeeded = ex.state.mu.txn.ContactHotshardHelper(ctx);
+				succeeded = ex.state.mu.txn.ContactHotshardHelper(ctx)
 			}
 
 			if ex.state.mu.txn.HasResultReadHotkeys() {
