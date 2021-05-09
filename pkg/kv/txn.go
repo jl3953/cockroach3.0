@@ -1434,6 +1434,12 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 		_ = succeeded
 		return readResults, true
 	}
+
+	//if rand.Intn(100) < 10 {
+	//	return nil, false
+	//} else {
+	//	return nil, true
+	//}
 }
 
 func (txn *Txn) GetWriteHotkeys() [][]byte {
