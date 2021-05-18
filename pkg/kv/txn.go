@@ -1382,8 +1382,7 @@ func extractHotshardReply(readResults [][]byte, reply *execinfrapb.HotshardReply
 		binary.BigEndian.PutUint64(value, *kvPair.Value)
 		readResults = append(readResults, key, value)
 
-		log.Warningf(context.Background(), "jenndebug read(%d)=%d\n",
-			*kvPair.Key, *kvPair.Value)
+		//log.Warningf(context.Background(), "jenndebug read(%d)=%d\n", *kvPair.Key, *kvPair.Value)
 	}
 
 	if len(readResults) > 0 {

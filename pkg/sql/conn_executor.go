@@ -1436,7 +1436,6 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 
 				if ex.state.mu.txn.HasResultReadHotkeys() {
 
-					log.Warningf(context.Background(), "jenndebug hotkey populating results\n")
 					hotkeys := ex.state.mu.txn.GetAndClearResultReadHotkeys()
 
 					for i := 0; i < len(hotkeys); i += 2 {
@@ -1468,8 +1467,6 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 
 			res = ex.clientComm.(ClientCommRaw).CreateNewMiscResult(pos)
 			break
-		} else {
-			log.Warningf(ctx, "jenndebug not nil ast\n")
 		}
 
 		if log.ExpensiveLogEnabled(ctx, 2) {
