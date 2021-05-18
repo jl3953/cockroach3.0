@@ -299,8 +299,9 @@ func (ex *connExecutor) execBind(
 			bindCmd.Args = extendedWarmArgs
 			log.Warningf(context.Background(), "jenndebug hasWarmKeys, bindCmd.Args %+v\n", bindCmd.Args)
 		} else {
-			//ps.AST = nil
-			bindCmd.Args = nil
+			for i := 0; i < len(hotkeys)+len(warmArgs); i++ {
+				bindCmd.Args[i] = nil
+			}
 		}
 
 		if len(hotkeys) > 0 {
