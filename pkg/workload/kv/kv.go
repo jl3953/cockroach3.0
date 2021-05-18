@@ -433,12 +433,11 @@ func (o *kvOp) run(ctx context.Context) error {
 			}
 			empty := true
 			for rows.Next() {
-				values, _ := rows.Values()
-				fmt.Printf("jenndebug key %+v, values %+v\n", args[0], values)
 				empty = false
 			}
 			if empty {
 				atomic.AddInt64(o.numEmptyResults, 1)
+				fmt.Printf("jenndebug empty key %+v\n", args[0])
 			}
 			if rowErr := rows.Err(); rowErr != nil {
 				return rowErr
