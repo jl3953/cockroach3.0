@@ -1436,19 +1436,19 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	//}
 
 	readResults := make([][]byte, 0)
-	is_committed := true
+	isCommitted := true
 	var key, value uint64 = 1994214, 1994214
-	read_valueset := []*execinfrapb.KVPair{
+	readValueset := []*execinfrapb.KVPair{
 		{
 			Key:   &key,
 			Value: &value,
 		},
 	}
 	readResults, _ = extractHotshardReply(readResults, &execinfrapb.HotshardReply{
-		IsCommitted:  &is_committed,
-		ReadValueset: read_valueset,
+		IsCommitted:  &isCommitted,
+		ReadValueset: readValueset,
 	})
-	return nil, true
+	return readResults, true
 
 	//if rand.Intn(100) < 10 {
 	//	return nil, false
