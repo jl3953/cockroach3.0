@@ -1382,8 +1382,8 @@ func extractHotshardReply(readResults [][]byte, reply *execinfrapb.HotshardReply
 		binary.BigEndian.PutUint64(value, *kvPair.Value)
 		readResults = append(readResults, key, value)
 
-		//log.Warningf(context.Background(), "jenndebug read(%d)=%d\n",
-		//	*kvPair.Key, *kvPair.Value)
+		log.Warningf(context.Background(), "jenndebug read(%d)=%d\n",
+			*kvPair.Key, *kvPair.Value)
 	}
 
 	if len(readResults) > 0 {
@@ -1434,6 +1434,20 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	//	_ = succeeded
 	//	return readResults, true
 	//}
+
+	readResults := make([][]byte, 0)
+	is_committed := true
+	var key, value uint64 = 1994214, 1994214
+	read_valueset := []*execinfrapb.KVPair{
+		{
+			Key:   &key,
+			Value: &value,
+		},
+	}
+	readResults, _ = extractHotshardReply(readResults, &execinfrapb.HotshardReply{
+		IsCommitted:  &is_committed,
+		ReadValueset: read_valueset,
+	})
 	return nil, true
 
 	//if rand.Intn(100) < 10 {
