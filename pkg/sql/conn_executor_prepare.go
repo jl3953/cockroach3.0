@@ -473,6 +473,7 @@ func isHotkey(key []byte) bool {
 
 	keyInt := binary.BigEndian.Uint64(key)
 	if keyInt < 250000 {
+		log.Warningf(context.Background(), "jenndebug hot %+v\n", keyInt)
 		return true
 	}
 	//for _, hotkey := range hotkeys {
@@ -481,6 +482,7 @@ func isHotkey(key []byte) bool {
 	//	}
 	//}
 
+	log.Warningf(context.Background(), "jenndebug not %+v\n", keyInt)
 	return false
 }
 
