@@ -432,9 +432,9 @@ func (o *kvOp) run(ctx context.Context) error {
 				return err
 			}
 			empty := true
-			values, _ := rows.Values()
-			fmt.Printf("jenndebug key %+v, values %+v\n", args[0], values)
 			for rows.Next() {
+				values, _ := rows.Values()
+				fmt.Printf("jenndebug key %+v, values %+v\n", args[0], values)
 				empty = false
 			}
 			if empty {
