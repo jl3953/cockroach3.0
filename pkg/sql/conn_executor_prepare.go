@@ -299,7 +299,7 @@ func (ex *connExecutor) execBind(
 			bindCmd.Args = extendedWarmArgs
 			log.Warningf(context.Background(), "jenndebug hasWarmKeys, bindCmd.Args %+v\n", bindCmd.Args)
 		} else {
-			ps.AST = nil
+			//ps.AST = nil
 		}
 
 		if len(hotkeys) > 0 {
@@ -473,7 +473,7 @@ func isHotkey(key []byte) bool {
 	//hotkeys := []uint64{0}
 
 	keyInt := binary.BigEndian.Uint64(key)
-	if keyInt < 1 {
+	if keyInt < 250000 {
 		//return true
 		return true
 	}
