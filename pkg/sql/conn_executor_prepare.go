@@ -300,6 +300,7 @@ func (ex *connExecutor) execBind(
 			log.Warningf(context.Background(), "jenndebug hasWarmKeys, bindCmd.Args %+v\n", bindCmd.Args)
 		} else {
 			//ps.AST = nil
+			bindCmd.Args = nil
 		}
 
 		if len(hotkeys) > 0 {
