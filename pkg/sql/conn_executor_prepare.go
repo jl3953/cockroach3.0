@@ -282,7 +282,9 @@ func (ex *connExecutor) execBind(
 			extendedWarmArgs := extendWarmArgsWrite(warmArgs, len(hotkeys))
 			bindCmd.Args = extendedWarmArgs
 		} else {
-			ps.AST = nil
+			for i := 0; i < len(hotkeys)+len(warmArgs); i++ {
+				bindCmd.Args[i] = nil
+			}
 		}
 
 		if len(hotkeys) > 0 {
@@ -298,7 +300,9 @@ func (ex *connExecutor) execBind(
 			extendedWarmArgs := extendWarmArgsRead(warmArgs, len(hotkeys))
 			bindCmd.Args = extendedWarmArgs
 		} else {
-			ps.AST = nil
+			for i := 0; i < len(hotkeys)+len(warmArgs); i++ {
+				bindCmd.Args[i] = nil
+			}
 		}
 
 		if len(hotkeys) > 0 {
@@ -473,6 +477,7 @@ func isHotkey(key []byte) bool {
 
 	keyInt := binary.BigEndian.Uint64(key)
 	if keyInt < 250000 {
+		//return true
 		return true
 	}
 	//for _, hotkey := range hotkeys {

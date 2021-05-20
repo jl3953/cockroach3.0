@@ -1429,11 +1429,13 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 
 			if ex.state.mu.txn != nil &&
 				(ex.state.mu.txn.HasReadHotkeys() || ex.state.mu.txn.HasWriteHotkeys()) {
-				for succeeded := ex.state.mu.txn.ContactHotshardHelper(ctx); !succeeded; {
+				succeeded := false
+				for !succeeded {
 					succeeded = ex.state.mu.txn.ContactHotshardHelper(ctx)
 				}
 
 				if ex.state.mu.txn.HasResultReadHotkeys() {
+
 					hotkeys := ex.state.mu.txn.GetAndClearResultReadHotkeys()
 
 					for i := 0; i < len(hotkeys); i += 2 {
@@ -1506,7 +1508,8 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 		}
 		if ex.state.mu.txn != nil &&
 			(ex.state.mu.txn.HasReadHotkeys() || ex.state.mu.txn.HasWriteHotkeys()) {
-			for succeeded := ex.state.mu.txn.ContactHotshardHelper(ctx); !succeeded; {
+			succeeded := false
+			for !succeeded {
 				succeeded = ex.state.mu.txn.ContactHotshardHelper(ctx)
 			}
 
