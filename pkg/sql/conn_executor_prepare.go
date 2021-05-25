@@ -28,6 +28,11 @@ import (
 	"github.com/lib/pq/oid"
 )
 
+var kv2real PreparedStatement
+var kv2realset = false
+var kv1real PreparedStatement
+var kv1realset = false
+
 func (ex *connExecutor) execPrepare(
 	ctx context.Context, parseCmd PrepareStmt,
 ) (fsm.Event, fsm.EventPayload) {
@@ -275,22 +280,31 @@ func (ex *connExecutor) execBind(
 	if bindCmd.PreparedStatementName == "kv-2" {
 		// write-only txns stripped keys, extracting any write hotkeys
 
+		if !kv2realset {
+			kv2real = *ps
+			kv2realset = true
+		}
+
 		var hotkeys, warmArgs [][]byte
 		var hasWarmKeys bool
 
 		if hotkeys, warmArgs, hasWarmKeys = stripHotkeysWrite(bindCmd); hasWarmKeys {
 			extendedWarmArgs := extendWarmArgsWrite(warmArgs, len(hotkeys))
 			bindCmd.Args = extendedWarmArgs
+			ps.AST = kv2real.AST
 		} else {
-			for i := 0; i < len(hotkeys)+len(warmArgs); i++ {
-				bindCmd.Args[i] = nil
-			}
+			ps.AST = nil
 		}
 
 		if len(hotkeys) > 0 {
 			ex.state.mu.txn.AddWriteHotkeys(hotkeys)
 		}
 	} else if bindCmd.PreparedStatementName == "kv-1" {
+
+		if !kv1realset {
+			kv1real = *ps
+			kv1realset = true
+		}
 
 		// extracting any read hotkeys
 		var hotkeys, warmArgs [][]byte
@@ -299,10 +313,9 @@ func (ex *connExecutor) execBind(
 		if hotkeys, warmArgs, hasWarmKeys = stripHotkeysRead(bindCmd); hasWarmKeys {
 			extendedWarmArgs := extendWarmArgsRead(warmArgs, len(hotkeys))
 			bindCmd.Args = extendedWarmArgs
+			ps.AST = kv1real.AST
 		} else {
-			for i := 0; i < len(hotkeys)+len(warmArgs); i++ {
-				bindCmd.Args[i] = nil
-			}
+			ps.AST = nil
 		}
 
 		if len(hotkeys) > 0 {
@@ -477,15 +490,8 @@ func isHotkey(key []byte) bool {
 
 	keyInt := binary.BigEndian.Uint64(key)
 	if keyInt < 250000 {
-		//return true
 		return true
 	}
-	//for _, hotkey := range hotkeys {
-	//	if keyInt == hotkey {
-	//		return true
-	//	}
-	//}
-
 	return false
 }
 

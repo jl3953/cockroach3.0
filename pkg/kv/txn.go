@@ -1395,6 +1395,13 @@ func extractHotshardReply(readResults [][]byte, reply *execinfrapb.HotshardReply
 func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	readHotkeys [][]byte,
 	provisionalCommitTimestamp hlc.Timestamp) ([][]byte, bool) {
+
+	for i := 0; i < len(writeHotkeys)-1; i+=2 {
+		key := writeHotkeys[i]
+		keyInt := binary.BigEndian.Uint64(key)
+		log.Warningf(context.Background(), "jenndebug hotwrite %+v\n", keyInt)
+	}
+	log.Warningf(context.Background(), "\n")
 	/**
 	@param writeHotkeys each key followed by its value
 	@param readHotkeys slice of read hotkeys
