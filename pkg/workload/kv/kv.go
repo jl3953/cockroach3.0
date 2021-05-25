@@ -437,7 +437,6 @@ func (o *kvOp) run(ctx context.Context) error {
 			}
 			if empty {
 				atomic.AddInt64(o.numEmptyResults, 1)
-				fmt.Printf("jenndebug empty %+v\n", args[0])
 			}
 			if rowErr := rows.Err(); rowErr != nil {
 				return rowErr

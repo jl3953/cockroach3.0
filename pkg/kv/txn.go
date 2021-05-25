@@ -1396,12 +1396,6 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	readHotkeys [][]byte,
 	provisionalCommitTimestamp hlc.Timestamp) ([][]byte, bool) {
 
-	for i := 0; i < len(writeHotkeys)-1; i+=2 {
-		key := writeHotkeys[i]
-		keyInt := binary.BigEndian.Uint64(key)
-		log.Warningf(context.Background(), "jenndebug hotwrite %+v\n", keyInt)
-	}
-	log.Warningf(context.Background(), "\n")
 	/**
 	@param writeHotkeys each key followed by its value
 	@param readHotkeys slice of read hotkeys
@@ -1411,56 +1405,35 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	@param succeeded whether rpc succeeded
 	*/
 
-	//// address of hotshard
-	//ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	//defer cancel()
-	//
-	//// populate hotshard request
-	//request := initializeAndPopulateHotshardRequest(writeHotkeys, readHotkeys,
-	//	provisionalCommitTimestamp)
-	//
-	//// contact hotshard
-	////connObject := txn.DB().GetConnObj()
-	////defer connObject.ReturnClient()
-	////client := connObject.GetClient()
-	////c := *client
-	//clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
-	//defer txn.DB().ReturnClient(index)
-	//c := *clientPtr
-	//if reply, err := c.ContactHotshard(ctx, &request); err != nil {
-	//
-	//	// rpc failed
-	//	return nil, false
-	//} else {
-	//
-	//	// rpc succeeded
-	//	readResults := make([][]byte, 0)
-	//	succeeded := false
-	//	readResults, succeeded = extractHotshardReply(readResults, reply)
-	//	_ = succeeded
-	//	return readResults, true
-	//}
+	// address of hotshard
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
 
-	readResults := make([][]byte, 0)
-	isCommitted := true
-	var key, value uint64 = 1994214, 1994214
-	readValueset := []*execinfrapb.KVPair{
-		{
-			Key:   &key,
-			Value: &value,
-		},
+	// populate hotshard request
+	request := initializeAndPopulateHotshardRequest(writeHotkeys, readHotkeys,
+		provisionalCommitTimestamp)
+
+	// contact hotshard
+	//connObject := txn.DB().GetConnObj()
+	//defer connObject.ReturnClient()
+	//client := connObject.GetClient()
+	//c := *client
+	clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
+	defer txn.DB().ReturnClient(index)
+	c := *clientPtr
+	if reply, err := c.ContactHotshard(ctx, &request); err != nil {
+
+		// rpc failed
+		return nil, false
+	} else {
+
+		// rpc succeeded
+		readResults := make([][]byte, 0)
+		succeeded := false
+		readResults, succeeded = extractHotshardReply(readResults, reply)
+		_ = succeeded
+		return readResults, true
 	}
-	readResults, _ = extractHotshardReply(readResults, &execinfrapb.HotshardReply{
-		IsCommitted:  &isCommitted,
-		ReadValueset: readValueset,
-	})
-	return readResults, true
-
-	//if rand.Intn(100) < 10 {
-	//	return nil, false
-	//} else {
-	//	return nil, true
-	//}
 }
 
 func (txn *Txn) GetWriteHotkeys() [][]byte {
