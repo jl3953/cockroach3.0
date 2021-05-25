@@ -1382,8 +1382,7 @@ func extractHotshardReply(readResults [][]byte, reply *execinfrapb.HotshardReply
 		binary.BigEndian.PutUint64(value, *kvPair.Value)
 		readResults = append(readResults, key, value)
 
-		//log.Warningf(context.Background(), "jenndebug read(%d)=%d\n",
-		//	*kvPair.Key, *kvPair.Value)
+		//log.Warningf(context.Background(), "jenndebug read(%d)=%d\n", *kvPair.Key, *kvPair.Value)
 	}
 
 	if len(readResults) > 0 {
@@ -1396,6 +1395,7 @@ func extractHotshardReply(readResults [][]byte, reply *execinfrapb.HotshardReply
 func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 	readHotkeys [][]byte,
 	provisionalCommitTimestamp hlc.Timestamp) ([][]byte, bool) {
+
 	/**
 	@param writeHotkeys each key followed by its value
 	@param readHotkeys slice of read hotkeys
@@ -1434,12 +1434,6 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 		_ = succeeded
 		return readResults, true
 	}
-
-	//if rand.Intn(100) < 10 {
-	//	return nil, false
-	//} else {
-	//	return nil, true
-	//}
 }
 
 func (txn *Txn) GetWriteHotkeys() [][]byte {
