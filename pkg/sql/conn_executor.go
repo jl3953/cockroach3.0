@@ -12,9 +12,13 @@ package sql
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
+	"github.com/cockroachdb/cockroach/pkg/sql/pgwire/pgwirebase"
+	"github.com/lib/pq/oid"
 	"io"
 	"math"
+	//"math/rand"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -1422,6 +1426,46 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 		}
 		if portal.Stmt.AST == nil {
 			res = ex.clientComm.CreateEmptyQueryResult(pos)
+
+			if ex.state.mu.txn != nil &&
+				(ex.state.mu.txn.HasReadHotkeys() || ex.state.mu.txn.HasWriteHotkeys()) {
+				succeeded := false
+				for !succeeded {
+					succeeded = ex.state.mu.txn.ContactHotshardHelper(ctx)
+				}
+
+				if ex.state.mu.txn.HasResultReadHotkeys() {
+
+					hotkeys := ex.state.mu.txn.GetAndClearResultReadHotkeys()
+
+					for i := 0; i < len(hotkeys); i += 2 {
+						key := binary.BigEndian.Uint64(hotkeys[i])
+						val := hotkeys[i+1]
+
+						data := tree.Datums{
+							tree.NewDInt(tree.DInt(key)),
+							tree.NewDBytes(tree.DBytes(val)),
+						}
+
+						formatCodes := []pgwirebase.FormatCode{
+							pgwirebase.FormatBinary,
+							pgwirebase.FormatBinary,
+						}
+
+						conv := sessiondata.DataConversionConfig{
+							Location:          time.UTC,
+							BytesEncodeFormat: sessiondata.BytesEncodeHex,
+							ExtraFloatDigits:  0,
+						}
+
+						oids := []oid.Oid{types.Int.Oid(), types.Bytes.Oid()}
+
+						res.(BufferResult).BufferRowRaw(ctx, data, formatCodes, conv, oids)
+					}
+				}
+			}
+
+			res = ex.clientComm.(ClientCommRaw).CreateNewMiscResult(pos)
 			break
 		}
 
@@ -1461,6 +1505,42 @@ func (ex *connExecutor) execCmd(ctx context.Context) error {
 		ev, payload, err = ex.execPortal(ctx, portal, portalName, stmtRes, pinfo)
 		if err != nil {
 			return err
+		}
+		if ex.state.mu.txn != nil &&
+			(ex.state.mu.txn.HasReadHotkeys() || ex.state.mu.txn.HasWriteHotkeys()) {
+			succeeded := false
+			for !succeeded {
+				succeeded = ex.state.mu.txn.ContactHotshardHelper(ctx)
+			}
+
+			if ex.state.mu.txn.HasResultReadHotkeys() {
+				hotkeys := ex.state.mu.txn.GetAndClearResultReadHotkeys()
+
+				for i := 0; i < len(hotkeys); i += 2 {
+					key := binary.BigEndian.Uint64(hotkeys[i])
+					val := hotkeys[i+1]
+
+					data := tree.Datums{
+						tree.NewDInt(tree.DInt(key)),
+						tree.NewDBytes(tree.DBytes(val)),
+					}
+
+					formatCodes := []pgwirebase.FormatCode{
+						pgwirebase.FormatBinary,
+						pgwirebase.FormatBinary,
+					}
+
+					conv := sessiondata.DataConversionConfig{
+						Location:          time.UTC,
+						BytesEncodeFormat: sessiondata.BytesEncodeHex,
+						ExtraFloatDigits:  0,
+					}
+
+					oids := []oid.Oid{types.Int.Oid(), types.Bytes.Oid()}
+
+					res.(BufferResult).BufferRowRaw(ctx, data, formatCodes, conv, oids)
+				}
+			}
 		}
 	case PrepareStmt:
 		ex.curStmt = tcmd.AST

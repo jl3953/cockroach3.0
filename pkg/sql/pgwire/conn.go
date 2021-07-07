@@ -1375,6 +1375,10 @@ func (cl *clientConnLock) RTrim(ctx context.Context, pos sql.CmdPos) {
 	}
 }
 
+func (c *conn) CreateNewMiscResult(pos sql.CmdPos) sql.CommandResult {
+	return c.newMiscResult(pos, commandComplete)
+}
+
 // CreateStatementResult is part of the sql.ClientComm interface.
 func (c *conn) CreateStatementResult(
 	stmt tree.Statement,

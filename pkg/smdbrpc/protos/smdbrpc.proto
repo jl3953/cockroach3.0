@@ -1,0 +1,89 @@
+// Copyright 2015 gRPC authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto2";
+
+// option java_multiple_files = true;
+// option java_package = "io.grpc.examples.helloworld";
+// option java_outer_classname = "HelloWorldProto";
+// option objc_class_prefix = "HLW";
+option go_package="execinfrapb";
+
+//package cockroach.sql.distsqlrun;
+package smdbrpc;
+
+//import "gogoproto/gogo.proto";
+
+//message HLCTimestamp {
+//  optional int64 walltime = 1 [(gogoproto.nullable) = false]; // the 64 bit timestampe value
+//  optional int64 logicaltime = 2 [(gogoproto.nullable) = false]; // the causality counter
+//}
+
+message HLCTimestamp {
+  optional int64 walltime = 1; // the 64 bit timestamp value
+  optional int32 logicaltime = 2; // the causality counter
+}
+
+//message Key {
+//  optional bytes key = 1;
+//}
+//
+//message Value {
+//  optional bytes value = 1;
+//}
+
+message KVPair {
+  optional uint64 key = 1;
+  optional uint64 value = 2;
+}
+
+// The greeting service definition.
+service HotshardGateway {
+  // Sends a greeting
+  rpc ContactHotshard (HotshardRequest) returns (HotshardReply) {}
+}
+
+// The request message containing the user's name.
+//message HotshardRequest {
+//  optional string sqlstring = 1 [(gogoproto.nullable) = false];
+//
+//  optional HLCTimestamp hlctimestamp = 2 [(gogoproto.nullable) = false];
+//}
+//
+//// The response message containing the greetings
+//message HotshardReply {
+//  optional bool is_committed = 1 [(gogoproto.nullable) = false];
+//
+//  optional HLCTimestamp hlctimestamp = 2 [(gogoproto.nullable) = false];
+//}
+
+message HotshardRequest {
+  // optional string sqlstring = 1;
+
+  optional HLCTimestamp hlctimestamp = 1;
+
+  repeated KVPair write_keyset = 2;
+
+  repeated uint64 read_keyset = 3;
+
+}
+
+// The response message containing the greetings
+message HotshardReply {
+  optional bool is_committed = 1;
+
+  repeated KVPair read_valueset = 2;
+
+  // optional HLCTimestamp hlctimestamp = 2;
+}

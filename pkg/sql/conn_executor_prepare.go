@@ -12,6 +12,7 @@ package sql
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/cockroachdb/cockroach/pkg/kv"
@@ -26,6 +27,11 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/lib/pq/oid"
 )
+
+var kv2real PreparedStatement
+var kv2realset = false
+var kv1real PreparedStatement
+var kv1realset = false
 
 func (ex *connExecutor) execPrepare(
 	ctx context.Context, parseCmd PrepareStmt,
@@ -271,6 +277,51 @@ func (ex *connExecutor) execBind(
 			pgcode.InvalidSQLStatementName,
 			"unknown prepared statement %q", bindCmd.PreparedStatementName))
 	}
+	if bindCmd.PreparedStatementName == "kv-2" {
+		// write-only txns stripped keys, extracting any write hotkeys
+
+		if !kv2realset {
+			kv2real = *ps
+			kv2realset = true
+		}
+
+		var hotkeys, warmArgs [][]byte
+		var hasWarmKeys bool
+
+		if hotkeys, warmArgs, hasWarmKeys = stripHotkeysWrite(bindCmd); hasWarmKeys {
+			extendedWarmArgs := extendWarmArgsWrite(warmArgs, len(hotkeys))
+			bindCmd.Args = extendedWarmArgs
+			ps.AST = kv2real.AST
+		} else {
+			ps.AST = nil
+		}
+
+		if len(hotkeys) > 0 {
+			ex.state.mu.txn.AddWriteHotkeys(hotkeys)
+		}
+	} else if bindCmd.PreparedStatementName == "kv-1" {
+
+		if !kv1realset {
+			kv1real = *ps
+			kv1realset = true
+		}
+
+		// extracting any read hotkeys
+		var hotkeys, warmArgs [][]byte
+		var hasWarmKeys bool
+
+		if hotkeys, warmArgs, hasWarmKeys = stripHotkeysRead(bindCmd); hasWarmKeys {
+			extendedWarmArgs := extendWarmArgsRead(warmArgs, len(hotkeys))
+			bindCmd.Args = extendedWarmArgs
+			ps.AST = kv1real.AST
+		} else {
+			ps.AST = nil
+		}
+
+		if len(hotkeys) > 0 {
+			ex.state.mu.txn.AddReadHotkeys(hotkeys)
+		}
+	}
 
 	numQArgs := uint16(len(ps.InferredTypes))
 
@@ -369,6 +420,79 @@ func (ex *connExecutor) execBind(
 	}
 
 	return nil, nil
+}
+
+func extendWarmArgsRead(warmArgs [][]byte, byHowMuch int) [][]byte {
+	lastKey := warmArgs[len(warmArgs)-1]
+
+	for i := 0; i < byHowMuch; i++ {
+		warmArgs = append(warmArgs, lastKey)
+	}
+
+	return warmArgs
+}
+func extendWarmArgsWrite(warmArgs [][]byte, byHowMuch int) [][]byte {
+	lastKey, lastVal := warmArgs[len(warmArgs)-2], warmArgs[len(warmArgs)-1]
+
+	for i := 0; i < byHowMuch; i += 2 {
+		warmArgs = append(warmArgs, lastKey, lastVal)
+	}
+
+	return warmArgs
+}
+
+func stripHotkeysRead(bindCmd BindStmt) (hotkeys [][]byte, warmArgs [][]byte, hasWarmKeys bool) {
+
+	for _, key := range bindCmd.Args {
+		if isHotkey(key) {
+			hotkeys = append(hotkeys, key)
+		} else {
+			warmArgs = append(warmArgs, key)
+		}
+	}
+
+	hasWarmKeys = len(warmArgs) > 0
+
+	return hotkeys, warmArgs, hasWarmKeys
+}
+
+func stripHotkeysWrite(bindCmd BindStmt) (hotkeys [][]byte, warmArgs [][]byte, hasWarmKeys bool) {
+	/**
+	@param bindCmd
+
+	@returns hotkeys slice with each key followed by its value.
+	@returns warmArgs slice with each key followed by its value.
+	@returns hasWarmKeys whether or not warmArgs is populated/
+	*/
+
+	var key, val []byte
+	for i := 0; i < len(bindCmd.Args); i += 2 {
+
+		key = bindCmd.Args[i]
+		val = bindCmd.Args[i+1]
+
+		if isHotkey(key) {
+			hotkeys = append(hotkeys, key, val)
+		} else {
+			warmArgs = append(warmArgs, key, val)
+		}
+	}
+
+	hasWarmKeys = len(warmArgs) > 0
+
+	return hotkeys, warmArgs, hasWarmKeys
+}
+
+func isHotkey(key []byte) bool {
+
+	// jenndebug We're just...hardcoding some hotkeys here
+	//hotkeys := []uint64{0}
+
+	keyInt := binary.BigEndian.Uint64(key)
+	if keyInt < 250000 {
+		return true
+	}
+	return false
 }
 
 // addPortal creates a new PreparedPortal on the connExecutor.

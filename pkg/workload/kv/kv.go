@@ -84,7 +84,6 @@ type kv struct {
 	useOriginal                          bool
 	maxHotkey                            int64
 	keyspace                             int64
-	minKeyspace													 int64
 }
 
 func init() {
@@ -148,7 +147,6 @@ var kvMeta = workload.Meta{
 		g.flags.BoolVar(&g.useOriginal, `useOriginal`, true, `whether or not to use original fake zipfian generator.`)
 		g.flags.Int64Var(&g.maxHotkey, `hotkey`, -1, `the largest hot key on the hot shard.`)
 		g.flags.Int64Var(&g.keyspace, `keyspace`, 1000000, `key range starting from 0`)
-		g.flags.Int64Var(&g.minKeyspace, `minKeyspace`, 0, `min keyspace, default 0`)
 		g.connFlags = workload.NewConnFlags(&g.flags)
 		return g
 	},
@@ -339,7 +337,7 @@ func (w *kv) Ops(
 		if w.sequential {
 			op.g = newSequentialGenerator(seq)
 		} else if w.zipfian {
-			op.g = newZipfianGenerator(seq, w.skewS, w.zipfVerbose, w.useOriginal, w.keyspace, w.minKeyspace)
+			op.g = newZipfianGenerator(seq, w.skewS, w.zipfVerbose, w.useOriginal, w.keyspace)
 		} else {
 			op.g = newHashGenerator(seq)
 		}
@@ -609,10 +607,9 @@ type zipfGenerator struct {
 
 // Creates a new zipfian generator.
 func newZipfianGenerator(seq *sequence, s float64, verbose bool, useOriginal bool,
-	keyspace int64, minKeyspace int64) *zipfGenerator {
+	keyspace int64) *zipfGenerator {
 	random := rand.New(rand.NewSource(uint64(timeutil.Now().UnixNano())))
 	max := uint64(keyspace)
-	min := uint64(minKeyspace)
 	//var hey zipfWrapper
 	//if useOriginal {
 	//	hey = newZipf(s, 1, max)
@@ -620,7 +617,7 @@ func newZipfianGenerator(seq *sequence, s float64, verbose bool, useOriginal boo
 	//	hey, _ = ycsb.NewZipfGenerator(random, 0, max, s, verbose)
 	//
 	//}
-	hey, _ := ycsb.NewZipfGenerator(random, min, max, s, verbose)
+	hey, _ := ycsb.NewZipfGenerator(random, 0, max, s, verbose)
 	return &zipfGenerator{
 		seq:    seq,
 		random: random,
