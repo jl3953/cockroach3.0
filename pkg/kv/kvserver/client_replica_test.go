@@ -176,6 +176,69 @@ func TestRejectFutureCommand(t *testing.T) {
 	}
 }
 
+func TestReplica_DemoteHotkey(t *testing.T) {
+
+	const numNodes = 3
+	var clocks []*hlc.Clock
+	for i := 0; i < numNodes; i++ {
+		clocks = append(clocks, hlc.NewClock(hlc.UnixNano, 100*time.Millisecond))
+	}
+
+	mtc := &multiTestContext{
+		clocks: clocks,
+		// This test was written before the multiTestContext started creating many
+		// system ranges at startup, and hasn't been update to take that into
+		// account.
+		startWithSingleRange: true,
+	}
+	defer mtc.Stop()
+	mtc.Start(t, numNodes)
+	rangeDesc, err := mtc.FirstRange()
+	if err != nil {
+		t.Fatalf("jenndebug error on mtc.FirstRange, err %+v\n", err)
+	}
+	key := keys.MakeTablePrefix(keys.MinUserDescID)
+
+	rangeId := rangeDesc.RangeID
+	replica, err := mtc.stores[0].GetReplica(rangeId)
+	if err != nil {
+		t.Fatalf("jenndebug oops, err %+v\n", err)
+	}
+
+	ts := hlc.Timestamp{
+		WallTime: hlc.UnixNano(),
+		Logical:  0,
+	}
+	_ = kvserver.WriteRandomDataToRange(t, mtc.stores[0],
+		rangeId,
+		key)
+	value := roachpb.MakeValueFromString("jennifer")
+
+	ctx := context.Background()
+
+	if myError := replica.DemoteHotkey(ctx, ts, key, &value); myError != nil {
+		t.Fatalf("jenndebug err %+v\n", myError)
+	}
+
+	db := mtc.dbs[0]
+	txnRead := kv.NewTxn(ctx, db, 0 /* gatewayNodeID */)
+	if keyValue, err := txnRead.Get(ctx, key); err != nil {
+		t.Fatalf("jenndebug txnRead.Get(ctx, key %+v) failed\n", key)
+	} else {
+		returnedValue := keyValue.Value
+		if bytes.Equal(returnedValue.RawBytes, value.RawBytes) {
+			if returnedValue.Timestamp.Equal(ts) {
+				log.Warningf(ctx, "jenndebug test succeeded!")
+			} else {
+				t.Fatalf("jenndebug returnedValue.Timestamp %+v != ts %+v", returnedValue.Timestamp, ts)
+			}
+		} else {
+			t.Fatalf("jenndebug returnedValue %+v != value %+v\n", returnedValue, value)
+		}
+	}
+
+}
+
 // TestTxnPutOutOfOrder tests a case where a put operation of an older
 // timestamp comes after a put operation of a newer timestamp in a
 // txn. The test ensures such an out-of-order put succeeds and

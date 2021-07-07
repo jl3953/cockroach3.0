@@ -547,6 +547,70 @@ func (r *Replica) executeAdminCommandWithDescriptor(
 	}
 	return roachpb.NewError(lastErr)
 }
+// DemoteHotkey overwrites a key at a given timestamp with the given value
+func (r *Replica) DemoteHotkey(
+	ctx context.Context,
+	ts hlc.Timestamp, key roachpb.Key, value *roachpb.Value,
+) *roachpb.Error {
+
+	// TODO: jenndebug need timestamp
+	// TODO: jenndebug need key
+	// TODO: jenndebug need value
+
+	runDemoteHotkeyTxn := func(txn *kv.Txn) error {
+		log.Event(ctx, "demote key begins")
+		txn.SetDebugName(demoteHotkeyTxnName)
+
+		txn.SetFixedTimestamp(ctx, ts)
+		log.Warningf(ctx, "jenndebug DemoteHotkey txn.SetFixedTimestamp(ctx, %+v) succeeded\n", ts)
+		// Observe the commit timestamp to force a client-side retry. See the
+		// comment on the retry loop after this closure for details.
+		//
+		// TODO(benesch): expose a proper API for preventing the fast path.
+		//_ = txn.CommitTimestamp()
+
+		// Pipelining might send QueryIntent requests to the RHS after the RHS has
+		// noticed the merge and started blocking all traffic. This causes the merge
+		// transaction to deadlock. Just turn pipelining off; the structure of the
+		// merge transaction means pipelining provides no performance benefit
+		// anyway.
+		if err := txn.DisablePipelining(); err != nil {
+			return err
+		}
+
+		if err := txn.Put(ctx, key, value); err != nil {
+			log.Warningf(ctx, "jenndebug DemoteHotkey txn.Put(ctx, key %+v, value %+v) failed, err %+v\n",
+				key, value, err)
+			return err
+		}
+		log.Warningf(ctx, "jenndebug DemoteHotkey txn.Put(ctx, key %+v, value %+v) succeeded\n", key, value)
+
+		log.Event(ctx, "jenndebug DemoteHotkey attempting commit")
+		if err := txn.Commit(ctx); err != nil {
+			log.Warningf(ctx, "jenndebug DemoteHotkey txn.Commit(ctx) failed, err %+v\n", err)
+		}
+		log.Warningf(ctx, "jenndebug DemoteHotkey txn.Commit(ctx) succeeded\n")
+		return nil
+	}
+
+	for {
+		txn := kv.NewTxn(ctx, r.store.DB(), r.NodeID())
+		err := runDemoteHotkeyTxn(txn)
+		if err != nil {
+			txn.CleanupOnError(ctx, err)
+			log.Warningf(ctx, "jenndebug DemoteHotkey failed, txn.CleanupOnError run, err %+v\n", err)
+		}
+		if _, canRetry := errors.Cause(err).(*roachpb.TransactionRetryWithProtoRefreshError); !canRetry {
+			if err != nil {
+				log.Warningf(ctx, "jenndebug DemoteHotkey txn failed, %+v\n", err)
+				return roachpb.NewErrorf("DemoteHotkey txn failed: %s", err)
+			}
+			log.Warningf(ctx, "jenndebug DemoteHotkey succeeded, will not retry\n")
+			return nil
+		}
+		log.Warningf(ctx, "jenndebug DemoteHotkey failed, retrying for loop\n")
+	}
+}
 
 // AdminMerge extends this range to subsume the range that comes next
 // in the key space. The merge is performed inside of a distributed
