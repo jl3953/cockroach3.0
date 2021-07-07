@@ -150,6 +150,10 @@ func (p *pebbleMVCCScanner) init(txn *roachpb.Transaction) {
 		p.txnSequence = txn.Sequence
 		p.txnIgnoredSeqNums = txn.IgnoredSeqNums
 		p.checkUncertainty = p.ts.Less(txn.MaxTimestamp)
+		//p.checkUncertainty = false
+		/*if p.checkUncertainty {
+			log.Warningf(context.Background(), "jenndebug checkUncertainty txn %+v\n", txn)
+		}*/
 	}
 }
 
@@ -279,6 +283,7 @@ func (p *pebbleMVCCScanner) uncertaintyError(ts hlc.Timestamp) bool {
 // continue.
 func (p *pebbleMVCCScanner) getAndAdvance() bool {
 	mvccKey := MVCCKey{p.curKey, p.curTS}
+
 	if mvccKey.IsValue() {
 		if p.curTS.LessEq(p.ts) {
 			// 1. Fast path: there is no intent and our read timestamp is newer than
