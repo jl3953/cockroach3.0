@@ -200,10 +200,6 @@ func TestReplica_DemoteHotkey(t *testing.T) {
 	key := keys.MakeTablePrefix(keys.MinUserDescID)
 
 	rangeId := rangeDesc.RangeID
-	//replica, err := mtc.stores[0].GetReplica(rangeId)
-	//if err != nil {
-	//	t.Fatalf("jenndebug oops, err %+v\n", err)
-	//}
 
 	ts := hlc.Timestamp{
 		WallTime: hlc.UnixNano(),
@@ -221,10 +217,6 @@ func TestReplica_DemoteHotkey(t *testing.T) {
 	if myError := kvserver.DemoteSingleHotkey(ctx, txn, ts, key, &value); myError != nil {
 		t.Fatalf("jenndebug err %+v\n", err)
 	}
-	//replica := store.LookupReplica(key)
-	//if myError := replica.DemoteSingleHotkey(ctx, ts, key, &value); myError != nil {
-	//	t.Fatalf("jenndebug err %+v\n", myError)
-	//}
 
 	db := mtc.dbs[0]
 	txnRead := kv.NewTxn(ctx, db, 0 /* gatewayNodeID */)

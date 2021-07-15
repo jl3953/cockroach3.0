@@ -70,7 +70,6 @@ const (
 	replicaChangeTxnName = "change-replica"
 	splitTxnName         = "split"
 	mergeTxnName         = "merge"
-	demoteHotkeyTxnName	 = "demoteHotkey"
 
 	defaultReplicaRaftMuWarnThreshold = 500 * time.Millisecond
 )
