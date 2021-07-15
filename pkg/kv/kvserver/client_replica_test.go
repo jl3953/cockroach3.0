@@ -178,7 +178,7 @@ func TestRejectFutureCommand(t *testing.T) {
 
 func TestReplica_DemoteHotkey(t *testing.T) {
 
-	const numNodes = 3
+	const numNodes = 10
 	var clocks []*hlc.Clock
 	for i := 0; i < numNodes; i++ {
 		clocks = append(clocks, hlc.NewClock(hlc.UnixNano, 100*time.Millisecond))
@@ -200,10 +200,10 @@ func TestReplica_DemoteHotkey(t *testing.T) {
 	key := keys.MakeTablePrefix(keys.MinUserDescID)
 
 	rangeId := rangeDesc.RangeID
-	replica, err := mtc.stores[0].GetReplica(rangeId)
-	if err != nil {
-		t.Fatalf("jenndebug oops, err %+v\n", err)
-	}
+	//replica, err := mtc.stores[0].GetReplica(rangeId)
+	//if err != nil {
+	//	t.Fatalf("jenndebug oops, err %+v\n", err)
+	//}
 
 	ts := hlc.Timestamp{
 		WallTime: hlc.UnixNano(),
@@ -216,9 +216,15 @@ func TestReplica_DemoteHotkey(t *testing.T) {
 
 	ctx := context.Background()
 
-	if myError := replica.DemoteHotkey(ctx, ts, key, &value); myError != nil {
-		t.Fatalf("jenndebug err %+v\n", myError)
+	store := mtc.stores[numNodes-1]
+	txn := kv.NewTxn(ctx, store.DB(), numNodes-1)
+	if myError := kvserver.DemoteSingleHotkey(ctx, txn, ts, key, &value); myError != nil {
+		t.Fatalf("jenndebug err %+v\n", err)
 	}
+	//replica := store.LookupReplica(key)
+	//if myError := replica.DemoteSingleHotkey(ctx, ts, key, &value); myError != nil {
+	//	t.Fatalf("jenndebug err %+v\n", myError)
+	//}
 
 	db := mtc.dbs[0]
 	txnRead := kv.NewTxn(ctx, db, 0 /* gatewayNodeID */)
@@ -233,7 +239,8 @@ func TestReplica_DemoteHotkey(t *testing.T) {
 				t.Fatalf("jenndebug returnedValue.Timestamp %+v != ts %+v", returnedValue.Timestamp, ts)
 			}
 		} else {
-			t.Fatalf("jenndebug returnedValue %+v != value %+v\n", returnedValue, value)
+			t.Logf("jenndebug returnedValue %s, value %s\n", returnedValue.String(), value.String())
+			t.Fatalf("jenndebug returnedValue %+v != value %+v\n", returnedValue.RawBytes, value.RawBytes)
 		}
 	}
 
