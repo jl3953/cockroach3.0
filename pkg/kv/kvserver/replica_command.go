@@ -547,22 +547,50 @@ func (r *Replica) executeAdminCommandWithDescriptor(
 	}
 	return roachpb.NewError(lastErr)
 }
-// DemoteHotkey overwrites a key at a given timestamp with the given value
-func (r *Replica) DemoteHotkey(
+
+/*func (r *Replica) DemoteHotkeys(stream demotehotkeys.DemoteHotkeysGateway_DemoteHotkeysServer) error {
+	for {
+		in, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		key := roachpb.Key(*in.Key)
+		timestamp := hlc.Timestamp{
+			WallTime: *in.Timestamp.Walltime,
+			Logical:  *in.Timestamp.Logicaltime,
+		}
+		value := roachpb.MakeValueFromBytesAndTimestamp(in.Value, timestamp)
+		tPtr, fPtr := true, false
+		demotionStatus := demotehotkeys.KVDemotionStatus{
+			Key:                   in.Key,
+			IsSuccessfullyDemoted: &tPtr,
+		}
+		if err := r.DemoteSingleHotkey(context.Background(), timestamp, key, &value); err != nil {
+			demotionStatus.IsSuccessfullyDemoted = &fPtr
+		}
+		if err := stream.Send(&demotionStatus); err != nil {
+			return err
+		}
+	}
+}*/
+
+// DemoteSingleHotkey overwrites a key at a given timestamp with the given value
+/*func (r *Replica) DemoteSingleHotkey(
 	ctx context.Context,
 	ts hlc.Timestamp, key roachpb.Key, value *roachpb.Value,
 ) *roachpb.Error {
 
-	// TODO: jenndebug need timestamp
-	// TODO: jenndebug need key
-	// TODO: jenndebug need value
-
+	// key indeed needs a new write to it
 	runDemoteHotkeyTxn := func(txn *kv.Txn) error {
 		log.Event(ctx, "demote key begins")
 		txn.SetDebugName(demoteHotkeyTxnName)
 
 		txn.SetFixedTimestamp(ctx, ts)
-		log.Warningf(ctx, "jenndebug DemoteHotkey txn.SetFixedTimestamp(ctx, %+v) succeeded\n", ts)
+		log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.SetFixedTimestamp(ctx, %+v) succeeded\n", ts)
 		// Observe the commit timestamp to force a client-side retry. See the
 		// comment on the retry loop after this closure for details.
 		//
@@ -577,19 +605,21 @@ func (r *Replica) DemoteHotkey(
 		if err := txn.DisablePipelining(); err != nil {
 			return err
 		}
+		log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.DisablePipelining succeeded\n")
 
 		if err := txn.Put(ctx, key, value); err != nil {
-			log.Warningf(ctx, "jenndebug DemoteHotkey txn.Put(ctx, key %+v, value %+v) failed, err %+v\n",
+			log.Errorf(ctx, "jenndebug DemoteSingleHotkey txn.Put(ctx, key %+v, value %+v) failed, err %+v\n",
 				key, value, err)
 			return err
 		}
-		log.Warningf(ctx, "jenndebug DemoteHotkey txn.Put(ctx, key %+v, value %+v) succeeded\n", key, value)
+		log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.Put(ctx, key %+v, value %+v) succeeded\n", key, value)
 
-		log.Event(ctx, "jenndebug DemoteHotkey attempting commit")
+		log.Event(ctx, "jenndebug DemoteSingleHotkey attempting commit")
 		if err := txn.Commit(ctx); err != nil {
-			log.Warningf(ctx, "jenndebug DemoteHotkey txn.Commit(ctx) failed, err %+v\n", err)
+			log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.Commit(ctx) failed, err %+v\n", err)
+			return err
 		}
-		log.Warningf(ctx, "jenndebug DemoteHotkey txn.Commit(ctx) succeeded\n")
+		log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.Commit(ctx) succeeded\n")
 		return nil
 	}
 
@@ -598,19 +628,19 @@ func (r *Replica) DemoteHotkey(
 		err := runDemoteHotkeyTxn(txn)
 		if err != nil {
 			txn.CleanupOnError(ctx, err)
-			log.Warningf(ctx, "jenndebug DemoteHotkey failed, txn.CleanupOnError run, err %+v\n", err)
+			log.Warningf(ctx, "jenndebug DemoteSingleHotkey failed, txn.CleanupOnError run, err %+v\n", err)
 		}
 		if _, canRetry := errors.Cause(err).(*roachpb.TransactionRetryWithProtoRefreshError); !canRetry {
 			if err != nil {
-				log.Warningf(ctx, "jenndebug DemoteHotkey txn failed, %+v\n", err)
-				return roachpb.NewErrorf("DemoteHotkey txn failed: %s", err)
+				log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn failed, %+v\n", err)
+				return roachpb.NewErrorf("DemoteSingleHotkey txn failed: %s", err)
 			}
-			log.Warningf(ctx, "jenndebug DemoteHotkey succeeded, will not retry\n")
+			log.Warningf(ctx, "jenndebug DemoteSingleHotkey succeeded, will not retry\n")
 			return nil
 		}
-		log.Warningf(ctx, "jenndebug DemoteHotkey failed, retrying for loop\n")
+		log.Warningf(ctx, "jenndebug DemoteSingleHotkey failed, retrying for loop\n")
 	}
-}
+} */
 
 // AdminMerge extends this range to subsume the range that comes next
 // in the key space. The merge is performed inside of a distributed

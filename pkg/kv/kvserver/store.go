@@ -14,7 +14,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	demotehotkeys "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
+	"google.golang.org/grpc"
+	"io"
 	"math"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -1342,6 +1346,155 @@ func ReadStoreIdent(ctx context.Context, eng storage.Engine) (roachpb.StoreIdent
 	return ident, err
 }
 
+type server struct {
+	demotehotkeys.DemoteHotkeysGatewayServer
+	store *Store
+	notifyHotshardChan chan demotehotkeys.KVDemotionStatus
+}
+
+func DemoteSingleHotkey(ctx context.Context, txn *kv.Txn,
+	ts hlc.Timestamp, key roachpb.Key, value *roachpb.Value) error {
+	txn.SetFixedTimestamp(ctx, ts)
+	log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.SetFixedTs(ctx, %+v) succeeded\n", ts)
+
+	if err := txn.DisablePipelining(); err != nil {
+		return err
+	}
+	log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.DisablePipeline\n")
+
+	if err := txn.Put(ctx, key, value); err != nil {
+		log.Errorf(ctx, "jenndebug DemoteSingleHotkey txn.Put(ctx, key %+v, value %+v) failed, err %+v\n",
+			key, value, err)
+		return err
+	}
+	log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.Put(ctx, key %+v, value %+v) succeeded\n", key, value)
+
+	if err := txn.Commit(ctx); err != nil {
+		log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.Commit(ctx) failed, err %+v\n", err)
+		return err
+	}
+	log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.Commit(ctx) succeeded\n")
+	return nil
+}
+
+func (serv *server) NotifyChanOfKVDemotionStatus(key *string, isSuccessfullyDemoted bool) {
+
+	// set default status first
+	t := true
+	demotionStatus := demotehotkeys.KVDemotionStatus{
+		Key:                   key,
+		IsSuccessfullyDemoted: &t,
+	}
+
+	// if key was not successfully demoted, change default status
+	if !isSuccessfullyDemoted {
+		f := false
+		demotionStatus.IsSuccessfullyDemoted = &f
+	}
+
+	// notify the channel
+	serv.notifyHotshardChan <- demotionStatus
+}
+
+func (serv *server) retryDemoteSingleHotkeyLoop(ctx context.Context,
+	timestamp hlc.Timestamp, key roachpb.Key, value roachpb.Value,
+	streamKey *string, numKeysInNotifChannel *int64, wg *sync.WaitGroup) {
+
+	wg.Add(1)
+	defer func() {
+		wg.Done()
+	}()
+
+	for {
+		// create new txn
+		txn := kv.NewTxn(ctx, serv.store.DB(), serv.store.nodeDesc.NodeID)
+		log.Warningf(ctx, "jenndebug DemoteSingleHotkeyWrapper kv.NewTxn succeeded")
+
+		// attempt to demote hotkey. If demotion succeeds, notify channel of success and return.
+		// If demotion fails, retry if possible, fail and notify channel of failure if not.
+		if err := DemoteSingleHotkey(ctx, txn, timestamp, key, &value); err != nil {
+			txn.CleanupOnError(ctx, err)
+			if _, canRetry := errors.Cause(err).(*roachpb.TransactionRetryWithProtoRefreshError); !canRetry {
+				// txn cannot retry, permanently failed
+				log.Warningf(ctx, "jenndebug DemoteSingleHotkeyWrapper failed but cannot retry %+v\n", err)
+				serv.NotifyChanOfKVDemotionStatus(streamKey, false)
+				atomic.AddInt64(numKeysInNotifChannel, 1)
+				return
+			} else {
+				// txn failed, but will retry
+				log.Warningf(ctx, "jenndebug DemoteSingleHotkeyWrapper demotion failed, retrying %+v\n", err)
+			}
+		} else {
+			// txn succeeded!
+			serv.NotifyChanOfKVDemotionStatus(streamKey, true)
+			atomic.AddInt64(numKeysInNotifChannel, 1)
+			return
+		}
+	}
+}
+func (serv *server) DemoteHotkeys(stream demotehotkeys.DemoteHotkeysGateway_DemoteHotkeysServer) error {
+	ctx := context.Background()
+	var wg sync.WaitGroup
+	var numKeysInNotifChannel int64 = 0
+
+	// process all keys in the stream
+	for {
+
+		// read keys from stream
+		in, err := stream.Recv()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+
+		// extract key, value, and timestamp
+		key := roachpb.Key(*in.Key)
+		value := roachpb.MakeValueFromBytes(in.Value)
+		timestamp := hlc.Timestamp{
+			WallTime: *in.Timestamp.Walltime,
+			Logical:  *in.Timestamp.Logicaltime,
+		}
+
+		// demote each key in a separate goroutine, so function demotes all keys
+		// in parallel
+		serv.store.stopper.RunWorker(ctx, func(_ context.Context){
+			serv.retryDemoteSingleHotkeyLoop(ctx, timestamp, key, value,
+				in.Key, &numKeysInNotifChannel, &wg)
+		})
+	}
+
+	// wait for each key to finish processing
+	wg.Wait()
+	var retErr error = nil
+	for i := 0; i < int(numKeysInNotifChannel); i++ {
+		demotionStatus := <-serv.notifyHotshardChan
+		if err := stream.Send(&demotionStatus); err != nil {
+			log.Warningf(ctx, "jenndebug failed to send reply one %+v\n", err)
+			retErr = err
+		}
+	}
+
+	return retErr
+}
+
+func StartDemoteHotkeysServer(ctx context.Context, s *Store) {
+	lis, err := net.Listen("tcp", ":50052")
+	if err != nil {
+		log.Warningf(ctx, "jenndebug StartDemoteHotkeysServer failed to listen %+v", err)
+		return
+	}
+	grpcServer := grpc.NewServer()
+	demotehotkeys.RegisterDemoteHotkeysGatewayServer(grpcServer, &server{
+		store: s,
+		notifyHotshardChan: make(chan demotehotkeys.KVDemotionStatus, 10000),
+	})
+	log.Warningf(ctx, "jenndebug StartDemoteHotkeysServer serving!\n")
+	if err := grpcServer.Serve(lis); err != nil {
+		log.Fatalf(ctx, "jenndebug StartDemoteHotkeysServer grpcServer.Serve(...) failed %+v\n", err)
+	}
+}
+
 // Start the engine, set the GC and read the StoreIdent.
 func (s *Store) Start(ctx context.Context, stopper *stop.Stopper) error {
 	s.stopper = stopper
@@ -1548,6 +1701,12 @@ func (s *Store) Start(ctx context.Context, stopper *stop.Stopper) error {
 
 	// Set the started flag (for unittests).
 	atomic.StoreInt32(&s.started, 1)
+
+	//start DemoteHotkeys server
+	s.stopper.RunWorker(ctx, func(context.Context) {
+		StartDemoteHotkeysServer(ctx, s)
+	})
+	log.Warningf(ctx, "jenndebug made it past stopper.RunWorker\n")
 
 	return nil
 }
