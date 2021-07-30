@@ -371,7 +371,7 @@ func NewServer(cfg Config, stopper *stop.Stopper) (*Server, error) {
 	dbCtx.NodeID = &s.nodeIDContainer
 	dbCtx.Stopper = s.stopper
 	s.db = kv.NewDBWithContext(s.cfg.AmbientCtx, s.tcsFactory, s.clock, dbCtx)
-	s.db.CreateCicadaClients(75, "node-11:50051")
+	s.db.CreateCicadaClients(75, "localhost:50051")
 
 	nlActive, nlRenewal := s.cfg.NodeLivenessDurations()
 

@@ -1668,6 +1668,8 @@ func (s *Store) Start(ctx context.Context, stopper *stop.Stopper) error {
 		// running.
 		s.startGossip()
 
+		s.stopper.RunWorker(ctx, s.startRebalanceHotkeysServer)
+
 		// Start the scanner. The construction here makes sure that the scanner
 		// only starts after Gossip has connected, and that it does not block Start
 		// from returning (as doing so might prevent Gossip from ever connecting).
@@ -1808,6 +1810,37 @@ func (s *Store) startGossip() {
 		})
 	}
 }
+
+type rebalanceServer struct {
+	demotehotkeys.RebalanceHotkeysGatewayServer
+}
+
+func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
+	_ *demotehotkeys.KeyStatsRequest) (*demotehotkeys.CRDBKeyStatsResponse, error) {
+
+	log.Warningf(ctx, "jenndebug RequestCRDBKeyStats\n")
+	return nil, nil
+}
+
+func (rbServer *rebalanceServer) RequestCicadaStats(ctx context.Context,
+	_ *demotehotkeys.KeyStatsRequest) (*demotehotkeys.CicadaStatsResponse, error) {
+	log.Warningf(ctx, "jenndebug CRDB servers don't implement Cicada stats")
+	return nil, nil
+}
+
+func (s *Store) startRebalanceHotkeysServer(ctx context.Context) {
+	lis, err := net.Listen("tpc", ":50055")
+	if err != nil {
+		log.Fatalf(ctx, "jenndebug startRebalanceHotkeysServer failed to listen %+v\n", err)
+	}
+	server := grpc.NewServer()
+	demotehotkeys.RegisterRebalanceHotkeysGatewayServer(server, &rebalanceServer{})
+	log.Warningf(ctx, "jenndebug rebalanceHotkeysServer serving\n")
+	if err := server.Serve(lis); err != nil {
+		log.Fatalf(ctx, "jenndebug rebalanceHotkeysServer failed to serve %+v\n", err)
+	}
+}
+
 
 // startLeaseRenewer runs an infinite loop in a goroutine which regularly
 // checks whether the store has any expiration-based leases that should be
