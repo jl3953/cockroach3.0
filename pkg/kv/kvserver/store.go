@@ -12,6 +12,7 @@ package kvserver
 
 import (
 	"bytes"
+	"container/heap"
 	"context"
 	"fmt"
 	demotehotkeys "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
@@ -1813,13 +1814,107 @@ func (s *Store) startGossip() {
 
 type rebalanceServer struct {
 	demotehotkeys.RebalanceHotkeysGatewayServer
+	store *Store
 }
+
+func (s *Store) triggerRebalanceHotkeysAtInterval(interval time.Duration) {
+
+	timerChan := time.After(interval)
+
+	for {
+		select {
+		case <- s.stopper.ShouldStop():
+			return
+
+		case <- timerChan:
+
+		}
+	}
+}
+
+type Item struct {
+	value KeyHotnessStats
+	priority float64
+	index int
+}
+
+type PriorityQueue []*Item
+
+func (pq PriorityQueue) Len() int {
+	return len(pq)
+}
+
+func (pq PriorityQueue) Less(i, j int) bool {
+	return pq[i].priority > pq[j].priority
+}
+
+func (pq PriorityQueue) Swap(i, j int) {
+	pq[i], pq[j] = pq[j], pq[i]
+	pq[i].index = i
+	pq[j].index = j
+}
+
+func (pq *PriorityQueue) Push(x interface{}) {
+	n := len(*pq)
+	item := x.(*Item)
+	item.index = n
+	*pq = append(*pq, item)
+}
+
+func (pq *PriorityQueue) Pop() interface{} {
+	old := *pq
+	n := len(old)
+	item := old[n-1]
+	old[n-1] = nil  // avoid memory leak
+	item.index = -1 // for safety
+	*pq = old[0 : n-1]
+	return item
+}
+
+func (pq *PriorityQueue) update(item *Item, value KeyHotnessStats, priority float64) {
+	item.value = value
+	item.priority = priority
+	heap.Fix(pq, item.index)
+}
+
 
 func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
 	_ *demotehotkeys.KeyStatsRequest) (*demotehotkeys.CRDBKeyStatsResponse, error) {
 
+	pq := make(PriorityQueue, 0)
+	heap.Init(&pq)
+	replRanger := newStoreReplicaVisitor(rbServer.store)
+	replRanger.Visit(func(repl *Replica) bool {
+		repl.keyStats.Range(func(key, value interface{}) bool {
+			khs := value.(KeyHotnessStats)
+			item := &Item{
+				value: khs,
+				priority: khs.qps,
+			}
+			heap.Push(&pq, item)
+			return true
+		})
+		return true
+	})
+
+	response := demotehotkeys.CRDBKeyStatsResponse{
+		Keystats: make([]*demotehotkeys.KeyStat, 0),
+	}
+	for pq.Len() > 0 {
+		item := heap.Pop(&pq).(*Item)
+		khs := item.value
+		log.Warningf(ctx, "jenndebug khs %+v\n", khs)
+		var placeholder uint64 = 1994214
+		keyStat := demotehotkeys.KeyStat{
+			Key:      &placeholder, // should be khs.key.String() jenndebug, but protobuf doesn't have the correct interface
+			Qps:      &placeholder, // should be khs.qps jenndebug protobuf
+			WriteQps: &placeholder, // should be khs.writeQPS or 0 jenndebug protobuf
+		}
+		response.Keystats = append(response.Keystats, &keyStat)
+	}
+
 	log.Warningf(ctx, "jenndebug RequestCRDBKeyStats\n")
-	return nil, nil
+	return &response, nil
 }
 
 func (rbServer *rebalanceServer) RequestCicadaStats(ctx context.Context,
@@ -1834,7 +1929,7 @@ func (s *Store) startRebalanceHotkeysServer(ctx context.Context) {
 		log.Fatalf(ctx, "jenndebug startRebalanceHotkeysServer failed to listen %+v\n", err)
 	}
 	server := grpc.NewServer()
-	demotehotkeys.RegisterRebalanceHotkeysGatewayServer(server, &rebalanceServer{})
+	demotehotkeys.RegisterRebalanceHotkeysGatewayServer(server, &rebalanceServer{store: s})
 	log.Warningf(ctx, "jenndebug rebalanceHotkeysServer serving\n")
 	if err := server.Serve(lis); err != nil {
 		log.Fatalf(ctx, "jenndebug rebalanceHotkeysServer failed to serve %+v\n", err)
