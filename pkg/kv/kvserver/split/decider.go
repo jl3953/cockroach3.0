@@ -13,6 +13,9 @@
 package split
 
 import (
+	"context"
+	"github.com/cockroachdb/cockroach/pkg/util/log"
+	"sync"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/keys"
@@ -46,6 +49,8 @@ type Decider struct {
 	intn         func(n int) int // supplied to Init
 	qpsThreshold func() float64  // supplied to Init
 
+	keyStats	sync.Map
+
 	mu struct {
 		syncutil.Mutex
 		lastQPSRollover time.Time // most recent time recorded by requests.
@@ -54,7 +59,6 @@ type Decider struct {
 		count               int64     // number of requests recorded since last rollover
 		splitFinder         *Finder   // populated when engaged or decided
 		lastSplitSuggestion time.Time // last stipulation to client to carry out split
-		keyStats	map[string]KeyHotnessStats
 	}
 }
 
@@ -84,11 +88,6 @@ func (d *Decider) Record(now time.Time, n int, span func() roachpb.Span) bool {
 
 func (d *Decider) RecordKey(now time.Time, ba *roachpb.BatchRequest, span func() roachpb.Span) bool {
 
-	n := len(ba.Requests)
-
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
 	for _, req := range ba.Requests {
 		var key roachpb.Key
 		if putReq := req.GetPut(); putReq != nil {
@@ -99,14 +98,23 @@ func (d *Decider) RecordKey(now time.Time, ba *roachpb.BatchRequest, span func()
 			continue
 		}
 
-		khs := d.mu.keyStats[key.String()]
+		khsInterface, ok := d.keyStats.Load(key.String())
+		khs := khsInterface.(KeyHotnessStats)
+		if !ok {
+			log.Fatalf(context.Background(),
+				"jenndebug key doesn't exist while we record its count? %+v\n",
+				key.String())
+		}
 		if keepKeyInMap := khs.recordLockedKey(now); keepKeyInMap {
-			d.mu.keyStats[key.String()] = khs
+			d.keyStats.Store(key.String(), khs)
 		} else {
-			delete(d.mu.keyStats, key.String())
+			d.keyStats.Delete(key.String())
 		}
 	}
 
+	n := len(ba.Requests)
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	return d.recordLocked(now, n, span)
 }
 
