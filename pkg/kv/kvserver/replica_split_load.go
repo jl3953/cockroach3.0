@@ -54,7 +54,7 @@ func (r *Replica) recordBatchForLoadBasedSplitting(
 	if !r.SplitByLoadEnabled() {
 		return
 	}
-	shouldInitSplit := r.loadBasedSplitter.RecordKey(timeutil.Now(), ba, func() roachpb.Span {
+	shouldInitSplit := r.loadBasedSplitter.Record(timeutil.Now(), len(ba.Requests), func() roachpb.Span {
 		return spans.BoundarySpan(spanset.SpanGlobal)
 	})
 	if shouldInitSplit {

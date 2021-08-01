@@ -13,9 +13,6 @@
 package split
 
 import (
-	"context"
-	"github.com/cockroachdb/cockroach/pkg/util/log"
-	"sync"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/keys"
@@ -25,11 +22,7 @@ import (
 
 const minSplitSuggestionInterval = time.Minute
 
-type KeyHotnessStats struct {
-	lastQPSRollover time.Time
-	qps float64
-	count int64
-}
+
 
 // A Decider collects measurements about the activity (measured in qps) on a
 // Replica and, assuming that qps thresholds are exceeded, tries to determine
@@ -48,8 +41,6 @@ type KeyHotnessStats struct {
 type Decider struct {
 	intn         func(n int) int // supplied to Init
 	qpsThreshold func() float64  // supplied to Init
-
-	keyStats	sync.Map
 
 	mu struct {
 		syncutil.Mutex
@@ -86,61 +77,6 @@ func (d *Decider) Record(now time.Time, n int, span func() roachpb.Span) bool {
 	return d.recordLocked(now, n, span)
 }
 
-func (d *Decider) RecordKey(now time.Time, ba *roachpb.BatchRequest, span func() roachpb.Span) bool {
-
-	for _, req := range ba.Requests {
-		var key roachpb.Key
-		if putReq := req.GetPut(); putReq != nil {
-			key = putReq.Key;
-		} else if getReq := req.GetGet(); getReq != nil {
-			key = getReq.Key
-		} else {
-			continue
-		}
-
-		khsInterface, ok := d.keyStats.Load(key.String())
-		khs := khsInterface.(KeyHotnessStats)
-		if !ok {
-			log.Fatalf(context.Background(),
-				"jenndebug key doesn't exist while we record its count? %+v\n",
-				key.String())
-		}
-		if keepKeyInMap := khs.recordLockedKey(now); keepKeyInMap {
-			d.keyStats.Store(key.String(), khs)
-		} else {
-			d.keyStats.Delete(key.String())
-		}
-	}
-
-	n := len(ba.Requests)
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	return d.recordLocked(now, n, span)
-}
-
-/**
-recordLockedKey records stats for individual keys. Returns whether the key should be deleted
-aka it's been a while
- */
-func (khs *KeyHotnessStats) recordLockedKey(now time.Time) bool {
-	khs.count += 1
-
-	elapsedSinceLastQPS := now.Sub(khs.lastQPSRollover)
-	if elapsedSinceLastQPS >= time.Second {
-		if elapsedSinceLastQPS > 2*time.Second {
-			khs.count = 0
-			if elapsedSinceLastQPS > 3*time.Second {
-				return false
-			}
-		}
-
-		khs.qps = (float64(khs.count) / float64(elapsedSinceLastQPS)) * 1e9
-		khs.lastQPSRollover = now
-		khs.count = 0
-	}
-
-	return true
-}
 
 func (d *Decider) recordLocked(now time.Time, n int, span func() roachpb.Span) bool {
 	d.mu.count += int64(n)

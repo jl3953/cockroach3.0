@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -507,6 +508,8 @@ type Replica struct {
 
 	// loadBasedSplitter keeps information about load-based splitting.
 	loadBasedSplitter split.Decider
+
+	keyStats	sync.Map
 
 	unreachablesMu struct {
 		syncutil.Mutex
@@ -1524,4 +1527,68 @@ func (r *Replica) GetExternalStorageFromURI(
 
 func init() {
 	tracing.RegisterTagRemapping("r", "range")
+}
+
+type KeyHotnessStats struct {
+	key roachpb.Key
+	lastQPSRollover time.Time
+	qps float64
+	count int64
+}
+
+/**
+recordLockedKey records stats for individual keys. Returns whether the key should be deleted
+aka it's been a while
+*/
+func (khs *KeyHotnessStats) recordLockedKey(now time.Time) bool {
+	khs.count += 1
+
+	elapsedSinceLastQPS := now.Sub(khs.lastQPSRollover)
+	if elapsedSinceLastQPS >= time.Second {
+		if elapsedSinceLastQPS > 2*time.Second {
+			khs.count = 0
+			if elapsedSinceLastQPS > 3*time.Second {
+				return false
+			}
+		}
+
+		khs.qps = (float64(khs.count) / float64(elapsedSinceLastQPS)) * 1e9
+		khs.lastQPSRollover = now
+		khs.count = 0
+	}
+
+	return true
+}
+func (r *Replica) RecordKey(now time.Time, ba *roachpb.BatchRequest, span func() roachpb.Span) bool {
+
+	for _, req := range ba.Requests {
+		var key roachpb.Key
+		if putReq := req.GetPut(); putReq != nil {
+			key = putReq.Key
+		} else if getReq := req.GetGet(); getReq != nil {
+			key = getReq.Key
+		} else {
+			continue
+		}
+
+		khsInterface, keyExistsYet := r.keyStats.Load(key.String())
+		if !keyExistsYet {
+			khs := KeyHotnessStats{
+				key:             key,
+				lastQPSRollover: timeutil.Now(),
+				qps:             0,
+				count:           1,
+			}
+			r.keyStats.Store(key.String(), khs)
+		} else {
+			khs := khsInterface.(KeyHotnessStats)
+			if keepKeyInMap := khs.recordLockedKey(now); keepKeyInMap {
+				r.keyStats.Store(key.String(), khs)
+			} else {
+				r.keyStats.Delete(key.String())
+			}
+		}
+	}
+
+	return true
 }
