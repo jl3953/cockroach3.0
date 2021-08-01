@@ -1670,6 +1670,7 @@ func (s *Store) Start(ctx context.Context, stopper *stop.Stopper) error {
 		s.startGossip()
 
 		s.stopper.RunWorker(ctx, s.startRebalanceHotkeysServer)
+		s.stopper.RunWorker(ctx, s.triggerRebalanceHotkeysAtInterval)
 
 		// Start the scanner. The construction here makes sure that the scanner
 		// only starts after Gossip has connected, and that it does not block Start
@@ -1817,7 +1818,25 @@ type rebalanceServer struct {
 	store *Store
 }
 
-func (s *Store) triggerRebalanceHotkeysAtInterval(interval time.Duration) {
+func (s *Store) triggerRebalanceHotkeysAtInterval(_ context.Context) {
+
+	//TODO jenndebug make this an option somehow, or make the function a closure
+	interval := 5*time.Second
+	// TODO jenndebug figure out how to connect to ALL CRDB servers
+	// given that ther is a variable number of them
+	crdbConn, err := grpc.Dial("localhost:50055",
+		grpc.WithInsecure(), grpc.WithBlock())
+	if err != nil {
+		log.Fatalf(context.Background(), "jenndebug connect to CRDB rebalance server failed %+v\n", err)
+	}
+	defer func(conn *grpc.ClientConn) {
+		_ = conn.Close()
+	} (crdbConn)
+	crdbClient := demotehotkeys.NewRebalanceHotkeysGatewayClient(crdbConn)
+	ctx, crdbCancel := context.WithTimeout(context.Background(), time.Second)
+	defer crdbCancel()
+
+	// TODO jenndebug you need to figure out the Cicada version too
 
 	timerChan := time.After(interval)
 
@@ -1827,8 +1846,29 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(interval time.Duration) {
 			return
 
 		case <- timerChan:
+			// Connect to CRDB severs and ask about the key's numbers
+
+			// TODO jenndebug again, you need to figure out how to
+			// loop this through all the servers
+			t := true
+			crdbRequest := demotehotkeys.KeyStatsRequest{Placeholder: &t}
+			crdbReponse, err := crdbClient.RequestCRDBKeyStats(ctx, &crdbRequest)
+			if err != nil {
+				log.Fatalf(ctx, "jenndebug could not request CRDB stats %+v\n", err)
+			}
+
+			// TODO jenndebug here's where you merge sort a bazillion different queues
+			// but for now, just print them out
+			for _, keyStat := range crdbReponse.Keystats {
+				log.Warningf(ctx, "jenndebug received keystat %+v\n", *keyStat)
+			}
+
+			// TODO jenndebug how do you reset the timer so that it keeps going?
+			timerChan = time.After(interval)
 
 		}
+
+		// TODO jenndebug you have to have the store start this thing
 	}
 }
 
