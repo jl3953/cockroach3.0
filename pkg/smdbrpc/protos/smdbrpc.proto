@@ -35,14 +35,6 @@ message HLCTimestamp {
   optional int32 logicaltime = 2; // the causality counter
 }
 
-//message Key {
-//  optional bytes key = 1;
-//}
-//
-//message Value {
-//  optional bytes value = 1;
-//}
-
 message KVPair {
   optional uint64 key = 1;
   optional uint64 value = 2;
@@ -52,21 +44,10 @@ message KVPair {
 service HotshardGateway {
   // Sends a greeting
   rpc ContactHotshard (HotshardRequest) returns (HotshardReply) {}
+  rpc TriggerDemotion (TriggerDemotionRequest) returns (TriggerDemotionReply) {}
+  rpc RequestCRDBKeyStats(KeyStatsRequest) returns (CRDBKeyStatsResponse) {}
+  rpc RequestCicadaStats (KeyStatsRequest) returns (CicadaStatsResponse) {}
 }
-
-// The request message containing the user's name.
-//message HotshardRequest {
-//  optional string sqlstring = 1 [(gogoproto.nullable) = false];
-//
-//  optional HLCTimestamp hlctimestamp = 2 [(gogoproto.nullable) = false];
-//}
-//
-//// The response message containing the greetings
-//message HotshardReply {
-//  optional bool is_committed = 1 [(gogoproto.nullable) = false];
-//
-//  optional HLCTimestamp hlctimestamp = 2 [(gogoproto.nullable) = false];
-//}
 
 message HotshardRequest {
   // optional string sqlstring = 1;
@@ -86,4 +67,39 @@ message HotshardReply {
   repeated KVPair read_valueset = 2;
 
   // optional HLCTimestamp hlctimestamp = 2;
+}
+
+message TriggerDemotionRequest {
+  repeated uint64 keys = 1;
+}
+
+message TriggerDemotionStatus {
+  optional uint64 key = 1;
+  optional bool isDemotionTriggered = 2;
+}
+
+message TriggerDemotionReply {
+  repeated TriggerDemotionStatus triggerDemotionStatuses = 1;
+}
+
+message KeyStat {
+  optional uint64 key = 1;
+  optional uint64 qps = 2;
+  optional uint64 writeQps = 3;
+}
+
+message KeyStatsRequest {
+  optional bool placeholder = 1;
+}
+
+message CRDBKeyStatsResponse {
+  repeated KeyStat keystats = 1;
+}
+
+message CicadaStatsResponse {
+  repeated KeyStat keystats = 1;
+  optional uint64 cpuusage = 2;
+  optional uint64 memusage = 3;
+  optional uint64 cpuusageprogram = 4;
+  optional uint64 memusageprogram = 5;
 }

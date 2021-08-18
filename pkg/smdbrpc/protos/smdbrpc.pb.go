@@ -38,7 +38,7 @@ func (m *HLCTimestamp) Reset()         { *m = HLCTimestamp{} }
 func (m *HLCTimestamp) String() string { return proto.CompactTextString(m) }
 func (*HLCTimestamp) ProtoMessage()    {}
 func (*HLCTimestamp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_ab625d982200c379, []int{0}
+	return fileDescriptor_smdbrpc_426ac252ba728c06, []int{0}
 }
 func (m *HLCTimestamp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -72,7 +72,7 @@ func (m *KVPair) Reset()         { *m = KVPair{} }
 func (m *KVPair) String() string { return proto.CompactTextString(m) }
 func (*KVPair) ProtoMessage()    {}
 func (*KVPair) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_ab625d982200c379, []int{1}
+	return fileDescriptor_smdbrpc_426ac252ba728c06, []int{1}
 }
 func (m *KVPair) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -107,7 +107,7 @@ func (m *HotshardRequest) Reset()         { *m = HotshardRequest{} }
 func (m *HotshardRequest) String() string { return proto.CompactTextString(m) }
 func (*HotshardRequest) ProtoMessage()    {}
 func (*HotshardRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_ab625d982200c379, []int{2}
+	return fileDescriptor_smdbrpc_426ac252ba728c06, []int{2}
 }
 func (m *HotshardRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -142,7 +142,7 @@ func (m *HotshardReply) Reset()         { *m = HotshardReply{} }
 func (m *HotshardReply) String() string { return proto.CompactTextString(m) }
 func (*HotshardReply) ProtoMessage()    {}
 func (*HotshardReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_ab625d982200c379, []int{3}
+	return fileDescriptor_smdbrpc_426ac252ba728c06, []int{3}
 }
 func (m *HotshardReply) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -167,11 +167,256 @@ func (m *HotshardReply) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_HotshardReply proto.InternalMessageInfo
 
+type TriggerDemotionRequest struct {
+	Keys []uint64 `protobuf:"varint,1,rep,name=keys" json:"keys,omitempty"`
+}
+
+func (m *TriggerDemotionRequest) Reset()         { *m = TriggerDemotionRequest{} }
+func (m *TriggerDemotionRequest) String() string { return proto.CompactTextString(m) }
+func (*TriggerDemotionRequest) ProtoMessage()    {}
+func (*TriggerDemotionRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_smdbrpc_426ac252ba728c06, []int{4}
+}
+func (m *TriggerDemotionRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *TriggerDemotionRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalTo(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (dst *TriggerDemotionRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TriggerDemotionRequest.Merge(dst, src)
+}
+func (m *TriggerDemotionRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *TriggerDemotionRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_TriggerDemotionRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TriggerDemotionRequest proto.InternalMessageInfo
+
+type TriggerDemotionStatus struct {
+	Key                 *uint64 `protobuf:"varint,1,opt,name=key" json:"key,omitempty"`
+	IsDemotionTriggered *bool   `protobuf:"varint,2,opt,name=isDemotionTriggered" json:"isDemotionTriggered,omitempty"`
+}
+
+func (m *TriggerDemotionStatus) Reset()         { *m = TriggerDemotionStatus{} }
+func (m *TriggerDemotionStatus) String() string { return proto.CompactTextString(m) }
+func (*TriggerDemotionStatus) ProtoMessage()    {}
+func (*TriggerDemotionStatus) Descriptor() ([]byte, []int) {
+	return fileDescriptor_smdbrpc_426ac252ba728c06, []int{5}
+}
+func (m *TriggerDemotionStatus) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *TriggerDemotionStatus) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalTo(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (dst *TriggerDemotionStatus) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TriggerDemotionStatus.Merge(dst, src)
+}
+func (m *TriggerDemotionStatus) XXX_Size() int {
+	return m.Size()
+}
+func (m *TriggerDemotionStatus) XXX_DiscardUnknown() {
+	xxx_messageInfo_TriggerDemotionStatus.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TriggerDemotionStatus proto.InternalMessageInfo
+
+type TriggerDemotionReply struct {
+	TriggerDemotionStatuses []*TriggerDemotionStatus `protobuf:"bytes,1,rep,name=triggerDemotionStatuses" json:"triggerDemotionStatuses,omitempty"`
+}
+
+func (m *TriggerDemotionReply) Reset()         { *m = TriggerDemotionReply{} }
+func (m *TriggerDemotionReply) String() string { return proto.CompactTextString(m) }
+func (*TriggerDemotionReply) ProtoMessage()    {}
+func (*TriggerDemotionReply) Descriptor() ([]byte, []int) {
+	return fileDescriptor_smdbrpc_426ac252ba728c06, []int{6}
+}
+func (m *TriggerDemotionReply) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *TriggerDemotionReply) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalTo(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (dst *TriggerDemotionReply) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TriggerDemotionReply.Merge(dst, src)
+}
+func (m *TriggerDemotionReply) XXX_Size() int {
+	return m.Size()
+}
+func (m *TriggerDemotionReply) XXX_DiscardUnknown() {
+	xxx_messageInfo_TriggerDemotionReply.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TriggerDemotionReply proto.InternalMessageInfo
+
+type KeyStat struct {
+	Key      *uint64 `protobuf:"varint,1,opt,name=key" json:"key,omitempty"`
+	Qps      *uint64 `protobuf:"varint,2,opt,name=qps" json:"qps,omitempty"`
+	WriteQps *uint64 `protobuf:"varint,3,opt,name=writeQps" json:"writeQps,omitempty"`
+}
+
+func (m *KeyStat) Reset()         { *m = KeyStat{} }
+func (m *KeyStat) String() string { return proto.CompactTextString(m) }
+func (*KeyStat) ProtoMessage()    {}
+func (*KeyStat) Descriptor() ([]byte, []int) {
+	return fileDescriptor_smdbrpc_426ac252ba728c06, []int{7}
+}
+func (m *KeyStat) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *KeyStat) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalTo(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (dst *KeyStat) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_KeyStat.Merge(dst, src)
+}
+func (m *KeyStat) XXX_Size() int {
+	return m.Size()
+}
+func (m *KeyStat) XXX_DiscardUnknown() {
+	xxx_messageInfo_KeyStat.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_KeyStat proto.InternalMessageInfo
+
+type KeyStatsRequest struct {
+	Placeholder *bool `protobuf:"varint,1,opt,name=placeholder" json:"placeholder,omitempty"`
+}
+
+func (m *KeyStatsRequest) Reset()         { *m = KeyStatsRequest{} }
+func (m *KeyStatsRequest) String() string { return proto.CompactTextString(m) }
+func (*KeyStatsRequest) ProtoMessage()    {}
+func (*KeyStatsRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_smdbrpc_426ac252ba728c06, []int{8}
+}
+func (m *KeyStatsRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *KeyStatsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalTo(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (dst *KeyStatsRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_KeyStatsRequest.Merge(dst, src)
+}
+func (m *KeyStatsRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *KeyStatsRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_KeyStatsRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_KeyStatsRequest proto.InternalMessageInfo
+
+type CRDBKeyStatsResponse struct {
+	Keystats []*KeyStat `protobuf:"bytes,1,rep,name=keystats" json:"keystats,omitempty"`
+}
+
+func (m *CRDBKeyStatsResponse) Reset()         { *m = CRDBKeyStatsResponse{} }
+func (m *CRDBKeyStatsResponse) String() string { return proto.CompactTextString(m) }
+func (*CRDBKeyStatsResponse) ProtoMessage()    {}
+func (*CRDBKeyStatsResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_smdbrpc_426ac252ba728c06, []int{9}
+}
+func (m *CRDBKeyStatsResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CRDBKeyStatsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalTo(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (dst *CRDBKeyStatsResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CRDBKeyStatsResponse.Merge(dst, src)
+}
+func (m *CRDBKeyStatsResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *CRDBKeyStatsResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_CRDBKeyStatsResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CRDBKeyStatsResponse proto.InternalMessageInfo
+
+type CicadaStatsResponse struct {
+	Keystats        []*KeyStat `protobuf:"bytes,1,rep,name=keystats" json:"keystats,omitempty"`
+	Cpuusage        *uint64    `protobuf:"varint,2,opt,name=cpuusage" json:"cpuusage,omitempty"`
+	Memusage        *uint64    `protobuf:"varint,3,opt,name=memusage" json:"memusage,omitempty"`
+	Cpuusageprogram *uint64    `protobuf:"varint,4,opt,name=cpuusageprogram" json:"cpuusageprogram,omitempty"`
+	Memusageprogram *uint64    `protobuf:"varint,5,opt,name=memusageprogram" json:"memusageprogram,omitempty"`
+}
+
+func (m *CicadaStatsResponse) Reset()         { *m = CicadaStatsResponse{} }
+func (m *CicadaStatsResponse) String() string { return proto.CompactTextString(m) }
+func (*CicadaStatsResponse) ProtoMessage()    {}
+func (*CicadaStatsResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_smdbrpc_426ac252ba728c06, []int{10}
+}
+func (m *CicadaStatsResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CicadaStatsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalTo(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (dst *CicadaStatsResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CicadaStatsResponse.Merge(dst, src)
+}
+func (m *CicadaStatsResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *CicadaStatsResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_CicadaStatsResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CicadaStatsResponse proto.InternalMessageInfo
+
 func init() {
 	proto.RegisterType((*HLCTimestamp)(nil), "smdbrpc.HLCTimestamp")
 	proto.RegisterType((*KVPair)(nil), "smdbrpc.KVPair")
 	proto.RegisterType((*HotshardRequest)(nil), "smdbrpc.HotshardRequest")
 	proto.RegisterType((*HotshardReply)(nil), "smdbrpc.HotshardReply")
+	proto.RegisterType((*TriggerDemotionRequest)(nil), "smdbrpc.TriggerDemotionRequest")
+	proto.RegisterType((*TriggerDemotionStatus)(nil), "smdbrpc.TriggerDemotionStatus")
+	proto.RegisterType((*TriggerDemotionReply)(nil), "smdbrpc.TriggerDemotionReply")
+	proto.RegisterType((*KeyStat)(nil), "smdbrpc.KeyStat")
+	proto.RegisterType((*KeyStatsRequest)(nil), "smdbrpc.KeyStatsRequest")
+	proto.RegisterType((*CRDBKeyStatsResponse)(nil), "smdbrpc.CRDBKeyStatsResponse")
+	proto.RegisterType((*CicadaStatsResponse)(nil), "smdbrpc.CicadaStatsResponse")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -188,6 +433,9 @@ const _ = grpc.SupportPackageIsVersion4
 type HotshardGatewayClient interface {
 	// Sends a greeting
 	ContactHotshard(ctx context.Context, in *HotshardRequest, opts ...grpc.CallOption) (*HotshardReply, error)
+	TriggerDemotion(ctx context.Context, in *TriggerDemotionRequest, opts ...grpc.CallOption) (*TriggerDemotionReply, error)
+	RequestCRDBKeyStats(ctx context.Context, in *KeyStatsRequest, opts ...grpc.CallOption) (*CRDBKeyStatsResponse, error)
+	RequestCicadaStats(ctx context.Context, in *KeyStatsRequest, opts ...grpc.CallOption) (*CicadaStatsResponse, error)
 }
 
 type hotshardGatewayClient struct {
@@ -207,10 +455,40 @@ func (c *hotshardGatewayClient) ContactHotshard(ctx context.Context, in *Hotshar
 	return out, nil
 }
 
+func (c *hotshardGatewayClient) TriggerDemotion(ctx context.Context, in *TriggerDemotionRequest, opts ...grpc.CallOption) (*TriggerDemotionReply, error) {
+	out := new(TriggerDemotionReply)
+	err := c.cc.Invoke(ctx, "/smdbrpc.HotshardGateway/TriggerDemotion", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hotshardGatewayClient) RequestCRDBKeyStats(ctx context.Context, in *KeyStatsRequest, opts ...grpc.CallOption) (*CRDBKeyStatsResponse, error) {
+	out := new(CRDBKeyStatsResponse)
+	err := c.cc.Invoke(ctx, "/smdbrpc.HotshardGateway/RequestCRDBKeyStats", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *hotshardGatewayClient) RequestCicadaStats(ctx context.Context, in *KeyStatsRequest, opts ...grpc.CallOption) (*CicadaStatsResponse, error) {
+	out := new(CicadaStatsResponse)
+	err := c.cc.Invoke(ctx, "/smdbrpc.HotshardGateway/RequestCicadaStats", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HotshardGatewayServer is the server API for HotshardGateway service.
 type HotshardGatewayServer interface {
 	// Sends a greeting
 	ContactHotshard(context.Context, *HotshardRequest) (*HotshardReply, error)
+	TriggerDemotion(context.Context, *TriggerDemotionRequest) (*TriggerDemotionReply, error)
+	RequestCRDBKeyStats(context.Context, *KeyStatsRequest) (*CRDBKeyStatsResponse, error)
+	RequestCicadaStats(context.Context, *KeyStatsRequest) (*CicadaStatsResponse, error)
 }
 
 func RegisterHotshardGatewayServer(s *grpc.Server, srv HotshardGatewayServer) {
@@ -235,6 +513,60 @@ func _HotshardGateway_ContactHotshard_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HotshardGateway_TriggerDemotion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TriggerDemotionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HotshardGatewayServer).TriggerDemotion(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/smdbrpc.HotshardGateway/TriggerDemotion",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HotshardGatewayServer).TriggerDemotion(ctx, req.(*TriggerDemotionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HotshardGateway_RequestCRDBKeyStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(KeyStatsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HotshardGatewayServer).RequestCRDBKeyStats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/smdbrpc.HotshardGateway/RequestCRDBKeyStats",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HotshardGatewayServer).RequestCRDBKeyStats(ctx, req.(*KeyStatsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HotshardGateway_RequestCicadaStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(KeyStatsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HotshardGatewayServer).RequestCicadaStats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/smdbrpc.HotshardGateway/RequestCicadaStats",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HotshardGatewayServer).RequestCicadaStats(ctx, req.(*KeyStatsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _HotshardGateway_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "smdbrpc.HotshardGateway",
 	HandlerType: (*HotshardGatewayServer)(nil),
@@ -242,6 +574,18 @@ var _HotshardGateway_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ContactHotshard",
 			Handler:    _HotshardGateway_ContactHotshard_Handler,
+		},
+		{
+			MethodName: "TriggerDemotion",
+			Handler:    _HotshardGateway_TriggerDemotion_Handler,
+		},
+		{
+			MethodName: "RequestCRDBKeyStats",
+			Handler:    _HotshardGateway_RequestCRDBKeyStats_Handler,
+		},
+		{
+			MethodName: "RequestCicadaStats",
+			Handler:    _HotshardGateway_RequestCicadaStats_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -391,6 +735,235 @@ func (m *HotshardReply) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *TriggerDemotionRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *TriggerDemotionRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Keys) > 0 {
+		for _, num := range m.Keys {
+			dAtA[i] = 0x8
+			i++
+			i = encodeVarintSmdbrpc(dAtA, i, uint64(num))
+		}
+	}
+	return i, nil
+}
+
+func (m *TriggerDemotionStatus) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *TriggerDemotionStatus) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Key != nil {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintSmdbrpc(dAtA, i, uint64(*m.Key))
+	}
+	if m.IsDemotionTriggered != nil {
+		dAtA[i] = 0x10
+		i++
+		if *m.IsDemotionTriggered {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i++
+	}
+	return i, nil
+}
+
+func (m *TriggerDemotionReply) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *TriggerDemotionReply) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.TriggerDemotionStatuses) > 0 {
+		for _, msg := range m.TriggerDemotionStatuses {
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintSmdbrpc(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	return i, nil
+}
+
+func (m *KeyStat) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *KeyStat) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Key != nil {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintSmdbrpc(dAtA, i, uint64(*m.Key))
+	}
+	if m.Qps != nil {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintSmdbrpc(dAtA, i, uint64(*m.Qps))
+	}
+	if m.WriteQps != nil {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintSmdbrpc(dAtA, i, uint64(*m.WriteQps))
+	}
+	return i, nil
+}
+
+func (m *KeyStatsRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *KeyStatsRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Placeholder != nil {
+		dAtA[i] = 0x8
+		i++
+		if *m.Placeholder {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i++
+	}
+	return i, nil
+}
+
+func (m *CRDBKeyStatsResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CRDBKeyStatsResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Keystats) > 0 {
+		for _, msg := range m.Keystats {
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintSmdbrpc(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	return i, nil
+}
+
+func (m *CicadaStatsResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CicadaStatsResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Keystats) > 0 {
+		for _, msg := range m.Keystats {
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintSmdbrpc(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	if m.Cpuusage != nil {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintSmdbrpc(dAtA, i, uint64(*m.Cpuusage))
+	}
+	if m.Memusage != nil {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintSmdbrpc(dAtA, i, uint64(*m.Memusage))
+	}
+	if m.Cpuusageprogram != nil {
+		dAtA[i] = 0x20
+		i++
+		i = encodeVarintSmdbrpc(dAtA, i, uint64(*m.Cpuusageprogram))
+	}
+	if m.Memusageprogram != nil {
+		dAtA[i] = 0x28
+		i++
+		i = encodeVarintSmdbrpc(dAtA, i, uint64(*m.Memusageprogram))
+	}
+	return i, nil
+}
+
 func encodeVarintSmdbrpc(dAtA []byte, offset int, v uint64) int {
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
@@ -468,6 +1041,122 @@ func (m *HotshardReply) Size() (n int) {
 			l = e.Size()
 			n += 1 + l + sovSmdbrpc(uint64(l))
 		}
+	}
+	return n
+}
+
+func (m *TriggerDemotionRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Keys) > 0 {
+		for _, e := range m.Keys {
+			n += 1 + sovSmdbrpc(uint64(e))
+		}
+	}
+	return n
+}
+
+func (m *TriggerDemotionStatus) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Key != nil {
+		n += 1 + sovSmdbrpc(uint64(*m.Key))
+	}
+	if m.IsDemotionTriggered != nil {
+		n += 2
+	}
+	return n
+}
+
+func (m *TriggerDemotionReply) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.TriggerDemotionStatuses) > 0 {
+		for _, e := range m.TriggerDemotionStatuses {
+			l = e.Size()
+			n += 1 + l + sovSmdbrpc(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *KeyStat) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Key != nil {
+		n += 1 + sovSmdbrpc(uint64(*m.Key))
+	}
+	if m.Qps != nil {
+		n += 1 + sovSmdbrpc(uint64(*m.Qps))
+	}
+	if m.WriteQps != nil {
+		n += 1 + sovSmdbrpc(uint64(*m.WriteQps))
+	}
+	return n
+}
+
+func (m *KeyStatsRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Placeholder != nil {
+		n += 2
+	}
+	return n
+}
+
+func (m *CRDBKeyStatsResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Keystats) > 0 {
+		for _, e := range m.Keystats {
+			l = e.Size()
+			n += 1 + l + sovSmdbrpc(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *CicadaStatsResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Keystats) > 0 {
+		for _, e := range m.Keystats {
+			l = e.Size()
+			n += 1 + l + sovSmdbrpc(uint64(l))
+		}
+	}
+	if m.Cpuusage != nil {
+		n += 1 + sovSmdbrpc(uint64(*m.Cpuusage))
+	}
+	if m.Memusage != nil {
+		n += 1 + sovSmdbrpc(uint64(*m.Memusage))
+	}
+	if m.Cpuusageprogram != nil {
+		n += 1 + sovSmdbrpc(uint64(*m.Cpuusageprogram))
+	}
+	if m.Memusageprogram != nil {
+		n += 1 + sovSmdbrpc(uint64(*m.Memusageprogram))
 	}
 	return n
 }
@@ -954,6 +1643,724 @@ func (m *HotshardReply) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *TriggerDemotionRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowSmdbrpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: TriggerDemotionRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: TriggerDemotionRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType == 0 {
+				var v uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowSmdbrpc
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					v |= (uint64(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				m.Keys = append(m.Keys, v)
+			} else if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowSmdbrpc
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					packedLen |= (int(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				if packedLen < 0 {
+					return ErrInvalidLengthSmdbrpc
+				}
+				postIndex := iNdEx + packedLen
+				if postIndex > l {
+					return io.ErrUnexpectedEOF
+				}
+				var elementCount int
+				var count int
+				for _, integer := range dAtA {
+					if integer < 128 {
+						count++
+					}
+				}
+				elementCount = count
+				if elementCount != 0 && len(m.Keys) == 0 {
+					m.Keys = make([]uint64, 0, elementCount)
+				}
+				for iNdEx < postIndex {
+					var v uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowSmdbrpc
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						v |= (uint64(b) & 0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					m.Keys = append(m.Keys, v)
+				}
+			} else {
+				return fmt.Errorf("proto: wrong wireType = %d for field Keys", wireType)
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipSmdbrpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthSmdbrpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *TriggerDemotionStatus) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowSmdbrpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: TriggerDemotionStatus: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: TriggerDemotionStatus: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Key", wireType)
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSmdbrpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Key = &v
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IsDemotionTriggered", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSmdbrpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			b := bool(v != 0)
+			m.IsDemotionTriggered = &b
+		default:
+			iNdEx = preIndex
+			skippy, err := skipSmdbrpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthSmdbrpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *TriggerDemotionReply) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowSmdbrpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: TriggerDemotionReply: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: TriggerDemotionReply: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TriggerDemotionStatuses", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSmdbrpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthSmdbrpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TriggerDemotionStatuses = append(m.TriggerDemotionStatuses, &TriggerDemotionStatus{})
+			if err := m.TriggerDemotionStatuses[len(m.TriggerDemotionStatuses)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipSmdbrpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthSmdbrpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *KeyStat) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowSmdbrpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: KeyStat: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: KeyStat: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Key", wireType)
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSmdbrpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Key = &v
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Qps", wireType)
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSmdbrpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Qps = &v
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field WriteQps", wireType)
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSmdbrpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.WriteQps = &v
+		default:
+			iNdEx = preIndex
+			skippy, err := skipSmdbrpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthSmdbrpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *KeyStatsRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowSmdbrpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: KeyStatsRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: KeyStatsRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Placeholder", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSmdbrpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			b := bool(v != 0)
+			m.Placeholder = &b
+		default:
+			iNdEx = preIndex
+			skippy, err := skipSmdbrpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthSmdbrpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CRDBKeyStatsResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowSmdbrpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CRDBKeyStatsResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CRDBKeyStatsResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Keystats", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSmdbrpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthSmdbrpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Keystats = append(m.Keystats, &KeyStat{})
+			if err := m.Keystats[len(m.Keystats)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipSmdbrpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthSmdbrpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CicadaStatsResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowSmdbrpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CicadaStatsResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CicadaStatsResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Keystats", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSmdbrpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthSmdbrpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Keystats = append(m.Keystats, &KeyStat{})
+			if err := m.Keystats[len(m.Keystats)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Cpuusage", wireType)
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSmdbrpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Cpuusage = &v
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Memusage", wireType)
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSmdbrpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Memusage = &v
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Cpuusageprogram", wireType)
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSmdbrpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Cpuusageprogram = &v
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Memusageprogram", wireType)
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSmdbrpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Memusageprogram = &v
+		default:
+			iNdEx = preIndex
+			skippy, err := skipSmdbrpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthSmdbrpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func skipSmdbrpc(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
@@ -1060,33 +2467,50 @@ var (
 )
 
 func init() {
-	proto.RegisterFile("smdbrpc/protos/smdbrpc.proto", fileDescriptor_smdbrpc_ab625d982200c379)
+	proto.RegisterFile("smdbrpc/protos/smdbrpc.proto", fileDescriptor_smdbrpc_426ac252ba728c06)
 }
 
-var fileDescriptor_smdbrpc_ab625d982200c379 = []byte{
-	// 373 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x90, 0xcf, 0xaa, 0xda, 0x40,
-	0x14, 0x87, 0x33, 0x46, 0x5b, 0x39, 0x89, 0x58, 0x86, 0xb6, 0x88, 0x94, 0x69, 0x9a, 0x55, 0x36,
-	0xd5, 0x12, 0xba, 0xe9, 0xb6, 0x52, 0x2a, 0xe8, 0xa2, 0x0c, 0x45, 0x4a, 0x37, 0x32, 0x26, 0xd3,
-	0x3a, 0x98, 0x98, 0x34, 0x33, 0xd6, 0x9b, 0xb7, 0xb8, 0xaf, 0x70, 0xdf, 0xc6, 0xa5, 0x4b, 0x97,
-	0xf7, 0xc6, 0x17, 0xb9, 0x38, 0x31, 0xfe, 0x81, 0xcb, 0xdd, 0xcd, 0xef, 0x9c, 0xef, 0x1c, 0xbe,
-	0x39, 0xf0, 0x4e, 0xc6, 0xe1, 0x2c, 0x4b, 0x83, 0x7e, 0x9a, 0x25, 0x2a, 0x91, 0xfd, 0x63, 0xec,
-	0xe9, 0x88, 0x5f, 0x1e, 0xa3, 0x3b, 0x06, 0x7b, 0x38, 0x1e, 0xfc, 0x14, 0x31, 0x97, 0x8a, 0xc5,
-	0x29, 0xee, 0x42, 0x73, 0xcd, 0xa2, 0x48, 0x89, 0x98, 0x77, 0x90, 0x83, 0x3c, 0x93, 0x9e, 0x32,
-	0x76, 0xc0, 0x8a, 0x92, 0xbf, 0x22, 0x60, 0x65, 0xbb, 0xe6, 0x20, 0xaf, 0x41, 0x2f, 0x4b, 0xee,
-	0x27, 0x78, 0x31, 0x9a, 0xfc, 0x60, 0x22, 0xc3, 0xaf, 0xc0, 0x5c, 0xf0, 0x5c, 0xaf, 0xa8, 0xd3,
-	0xc3, 0x13, 0xbf, 0x86, 0xc6, 0x7f, 0x16, 0xad, 0xca, 0xb9, 0x3a, 0x2d, 0x83, 0x7b, 0x87, 0xa0,
-	0x3d, 0x4c, 0x94, 0x9c, 0xb3, 0x2c, 0xa4, 0xfc, 0xdf, 0x8a, 0x4b, 0x85, 0xbf, 0x80, 0x3d, 0x8f,
-	0x02, 0x55, 0x39, 0xe9, 0x25, 0x96, 0xff, 0xa6, 0x57, 0x7d, 0xe1, 0x52, 0x98, 0x5e, 0xa1, 0xd8,
-	0x07, 0x7b, 0x9d, 0x09, 0xc5, 0xa7, 0x0b, 0x9e, 0x4b, 0xae, 0x3a, 0x35, 0xc7, 0xf4, 0x2c, 0xbf,
-	0x7d, 0x1a, 0x2d, 0xed, 0xa8, 0xa5, 0xa1, 0x91, 0x66, 0xf0, 0x7b, 0xb0, 0x32, 0xce, 0xc2, 0x6a,
-	0xc4, 0x74, 0x4c, 0xaf, 0x4e, 0xe1, 0x50, 0x2a, 0x01, 0x77, 0x0e, 0xad, 0xb3, 0x62, 0x1a, 0xe5,
-	0xf8, 0x03, 0xd8, 0x42, 0x4e, 0x83, 0x24, 0x8e, 0x85, 0x52, 0x3c, 0xd4, 0x82, 0x4d, 0x6a, 0x09,
-	0x39, 0xa8, 0x4a, 0xf8, 0x33, 0xb4, 0xf4, 0x52, 0xfd, 0xcb, 0x67, 0x4c, 0xec, 0x03, 0x35, 0x39,
-	0x42, 0xfe, 0xaf, 0xf3, 0x31, 0xbe, 0x33, 0xc5, 0xd7, 0x2c, 0xc7, 0xdf, 0xa0, 0x3d, 0x48, 0x96,
-	0x8a, 0x05, 0xaa, 0xea, 0xe0, 0xce, 0xf9, 0x12, 0xd7, 0x97, 0xeb, 0xbe, 0x7d, 0xa2, 0x93, 0x46,
-	0xb9, 0x6b, 0x7c, 0xfd, 0xb8, 0x79, 0x20, 0xc6, 0xa6, 0x20, 0x68, 0x5b, 0x10, 0xb4, 0x2b, 0x08,
-	0xba, 0x2f, 0x08, 0xba, 0xdd, 0x13, 0x63, 0xbb, 0x27, 0xc6, 0x6e, 0x4f, 0x8c, 0xdf, 0x16, 0xbf,
-	0xe1, 0x81, 0x58, 0xfe, 0xc9, 0x58, 0x3a, 0x7b, 0x0c, 0x00, 0x00, 0xff, 0xff, 0x66, 0xdd, 0x6d,
-	0x40, 0x3e, 0x02, 0x00, 0x00,
+var fileDescriptor_smdbrpc_426ac252ba728c06 = []byte{
+	// 644 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x53, 0xcf, 0x4e, 0xdb, 0x4e,
+	0x10, 0xb6, 0x71, 0xf8, 0x11, 0x8d, 0x83, 0x82, 0x96, 0x3f, 0xbf, 0x08, 0x51, 0x93, 0xee, 0x29,
+	0x07, 0x0a, 0x28, 0xed, 0xa5, 0x57, 0x42, 0x55, 0x2a, 0x50, 0x45, 0x0d, 0x42, 0x55, 0x7b, 0x40,
+	0x8b, 0xbd, 0x4d, 0x56, 0xd8, 0xf1, 0xe2, 0xdd, 0x94, 0xe6, 0x2d, 0xfa, 0x0a, 0x7d, 0x1b, 0x6e,
+	0x70, 0xe4, 0xd8, 0x86, 0x17, 0xa9, 0x76, 0xed, 0x8d, 0x43, 0x70, 0xb8, 0xf4, 0xe6, 0x6f, 0xe6,
+	0x9b, 0xcf, 0xdf, 0xec, 0xcc, 0xc0, 0x86, 0x88, 0xc3, 0x8b, 0x94, 0x07, 0x3b, 0x3c, 0x4d, 0x64,
+	0x22, 0x76, 0x72, 0xb8, 0xad, 0x21, 0x5a, 0xc8, 0x21, 0x3e, 0x82, 0xda, 0xc1, 0x51, 0xe7, 0x94,
+	0xc5, 0x54, 0x48, 0x12, 0x73, 0xb4, 0x0e, 0xd5, 0x6b, 0x12, 0x45, 0x92, 0xc5, 0xb4, 0x61, 0x37,
+	0xed, 0x96, 0xe3, 0x8f, 0x31, 0x6a, 0x82, 0x1b, 0x25, 0x5d, 0x16, 0x90, 0x2c, 0x3d, 0xd7, 0xb4,
+	0x5b, 0xf3, 0xfe, 0x64, 0x08, 0xef, 0xc2, 0x7f, 0x87, 0x67, 0xc7, 0x84, 0xa5, 0x68, 0x09, 0x9c,
+	0x4b, 0x3a, 0xd4, 0x12, 0x15, 0x5f, 0x7d, 0xa2, 0x15, 0x98, 0xff, 0x4e, 0xa2, 0x41, 0x56, 0x57,
+	0xf1, 0x33, 0x80, 0x7f, 0xd9, 0x50, 0x3f, 0x48, 0xa4, 0xe8, 0x91, 0x34, 0xf4, 0xe9, 0xd5, 0x80,
+	0x0a, 0x89, 0xde, 0x42, 0xad, 0x17, 0x05, 0xd2, 0x78, 0xd2, 0x22, 0x6e, 0x7b, 0x75, 0xdb, 0xb4,
+	0x30, 0x69, 0xd8, 0x7f, 0x44, 0x45, 0x6d, 0xa8, 0x5d, 0xa7, 0x4c, 0xd2, 0xf3, 0x4b, 0x3a, 0x14,
+	0x54, 0x36, 0xe6, 0x9a, 0x4e, 0xcb, 0x6d, 0xd7, 0xc7, 0xa5, 0x99, 0x3b, 0xdf, 0xd5, 0xa4, 0x43,
+	0xcd, 0x41, 0x9b, 0xe0, 0xa6, 0x94, 0x84, 0xa6, 0xc4, 0x69, 0x3a, 0xad, 0x8a, 0x0f, 0x2a, 0x94,
+	0x11, 0x70, 0x0f, 0x16, 0x0b, 0x8b, 0x3c, 0x1a, 0xa2, 0x97, 0x50, 0x63, 0xe2, 0x3c, 0x48, 0xe2,
+	0x98, 0x49, 0x49, 0x43, 0x6d, 0xb0, 0xea, 0xbb, 0x4c, 0x74, 0x4c, 0x08, 0xbd, 0x81, 0x45, 0x2d,
+	0xaa, 0xbb, 0x7c, 0xc6, 0x49, 0x4d, 0xb1, 0xce, 0x72, 0x12, 0xde, 0x82, 0xb5, 0xd3, 0x94, 0x75,
+	0xbb, 0x34, 0xdd, 0xa7, 0x71, 0x22, 0x59, 0xd2, 0x37, 0x6f, 0x82, 0xa0, 0xa2, 0xfc, 0x35, 0x6c,
+	0xed, 0x4e, 0x7f, 0xe3, 0xaf, 0xb0, 0x3a, 0xc5, 0x3e, 0x91, 0x44, 0x0e, 0x44, 0xc9, 0xe3, 0xef,
+	0xc2, 0x32, 0x13, 0x86, 0x95, 0x17, 0xd1, 0x50, 0x8f, 0xa2, 0xea, 0x97, 0xa5, 0x30, 0x87, 0x95,
+	0x27, 0x56, 0x54, 0xef, 0x9f, 0xe1, 0x7f, 0x59, 0xf6, 0x53, 0x9a, 0x79, 0x73, 0xdb, 0xde, 0xb8,
+	0xc5, 0x52, 0x73, 0xfe, 0xac, 0x72, 0xfc, 0x01, 0x16, 0x0e, 0xe9, 0x50, 0xc1, 0x92, 0x06, 0x96,
+	0xc0, 0xb9, 0xe2, 0x22, 0xdf, 0x1d, 0xf5, 0xa9, 0x37, 0x55, 0x4d, 0xf1, 0x13, 0x17, 0x0d, 0x47,
+	0x87, 0xc7, 0x18, 0xbf, 0x86, 0x7a, 0x2e, 0x25, 0xcc, 0x03, 0x36, 0xc1, 0xe5, 0x11, 0x09, 0x68,
+	0x2f, 0x89, 0x42, 0x9a, 0x9a, 0x91, 0x4d, 0x84, 0xf0, 0x3e, 0xac, 0x74, 0xfc, 0xfd, 0xbd, 0xa2,
+	0x50, 0xf0, 0xa4, 0x2f, 0x28, 0xda, 0x82, 0xaa, 0x7a, 0x6e, 0x15, 0xcb, 0x5b, 0x5c, 0x2a, 0xa6,
+	0x98, 0x91, 0xfd, 0x31, 0x03, 0xdf, 0xda, 0xb0, 0xdc, 0x61, 0x01, 0x09, 0xc9, 0x3f, 0xa8, 0xa8,
+	0xe6, 0x02, 0x3e, 0x18, 0x08, 0xd2, 0x35, 0xf7, 0x32, 0xc6, 0x2a, 0x17, 0xd3, 0x38, 0xcb, 0xe5,
+	0x8d, 0x1b, 0x8c, 0x5a, 0x50, 0x37, 0x3c, 0x9e, 0x26, 0xdd, 0x94, 0xc4, 0x8d, 0x8a, 0xa6, 0x4c,
+	0x87, 0x15, 0xd3, 0x54, 0x19, 0xe6, 0x7c, 0xc6, 0x9c, 0x0a, 0xb7, 0x6f, 0xe7, 0x8a, 0x13, 0x7d,
+	0x4f, 0x24, 0xbd, 0x26, 0x43, 0xf4, 0x0e, 0xea, 0x9d, 0xa4, 0x2f, 0x49, 0x20, 0x4d, 0x06, 0x35,
+	0x8a, 0xfb, 0x7c, 0x7c, 0xcf, 0xeb, 0x6b, 0x25, 0x19, 0x1e, 0x0d, 0xb1, 0x85, 0x4e, 0xa0, 0x3e,
+	0xb5, 0x24, 0x68, 0x73, 0xd6, 0xfa, 0x18, 0xb5, 0x17, 0xb3, 0x09, 0x99, 0xe8, 0x31, 0x2c, 0xe7,
+	0xdc, 0xc9, 0x71, 0x4e, 0xf8, 0x9b, 0x5a, 0x8d, 0x09, 0xc5, 0xb2, 0xf9, 0x63, 0x0b, 0x7d, 0x04,
+	0x64, 0x14, 0x8b, 0xc9, 0x3e, 0x23, 0xb8, 0x51, 0x08, 0x3e, 0xdd, 0x04, 0x6c, 0xed, 0xbd, 0xba,
+	0xf9, 0xe3, 0x59, 0x37, 0x23, 0xcf, 0xbe, 0x1b, 0x79, 0xf6, 0xfd, 0xc8, 0xb3, 0x7f, 0x8f, 0x3c,
+	0xfb, 0xe7, 0x83, 0x67, 0xdd, 0x3d, 0x78, 0xd6, 0xfd, 0x83, 0x67, 0x7d, 0x71, 0xe9, 0x0f, 0x1a,
+	0xb0, 0xfe, 0xb7, 0x94, 0xf0, 0x8b, 0xbf, 0x01, 0x00, 0x00, 0xff, 0xff, 0xd3, 0x14, 0x65, 0x89,
+	0xcb, 0x05, 0x00, 0x00,
 }

@@ -36,7 +36,13 @@ message KVDemotionStatus {
   optional bool is_successfully_demoted = 2;
 }
 
+message NumKeysToDemote {
+  optional int64 qps_in_excess = 1;
+  optional int64 num_keys_to_demote = 2;
+}
+
 service DemoteHotkeysGateway {
   rpc DemoteHotkeys (stream KVVersion) returns (stream KVDemotionStatus) {}
+  rpc DemoteByNums (NumKeysToDemote) returns (KVDemotionStatus) {}
 }
 
