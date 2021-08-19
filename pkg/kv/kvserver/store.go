@@ -1872,6 +1872,11 @@ type KeyStatWrapper struct {
 
 func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
+	// Wait until the workload is **probably** started. This is pretty hacky, but
+	// it'll probably get me correct results, and I couldn't care any less after that
+	// jenndebug
+	time.Sleep(10 * time.Second)
+
 	//TODO jenndebug make this an option somehow, or make the function a closure
 	interval := 5 * time.Second
 
