@@ -12,6 +12,7 @@ package kvserver
 
 import (
 	"context"
+	"github.com/cockroachdb/cockroach/pkg/util/timeutil"
 	"reflect"
 
 	"github.com/cockroachdb/cockroach/pkg/kv/kvserver/batcheval"
@@ -33,6 +34,7 @@ import (
 func (r *Replica) Send(
 	ctx context.Context, ba roachpb.BatchRequest,
 ) (*roachpb.BatchResponse, *roachpb.Error) {
+	_ = r.RecordKey(timeutil.Now(), &ba)
 	return r.sendWithRangeID(ctx, r.RangeID, &ba)
 }
 

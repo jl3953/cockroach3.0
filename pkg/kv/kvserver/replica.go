@@ -13,6 +13,7 @@ package kvserver
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1544,10 +1545,10 @@ func (khs *KeyHotnessStats) recordLockedKey(now time.Time) bool {
 	khs.count += 1
 
 	elapsedSinceLastQPS := now.Sub(khs.lastQPSRollover)
-	if elapsedSinceLastQPS >= time.Second {
-		if elapsedSinceLastQPS > 2*time.Second {
+	if elapsedSinceLastQPS >= 5*time.Second {
+		if elapsedSinceLastQPS > 10*time.Second {
 			khs.count = 0
-			if elapsedSinceLastQPS > 3*time.Second {
+			if elapsedSinceLastQPS > 15*time.Second {
 				return false
 			}
 		}
@@ -1559,17 +1560,25 @@ func (khs *KeyHotnessStats) recordLockedKey(now time.Time) bool {
 
 	return true
 }
-func (r *Replica) RecordKey(now time.Time, ba *roachpb.BatchRequest, span func() roachpb.Span) bool {
+func isUserKey(str string) bool {
+	components := strings.Split(str, "/")
+	if strings.Contains(components[1], "Table") {
+		if tableNum, err := strconv.Atoi(components[2]); err == nil {
+			if tableNum >= 53 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (r *Replica) RecordKey(now time.Time, ba *roachpb.BatchRequest) bool {
 
 	for _, req := range ba.Requests {
-		var key roachpb.Key
-		if putReq := req.GetPut(); putReq != nil {
-			key = putReq.Key
-		} else if getReq := req.GetGet(); getReq != nil {
-			key = getReq.Key
-		} else {
+		if !isUserKey(req.GetInner().Header().Key.String()) {
 			continue
 		}
+		var key = req.GetInner().Header().Key
 
 		khsInterface, keyExistsYet := r.keyStats.Load(key.String())
 		if !keyExistsYet {
