@@ -1670,8 +1670,8 @@ func (s *Store) Start(ctx context.Context, stopper *stop.Stopper) error {
 		// running.
 		s.startGossip()
 
-		s.stopper.RunWorker(ctx, s.startRebalanceHotkeysServer)
-		s.stopper.RunWorker(ctx, s.triggerRebalanceHotkeysAtInterval)
+		//s.stopper.RunWorker(ctx, s.startRebalanceHotkeysServer)
+		//s.stopper.RunWorker(ctx, s.triggerRebalanceHotkeysAtInterval)
 
 		// Start the scanner. The construction here makes sure that the scanner
 		// only starts after Gossip has connected, and that it does not block Start
@@ -2149,7 +2149,7 @@ func (rbServer *rebalanceServer) RequestCicadaStats(ctx context.Context,
 }
 
 func (s *Store) startRebalanceHotkeysServer(ctx context.Context) {
-	lis, err := net.Listen("tpc", ":50055")
+	lis, err := net.Listen("tcp", ":50055")
 	if err != nil {
 		log.Fatalf(ctx, "jenndebug startRebalanceHotkeysServer failed to listen %+v\n", err)
 	}
