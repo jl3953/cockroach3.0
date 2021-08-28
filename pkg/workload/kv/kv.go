@@ -388,7 +388,7 @@ func correctTxnParams(batchSize int, generateKey generateKeyFunc, greatestHotKey
 			key = generateKey()
 		}
 		duplicates[key] = true
-		argsInt[i] = key
+		argsInt[i] = key + 1000000
 	}
 	sort.Sort(byInt(argsInt))
 
