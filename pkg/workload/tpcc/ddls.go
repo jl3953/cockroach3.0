@@ -73,8 +73,7 @@ const (
 		c_payment_cnt  integer,
 		c_delivery_cnt integer,
 		c_data         varchar(500),
-		primary key (c_w_id, c_d_id, c_id),
-		index customer_idx (c_w_id, c_d_id, c_last, c_first)
+		primary key (c_w_id, c_d_id, c_id)
 	)`
 	tpccCustomerSchemaInterleaveSuffix = `
 		interleave in parent district (c_w_id, c_d_id)`
@@ -105,8 +104,7 @@ const (
 		o_carrier_id integer,
 		o_ol_cnt     integer,
 		o_all_local  integer,
-		primary key  (o_w_id, o_d_id, o_id DESC),
-		unique index order_idx (o_w_id, o_d_id, o_c_id, o_id DESC) storing (o_entry_d, o_carrier_id)
+		primary key  (o_w_id, o_d_id, o_id DESC)
 	)`
 	tpccOrderSchemaInterleaveSuffix = `
 		interleave in parent district (o_w_id, o_d_id)`
