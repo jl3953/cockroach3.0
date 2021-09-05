@@ -16,6 +16,7 @@ import (
 	execinfrapbgrpc "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
 	"google.golang.org/grpc"
 	"math/rand"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -266,7 +267,16 @@ type DB struct {
 
 	cicadaClients	sync.Map
 	numClients	int
+
+	CicadaAffiliatedKeys sync.Map
 }
+
+type CicadaAffiliatedKey struct {
+	Key roachpb.Key
+	PromotionTimestamp hlc.Timestamp
+	CanRead bool
+}
+
 type ConnectionObjectWrapper struct {
 
 	serializer chan bool
@@ -801,6 +811,49 @@ func (db *DB) send(
 	return db.sendUsingSender(ctx, ba, db.NonTransactionalSender())
 }
 
+func TableIndexKeyColFamOnly(key string) string {
+	components := strings.Split(key, "/")
+	if components[len(components)-1] != "0" {
+		components = append(components, "0")
+	}
+	return strings.Join(components, "/")
+}
+
+func (db *DB) isKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) bool {
+	for {
+		mapStr := TableIndexKeyColFamOnly(key.String())
+		if val, alreadyExists := db.CicadaAffiliatedKeys.Load(mapStr); alreadyExists {
+			cicadaKey := val.(CicadaAffiliatedKey)
+			if !cicadaKey.CanRead {
+				continue
+			} else {
+				if cicadaKey.PromotionTimestamp.Less(ts) {
+					return true
+				} else {
+					return false
+				}
+			}
+		} else {
+			return false
+		}
+	}
+}
+
+func IsUserKey(str string) bool {
+	components := strings.Split(str, "/")
+	if len(components) < 5 {
+		return false
+	}
+	if strings.Contains(components[1], "Table") {
+		if tableNum, err := strconv.Atoi(components[2]); err == nil {
+			if tableNum >= 53 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // sendUsingSender uses the specified sender to send the batch request.
 func (db *DB) sendUsingSender(
 	ctx context.Context, ba roachpb.BatchRequest, sender Sender,
@@ -815,6 +868,18 @@ func (db *DB) sendUsingSender(
 		ba.UserPriority = db.ctx.UserPriority
 	}
 
+	for _, req := range ba.Requests {
+		key := req.GetInner().Header().Key
+		if !IsUserKey(key.String()) {
+			continue
+		}
+		if req.GetPut() != nil || req.GetScan() != nil {
+			if db.isKeyInCicadaAtTimestamp(key, ba.Timestamp) {
+				log.Warningf(ctx, "jenndebug key's here! %+v\n", key)
+				fmt.Printf("jenndebug key's here! %+v\n", key)
+			}
+		}
+	}
 	tracing.AnnotateTrace()
 	br, pErr := sender.Send(ctx, ba)
 	if pErr != nil {

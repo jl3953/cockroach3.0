@@ -17,7 +17,7 @@ import (
 	"fmt"
 	smdbrpc "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
 	"google.golang.org/grpc"
-	"io"
+	//"io"
 	"math"
 	"net"
 	"os"
@@ -1348,154 +1348,154 @@ func ReadStoreIdent(ctx context.Context, eng storage.Engine) (roachpb.StoreIdent
 	return ident, err
 }
 
-type server struct {
-	smdbrpc.DemoteHotkeysGatewayServer
-	store              *Store
-	notifyHotshardChan chan smdbrpc.KVDemotionStatus
-}
+//type server struct {
+//	smdbrpc.DemoteHotkeysGatewayServer
+//	store              *Store
+//	notifyHotshardChan chan smdbrpc.KVDemotionStatus
+//}
 
-func DemoteSingleHotkey(ctx context.Context, txn *kv.Txn,
-	ts hlc.Timestamp, key roachpb.Key, value *roachpb.Value) error {
-	txn.SetFixedTimestamp(ctx, ts)
-	log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.SetFixedTs(ctx, %+v) succeeded\n", ts)
-
-	if err := txn.DisablePipelining(); err != nil {
-		return err
-	}
-	log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.DisablePipeline\n")
-
-	if err := txn.Put(ctx, key, value); err != nil {
-		log.Errorf(ctx, "jenndebug DemoteSingleHotkey txn.Put(ctx, key %+v, value %+v) failed, err %+v\n",
-			key, value, err)
-		return err
-	}
-	log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.Put(ctx, key %+v, value %+v) succeeded\n", key, value)
-
-	if err := txn.Commit(ctx); err != nil {
-		log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.Commit(ctx) failed, err %+v\n", err)
-		return err
-	}
-	log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.Commit(ctx) succeeded\n")
-	return nil
-}
-
-func (serv *server) NotifyChanOfKVDemotionStatus(key *string, isSuccessfullyDemoted bool) {
-
-	// set default status first
-	t := true
-	demotionStatus := smdbrpc.KVDemotionStatus{
-		Key:                   key,
-		IsSuccessfullyDemoted: &t,
-	}
-
-	// if key was not successfully demoted, change default status
-	if !isSuccessfullyDemoted {
-		f := false
-		demotionStatus.IsSuccessfullyDemoted = &f
-	}
-
-	// notify the channel
-	serv.notifyHotshardChan <- demotionStatus
-}
-
-func (serv *server) retryDemoteSingleHotkeyLoop(ctx context.Context,
-	timestamp hlc.Timestamp, key roachpb.Key, value roachpb.Value,
-	streamKey *string, numKeysInNotifChannel *int64, wg *sync.WaitGroup) {
-
-	wg.Add(1)
-	defer func() {
-		wg.Done()
-	}()
-
-	for {
-		// create new txn
-		txn := kv.NewTxn(ctx, serv.store.DB(), serv.store.nodeDesc.NodeID)
-		log.Warningf(ctx, "jenndebug DemoteSingleHotkeyWrapper kv.NewTxn succeeded")
-
-		// attempt to demote hotkey. If demotion succeeds, notify channel of success and return.
-		// If demotion fails, retry if possible, fail and notify channel of failure if not.
-		if err := DemoteSingleHotkey(ctx, txn, timestamp, key, &value); err != nil {
-			txn.CleanupOnError(ctx, err)
-			if _, canRetry := errors.Cause(err).(*roachpb.TransactionRetryWithProtoRefreshError); !canRetry {
-				// txn cannot retry, permanently failed
-				log.Warningf(ctx, "jenndebug DemoteSingleHotkeyWrapper failed but cannot retry %+v\n", err)
-				serv.NotifyChanOfKVDemotionStatus(streamKey, false)
-				atomic.AddInt64(numKeysInNotifChannel, 1)
-				return
-			} else {
-				// txn failed, but will retry
-				log.Warningf(ctx, "jenndebug DemoteSingleHotkeyWrapper demotion failed, retrying %+v\n", err)
-			}
-		} else {
-			// txn succeeded!
-			serv.NotifyChanOfKVDemotionStatus(streamKey, true)
-			atomic.AddInt64(numKeysInNotifChannel, 1)
-			return
-		}
-	}
-}
-func (serv *server) DemoteHotkeys(stream smdbrpc.DemoteHotkeysGateway_DemoteHotkeysServer) error {
-	ctx := context.Background()
-	var wg sync.WaitGroup
-	var numKeysInNotifChannel int64 = 0
-
-	// process all keys in the stream
-	for {
-
-		// read keys from stream
-		in, err := stream.Recv()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-
-		// extract key, value, and timestamp
-		key := roachpb.Key(*in.Key)
-		value := roachpb.MakeValueFromBytes(in.Value)
-		timestamp := hlc.Timestamp{
-			WallTime: *in.Timestamp.Walltime,
-			Logical:  *in.Timestamp.Logicaltime,
-		}
-
-		// demote each key in a separate goroutine, so function demotes all keys
-		// in parallel
-		serv.store.stopper.RunWorker(ctx, func(_ context.Context) {
-			serv.retryDemoteSingleHotkeyLoop(ctx, timestamp, key, value,
-				in.Key, &numKeysInNotifChannel, &wg)
-		})
-	}
-
-	// wait for each key to finish processing
-	wg.Wait()
-	var retErr error = nil
-	for i := 0; i < int(numKeysInNotifChannel); i++ {
-		demotionStatus := <-serv.notifyHotshardChan
-		if err := stream.Send(&demotionStatus); err != nil {
-			log.Warningf(ctx, "jenndebug failed to send reply one %+v\n", err)
-			retErr = err
-		}
-	}
-
-	return retErr
-}
-
-func StartDemoteHotkeysServer(ctx context.Context, s *Store) {
-	lis, err := net.Listen("tcp", ":50052")
-	if err != nil {
-		log.Warningf(ctx, "jenndebug StartDemoteHotkeysServer failed to listen %+v", err)
-		return
-	}
-	grpcServer := grpc.NewServer()
-	smdbrpc.RegisterDemoteHotkeysGatewayServer(grpcServer, &server{
-		store:              s,
-		notifyHotshardChan: make(chan smdbrpc.KVDemotionStatus, 10000),
-	})
-	log.Warningf(ctx, "jenndebug StartDemoteHotkeysServer serving!\n")
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatalf(ctx, "jenndebug StartDemoteHotkeysServer grpcServer.Serve(...) failed %+v\n", err)
-	}
-}
+//func DemoteSingleHotkey(ctx context.Context, txn *kv.Txn,
+//	ts hlc.Timestamp, key roachpb.Key, value *roachpb.Value) error {
+//	txn.SetFixedTimestamp(ctx, ts)
+//	log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.SetFixedTs(ctx, %+v) succeeded\n", ts)
+//
+//	if err := txn.DisablePipelining(); err != nil {
+//		return err
+//	}
+//	log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.DisablePipeline\n")
+//
+//	if err := txn.Put(ctx, key, value); err != nil {
+//		log.Errorf(ctx, "jenndebug DemoteSingleHotkey txn.Put(ctx, key %+v, value %+v) failed, err %+v\n",
+//			key, value, err)
+//		return err
+//	}
+//	log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.Put(ctx, key %+v, value %+v) succeeded\n", key, value)
+//
+//	if err := txn.Commit(ctx); err != nil {
+//		log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.Commit(ctx) failed, err %+v\n", err)
+//		return err
+//	}
+//	log.Warningf(ctx, "jenndebug DemoteSingleHotkey txn.Commit(ctx) succeeded\n")
+//	return nil
+//}
+//
+//func (serv *server) NotifyChanOfKVDemotionStatus(key *string, isSuccessfullyDemoted bool) {
+//
+//	// set default status first
+//	t := true
+//	demotionStatus := smdbrpc.KVDemotionStatus{
+//		Key:                   key,
+//		IsSuccessfullyDemoted: &t,
+//	}
+//
+//	// if key was not successfully demoted, change default status
+//	if !isSuccessfullyDemoted {
+//		f := false
+//		demotionStatus.IsSuccessfullyDemoted = &f
+//	}
+//
+//	// notify the channel
+//	serv.notifyHotshardChan <- demotionStatus
+//}
+//
+//func (serv *server) retryDemoteSingleHotkeyLoop(ctx context.Context,
+//	timestamp hlc.Timestamp, key roachpb.Key, value roachpb.Value,
+//	streamKey *string, numKeysInNotifChannel *int64, wg *sync.WaitGroup) {
+//
+//	wg.Add(1)
+//	defer func() {
+//		wg.Done()
+//	}()
+//
+//	for {
+//		// create new txn
+//		txn := kv.NewTxn(ctx, serv.store.DB(), serv.store.nodeDesc.NodeID)
+//		log.Warningf(ctx, "jenndebug DemoteSingleHotkeyWrapper kv.NewTxn succeeded")
+//
+//		// attempt to demote hotkey. If demotion succeeds, notify channel of success and return.
+//		// If demotion fails, retry if possible, fail and notify channel of failure if not.
+//		if err := DemoteSingleHotkey(ctx, txn, timestamp, key, &value); err != nil {
+//			txn.CleanupOnError(ctx, err)
+//			if _, canRetry := errors.Cause(err).(*roachpb.TransactionRetryWithProtoRefreshError); !canRetry {
+//				// txn cannot retry, permanently failed
+//				log.Warningf(ctx, "jenndebug DemoteSingleHotkeyWrapper failed but cannot retry %+v\n", err)
+//				serv.NotifyChanOfKVDemotionStatus(streamKey, false)
+//				atomic.AddInt64(numKeysInNotifChannel, 1)
+//				return
+//			} else {
+//				// txn failed, but will retry
+//				log.Warningf(ctx, "jenndebug DemoteSingleHotkeyWrapper demotion failed, retrying %+v\n", err)
+//			}
+//		} else {
+//			// txn succeeded!
+//			serv.NotifyChanOfKVDemotionStatus(streamKey, true)
+//			atomic.AddInt64(numKeysInNotifChannel, 1)
+//			return
+//		}
+//	}
+//}
+//func (serv *server) DemoteHotkeys(stream smdbrpc.DemoteHotkeysGateway_DemoteHotkeysServer) error {
+//	ctx := context.Background()
+//	var wg sync.WaitGroup
+//	var numKeysInNotifChannel int64 = 0
+//
+//	// process all keys in the stream
+//	for {
+//
+//		// read keys from stream
+//		in, err := stream.Recv()
+//		if err == io.EOF {
+//			break
+//		} else if err != nil {
+//			return err
+//		}
+//
+//		// extract key, value, and timestamp
+//		key := roachpb.Key(*in.Key)
+//		value := roachpb.MakeValueFromBytes(in.Value)
+//		timestamp := hlc.Timestamp{
+//			WallTime: *in.Timestamp.Walltime,
+//			Logical:  *in.Timestamp.Logicaltime,
+//		}
+//
+//		// demote each key in a separate goroutine, so function demotes all keys
+//		// in parallel
+//		serv.store.stopper.RunWorker(ctx, func(_ context.Context) {
+//			serv.retryDemoteSingleHotkeyLoop(ctx, timestamp, key, value,
+//				in.Key, &numKeysInNotifChannel, &wg)
+//		})
+//	}
+//
+//	// wait for each key to finish processing
+//	wg.Wait()
+//	var retErr error = nil
+//	for i := 0; i < int(numKeysInNotifChannel); i++ {
+//		demotionStatus := <-serv.notifyHotshardChan
+//		if err := stream.Send(&demotionStatus); err != nil {
+//			log.Warningf(ctx, "jenndebug failed to send reply one %+v\n", err)
+//			retErr = err
+//		}
+//	}
+//
+//	return retErr
+//}
+//
+//func StartDemoteHotkeysServer(ctx context.Context, s *Store) {
+//	lis, err := net.Listen("tcp", ":50052")
+//	if err != nil {
+//		log.Warningf(ctx, "jenndebug StartDemoteHotkeysServer failed to listen %+v", err)
+//		return
+//	}
+//	grpcServer := grpc.NewServer()
+//	smdbrpc.RegisterDemoteHotkeysGatewayServer(grpcServer, &server{
+//		store:              s,
+//		notifyHotshardChan: make(chan smdbrpc.KVDemotionStatus, 10000),
+//	})
+//	log.Warningf(ctx, "jenndebug StartDemoteHotkeysServer serving!\n")
+//	if err := grpcServer.Serve(lis); err != nil {
+//		log.Fatalf(ctx, "jenndebug StartDemoteHotkeysServer grpcServer.Serve(...) failed %+v\n", err)
+//	}
+//}
 
 // Start the engine, set the GC and read the StoreIdent.
 func (s *Store) Start(ctx context.Context, stopper *stop.Stopper) error {
@@ -1670,8 +1670,9 @@ func (s *Store) Start(ctx context.Context, stopper *stop.Stopper) error {
 		// running.
 		s.startGossip()
 
-		//s.stopper.RunWorker(ctx, s.startRebalanceHotkeysServer)
-		//s.stopper.RunWorker(ctx, s.triggerRebalanceHotkeysAtInterval)
+		s.stopper.RunWorker(ctx, s.startRebalanceHotkeysServer)
+		// only if nodeId is the first one!!! Remember when you're testing!!!
+		s.stopper.RunWorker(ctx, s.triggerRebalanceHotkeysAtInterval)
 
 		// Start the scanner. The construction here makes sure that the scanner
 		// only starts after Gossip has connected, and that it does not block Start
@@ -1708,9 +1709,9 @@ func (s *Store) Start(ctx context.Context, stopper *stop.Stopper) error {
 	atomic.StoreInt32(&s.started, 1)
 
 	//start DemoteHotkeys server
-	s.stopper.RunWorker(ctx, func(context.Context) {
-		StartDemoteHotkeysServer(ctx, s)
-	})
+	//s.stopper.RunWorker(ctx, func(context.Context) {
+	//	StartDemoteHotkeysServer(ctx, s)
+	//})
 	log.Warningf(ctx, "jenndebug made it past stopper.RunWorker\n")
 
 	return nil
@@ -1829,9 +1830,9 @@ func sumAllKeysQps(keyStats []*smdbrpc.KeyStat) int {
 }
 
 type ConnWrapper struct {
-	conn *grpc.ClientConn
+	conn    *grpc.ClientConn
 	address string
-	port int
+	port    int
 	//cancelFunc func(conn *grpc.ClientConn)
 	client smdbrpc.HotshardGatewayClient
 	//ctx context.Context
@@ -1842,7 +1843,7 @@ func (wrapper *ConnWrapper) Init(ctx context.Context, address string, port int) 
 	// connect to other servers
 	wrapper.address = address
 	wrapper.port = port
-	wrapper.conn, err = grpc.Dial(address + ":" + strconv.Itoa(port))
+	wrapper.conn, err = grpc.Dial(address+":"+strconv.Itoa(port), grpc.WithInsecure())
 	if err != nil {
 		log.Warningf(ctx, "jenndebug wrapper Init() failed on %+v:%+d, %+v\n", address, port, err)
 		return err
@@ -1865,8 +1866,8 @@ func calculateAnyCicadaBottlenecks(qpsPerCPUPercent float64, memPerKey float64, 
 }
 
 type KeyStatWrapper struct {
-	key roachpb.Key
-	qps uint64
+	key           roachpb.Key
+	qps           float32
 	isKeyOnCicada bool
 }
 
@@ -1887,11 +1888,11 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	// TODO jenndebug you can parallelize this
 	for i, serv := range crdbServers {
 		if err := wrappers[i].Init(ctx, serv, port); err != nil {
-			log.Fatalf(ctx, "jenndebug could not connect to %s:%d, %+v\n", serv, port)
+			log.Fatalf(ctx, "jenndebug could not connect to %s:%d, %+v\n", serv, port, err)
 		}
-		defer func (conn *grpc.ClientConn) {
+		defer func(conn *grpc.ClientConn) {
 			_ = conn.Close()
-		} (wrappers[i].conn)
+		}(wrappers[i].conn)
 	}
 
 	// connect to Cicada
@@ -1924,35 +1925,36 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			req := smdbrpc.KeyStatsRequest{Placeholder: &t}
 
 			// Connect to Cicada servers
-			cicadaCtx, cicadaCancel := context.WithTimeout(ctx, time.Second)
-			cicadaStatsResponse, err := cicadaWrapper.client.RequestCicadaStats(cicadaCtx, &req)
-			if err != nil {
-				log.Fatalf(ctx, "jenndebug query to Cicada key status failed %+v\n", err)
-			}
-			defer cicadaCancel()
+			//cicadaCtx, cicadaCancel := context.WithTimeout(ctx, time.Second)
+			//cicadaStatsResponse, err := cicadaWrapper.client.RequestCicadaStats(cicadaCtx, &req)
+			//if err != nil {
+			//	log.Fatalf(ctx, "jenndebug query to Cicada key status failed %+v\n", err)
+			//}
+			//defer cicadaCancel()
 
 			// check if cicada is bottlenecked by cpu or ram
-			qpsSum := sumAllKeysQps(cicadaStatsResponse.Keystats)
-			memPerKey := float64(len(cicadaStatsResponse.Keystats)) * 1.33
-			qpsPerCPUPercent := float64(*cicadaStatsResponse.Cpuusageprogram) / float64(qpsSum)
-			if qpsInExcess, numKeysToDemote := calculateAnyCicadaBottlenecks(
-				qpsPerCPUPercent,
-				memPerKey,
-				float64(*cicadaStatsResponse.Cpuusage),
-				float64(*cicadaStatsResponse.Memusage));
-			qpsInExcess > 0 || numKeysToDemote > 0 {
-				demoteClient := smdbrpc.NewDemoteHotkeysGatewayClient(cicadaWrapper.conn)
-				if _, err := demoteClient.DemoteByNums(cicadaCtx, &smdbrpc.NumKeysToDemote{
-					QpsInExcess:     &qpsInExcess,
-					NumKeysToDemote: &numKeysToDemote,
-				}); err != nil {
-					log.Fatalf(ctx, "jenndebug can't demote by nums %+v\n", err)
-				}
-				continue
-			}
+			//qpsSum := sumAllKeysQps(cicadaStatsResponse.Keystats)
+			//memPerKey := float64(len(cicadaStatsResponse.Keystats)) * 1.33
+			//qpsPerCPUPercent := float64(*cicadaStatsResponse.Cpuusageprogram) / float64(qpsSum)
+			//if qpsInExcess, numKeysToDemote := calculateAnyCicadaBottlenecks(
+			//	qpsPerCPUPercent,
+			//	memPerKey,
+			//	float64(*cicadaStatsResponse.Cpuusage),
+			//	float64(*cicadaStatsResponse.Memusage));
+			//qpsInExcess > 0 || numKeysToDemote > 0 {
+			//	demoteClient := smdbrpc.NewDemoteHotkeysGatewayClient(cicadaWrapper.conn)
+			//	if _, err := demoteClient.DemoteByNums(cicadaCtx, &smdbrpc.NumKeysToDemote{
+			//		QpsInExcess:     &qpsInExcess,
+			//		NumKeysToDemote: &numKeysToDemote,
+			//	}); err != nil {
+			//		log.Fatalf(ctx, "jenndebug can't demote by nums %+v\n", err)
+			//	}
+			//	continue
+			//}
 
 			// query the keys from CRDB
 			// TODO jenndebug you can parallelize this
+			var err error
 			crdbResponses := make([]*smdbrpc.CRDBKeyStatsResponse, len(wrappers))
 			for i, wrapper := range wrappers {
 				crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
@@ -1970,8 +1972,8 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			for _, resp := range crdbResponses {
 				for _, keyStat := range resp.Keystats {
 					item := &Item{
-						value:    KeyStatWrapper{
-							key:           roachpb.Key(keyStat.String()), // TODO jenndebug fix this, this needs to be the actual key
+						value: KeyStatWrapper{
+							key:           keyStat.Key, // TODO jenndebug fix this, this needs to be the actual key
 							qps:           *keyStat.Qps,
 							isKeyOnCicada: false,
 						},
@@ -1981,73 +1983,91 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				}
 			}
 
-			// check if cicada has excess resources
-			cpuExcess := 65 - *cicadaStatsResponse.Cpuusage
-			memExcess := 65 - *cicadaStatsResponse.Memusage
-			if cpuExcess > 0 && memExcess > 0 {
-
-				// calculate how many more keys we can handle for CPU
-				promotionsFromQPS := make([]roachpb.Key, 0)
-				cpuExcess = 75 - *cicadaStatsResponse.Cpuusage
-				qpsAvailable := int(float64(cpuExcess) * qpsPerCPUPercent)
-				for qpsAvailable > 0 {
-					item := heap.Pop(&pq)
-					keyStatWrapper := item.(Item).value.(KeyStatWrapper)
-					promotionsFromQPS = append(promotionsFromQPS, keyStatWrapper.key)
-					qpsAvailable = qpsAvailable - int(keyStatWrapper.qps)
+			promotionReq := smdbrpc.PromoteKeysReq{Keys: []*smdbrpc.KVVersion{}}
+			if len(pq) > 0 {
+				item := heap.Pop(&pq)
+				for ; item.(*Item).value.(KeyStatWrapper).qps > 0; item = heap.Pop(&pq) {
+					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
+					promotionReq.Keys = append(promotionReq.Keys, &smdbrpc.KVVersion{
+						Key: keyStatWrapper.key,
+					})
 				}
 
-				// calculate how many more keys we can handle for memory
-				promotionsFromMem := make([]roachpb.Key, 0)
-				memExcess = 75 - *cicadaStatsResponse.Memusage
-				memAvailable := float64(memExcess)
-				for memAvailable > 0 {
-					item := heap.Pop(&pq)
-					keyStatWrapper := item.(Item).value.(KeyStatWrapper)
-					promotionsFromMem = append(promotionsFromMem, keyStatWrapper.key)
-					memAvailable = memAvailable - memPerKey
+				// we don't really care if the keys make it to the other side or not
+				//go func () {
+				if len(promotionReq.Keys) > 0 {
+					crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+					defer crdbCancel()
+					_, _ = wrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
 				}
-
-				if len(promotionsFromQPS) > len(promotionsFromMem) {
-					// TODO jenndebug promote from qps list
-				} else {
-					// TODO jenndebug promote from mem list
-				}
-				continue
+				//} ()
 			}
+
+			// check if cicada has excess resources
+			//cpuExcess := 65 - *cicadaStatsResponse.Cpuusage
+			//memExcess := 65 - *cicadaStatsResponse.Memusage
+			//if cpuExcess > 0 && memExcess > 0 {
+			//
+			//	// calculate how many more keys we can handle for CPU
+			//	promotionsFromQPS := make([]roachpb.Key, 0)
+			//	cpuExcess = 75 - *cicadaStatsResponse.Cpuusage
+			//	qpsAvailable := int(float64(cpuExcess) * qpsPerCPUPercent)
+			//	for qpsAvailable > 0 {
+			//		item := heap.Pop(&pq)
+			//		keyStatWrapper := item.(Item).value.(KeyStatWrapper)
+			//		promotionsFromQPS = append(promotionsFromQPS, keyStatWrapper.key)
+			//		qpsAvailable = qpsAvailable - int(keyStatWrapper.qps)
+			//	}
+			//
+			//	// calculate how many more keys we can handle for memory
+			//	promotionsFromMem := make([]roachpb.Key, 0)
+			//	memExcess = 75 - *cicadaStatsResponse.Memusage
+			//	memAvailable := float64(memExcess)
+			//	for memAvailable > 0 {
+			//		item := heap.Pop(&pq)
+			//		keyStatWrapper := item.(Item).value.(KeyStatWrapper)
+			//		promotionsFromMem = append(promotionsFromMem, keyStatWrapper.key)
+			//		memAvailable = memAvailable - memPerKey
+			//	}
+			//
+			//	if len(promotionsFromQPS) > len(promotionsFromMem) {
+			//		// TODO jenndebug promote from qps list
+			//	} else {
+			//		// TODO jenndebug promote from mem list
+			//	}
+			//	continue
+			//}
 
 			// see which keys to replace
-			promotions := make([]roachpb.Key, 0)
-			cicadaKeys := make(map[uint64]bool, 0)
-			qpsAvailable := qpsSum
-			numKeysAvailable := len(cicadaStatsResponse.Keystats)
-			for _, keyStat := range cicadaStatsResponse.Keystats {
-				cicadaKeys[*keyStat.Key] = true
-				heap.Push(&pq, &Item{
-					value: KeyStatWrapper{
-						key:           roachpb.Key(keyStat.String()), // TODO jenndebug change this
-						qps:           *keyStat.Qps,
-						isKeyOnCicada: true,
-					},
-				})
-			}
+			//promotions := make([]roachpb.Key, 0)
+			//cicadaKeys := make(map[uint64]bool, 0)
+			//qpsAvailable := qpsSum
+			//numKeysAvailable := len(cicadaStatsResponse.Keystats)
+			//for _, keyStat := range cicadaStatsResponse.Keystats {
+			//	cicadaKeys[*keyStat.Key] = true
+			//	heap.Push(&pq, &Item{
+			//		value: KeyStatWrapper{
+			//			key:           roachpb.Key(keyStat.String()), // TODO jenndebug change this
+			//			qps:           *keyStat.Qps,
+			//			isKeyOnCicada: true,
+			//		},
+			//	})
+			//}
 
-			for qpsAvailable > 0 && numKeysAvailable > 0 {
-				item := heap.Pop(&pq)
-				keyStatWrapper := item.(Item).value.(KeyStatWrapper)
-				qpsAvailable = qpsAvailable - int(keyStatWrapper.qps)
-				numKeysAvailable -= 1
-				if keyStatWrapper.isKeyOnCicada {
-					delete(cicadaKeys, 1994214) // TODO jenndebug should be keyStatWrapper
-				} else {
-					promotions = append(promotions, keyStatWrapper.key)
-				}
-			}
+			//for qpsAvailable > 0 && numKeysAvailable > 0 {
+			//	item := heap.Pop(&pq)
+			//	keyStatWrapper := item.(Item).value.(KeyStatWrapper)
+			//	qpsAvailable = qpsAvailable - int(keyStatWrapper.qps)
+			//	numKeysAvailable -= 1
+			//	if keyStatWrapper.isKeyOnCicada {
+			//		delete(cicadaKeys, 1994214) // TODO jenndebug should be keyStatWrapper
+			//	} else {
+			//		promotions = append(promotions, keyStatWrapper.key)
+			//	}
+			//}
 
 			// TODO jenndebug
 			// call demote on keys that need to be demoted
-			// call promote on keys that need to be promoted
-
 
 			// TODO jenndebug how do you reset the timer so that it keeps going?
 			timerChan = time.After(interval)
@@ -2097,10 +2117,112 @@ func (pq *PriorityQueue) Pop() interface{} {
 	return item
 }
 
+func StripValueToBytes(value *roachpb.Value) []byte {
+	// strip the checksum, I have no idea what the other bytes are there for
+	return value.RawBytes[4:]
+}
+
 func (pq *PriorityQueue) update(item *Item, value interface{}, priority float64) {
 	item.value = value
 	item.priority = priority
 	heap.Fix(pq, item.index)
+}
+
+// PromoteKeys Promote only a single key
+func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
+	promoteKeysReq *smdbrpc.PromoteKeysReq) (*smdbrpc.PromoteKeysResp, error) {
+
+	ctx := context.Background()
+	kvVersion := promoteKeysReq.Keys[0]
+	resp := smdbrpc.PromoteKeysResp{
+		WereSuccessfullyMigrated: []*smdbrpc.KeyMigrationStatus{},
+	}
+
+	// if, for w/e reason, the key is already there, just return successful
+	t := true
+	k := roachpb.Key(kvVersion.Key).String()
+	if _, valExists := rbServer.store.DB().CicadaAffiliatedKeys.Load(k); valExists {
+		log.Warningf(ctx, "jenndebug key is already in Cicada %+v\n", roachpb.Key(kvVersion.Key))
+		resp.WereSuccessfullyMigrated = append(resp.WereSuccessfullyMigrated, &smdbrpc.KeyMigrationStatus{
+			Key:                    kvVersion.Key,
+			IsSuccessfullyMigrated: &t,
+		})
+
+		return &resp, nil
+	}
+
+	// Implement a rough spin lock on the key's row on the promoted keys map
+	cicadaKey := kv.CicadaAffiliatedKey{
+		Key:                kvVersion.Key,
+		PromotionTimestamp: hlc.Timestamp{},
+		CanRead:          false,
+	}
+	rbServer.store.DB().CicadaAffiliatedKeys.Store(k, cicadaKey)
+
+	// Lock the key in CRDB.
+	var keyValue kv.KeyValue
+	var err error
+	var txn *kv.Txn
+	for shouldTryAgain := true; shouldTryAgain; {
+		txn = kv.NewTxn(context.Background(), rbServer.store.db, rbServer.store.nodeDesc.NodeID)
+		if keyValue, err = txn.Get(ctx, roachpb.Key(kvVersion.Key)); err != nil {
+			log.Warningf(ctx, "jenndebug you beefed the read %+v\n", err)
+			continue
+		} else {
+			log.Warningf(ctx, "jenndebug keyValue %+v\n", keyValue.Value.String())
+			fmt.Printf("jenndebug keyValue %+v\n", keyValue.Value.String())
+			if err = txn.CPut(ctx, roachpb.Key(kvVersion.Key), StripValueToBytes(keyValue.Value), keyValue.Value); err != nil {
+				log.Warningf(ctx, "jenndebug you beefed the write first %+v\n", err)
+			} else {
+				shouldTryAgain = false
+			}
+		}
+	}
+
+	log.Warningf(ctx, "jenndebug keyValue 2 %+v\n", keyValue.Value.String())
+	//// now that key is locked, start sending over Cicada
+	//clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
+	//defer txn.DB().ReturnClient(index)
+	//c := *clientPtr
+	//cicadaKVVersion := smdbrpc.KVVersion{
+	//	Key:       kvVersion.Key,
+	//	Value:     keyValue.Value.RawBytes,
+	//	Timestamp: &smdbrpc.HLCTimestamp{
+	//		Walltime:    &keyValue.Value.Timestamp.WallTime,
+	//		Logicaltime: &keyValue.Value.Timestamp.Logical,
+	//	},
+	//}
+	//promoteKeysResp, promoErr := c.PromoteKeys(ctx, &smdbrpc.PromoteKeysReq{
+	//	Keys: []*smdbrpc.KVVersion{&cicadaKVVersion},
+	//})
+	//if promoErr != nil {
+	//	log.Warningf(ctx, "jenndebug promoting keys to Cicada didn't work %+v\n", promoErr)
+	//}
+
+	// unlock the promotion map
+	cicadaKey.PromotionTimestamp = hlc.Timestamp{
+		WallTime: keyValue.Value.Timestamp.WallTime,
+		Logical:  keyValue.Value.Timestamp.Logical,
+	}
+	cicadaKey.CanRead = true
+	rbServer.store.DB().CicadaAffiliatedKeys.Store(roachpb.Key(kvVersion.Key).String(), cicadaKey)
+
+	// unlock the keys in CRDB and allow other transactions in
+	if err = txn.Rollback(ctx); err != nil {
+		log.Warningf(ctx, "jenndebug txn rolled back %+v\n", err)
+	}
+
+	// respond to the call
+	for _, key := range promoteKeysReq.Keys {
+		log.Warningf(ctx, "jenndebug promoted key %s\n", roachpb.Key(key.Key))
+		resp.WereSuccessfullyMigrated = append(resp.WereSuccessfullyMigrated,
+			&smdbrpc.KeyMigrationStatus{
+				Key:                    key.Key,
+				IsSuccessfullyMigrated: &t,
+			})
+	}
+
+	return &resp, nil
 }
 
 func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
@@ -2114,7 +2236,7 @@ func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
 			khs := value.(KeyHotnessStats)
 			item := &Item{
 				value:    khs,
-				priority: khs.qps,
+				priority: float64(khs.Qps),
 			}
 			heap.Push(&pq, item)
 			return true
@@ -2127,18 +2249,16 @@ func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
 	}
 	for pq.Len() > 0 {
 		item := heap.Pop(&pq).(*Item)
-		khs := item.value
-		log.Warningf(ctx, "jenndebug khs %+v\n", khs)
-		var placeholder uint64 = 1994214
+		khs := item.value.(KeyHotnessStats)
+		var zero float32 = 0
 		keyStat := smdbrpc.KeyStat{
-			Key:      &placeholder, // TODO jenndebug should be khs.key.String() jenndebug, but protobuf doesn't have the correct interface
-			Qps:      &placeholder, // TODO jenndebug should be khs.qps jenndebug protobuf
-			WriteQps: &placeholder, // TODO jenndebug should be khs.writeQPS or 0 jenndebug protobuf
+			Key:      khs.Key,
+			Qps:      &khs.Qps,
+			WriteQps: &zero,
 		}
 		response.Keystats = append(response.Keystats, &keyStat)
 	}
 
-	log.Warningf(ctx, "jenndebug RequestCRDBKeyStats\n")
 	return &response, nil
 }
 

@@ -13,7 +13,6 @@ package kvserver
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1531,10 +1530,10 @@ func init() {
 }
 
 type KeyHotnessStats struct {
-	key roachpb.Key
-	lastQPSRollover time.Time
-	qps float64
-	count int64
+	Key roachpb.Key
+	LastQPSRollover time.Time
+	Qps float32
+	Count int64
 }
 
 /**
@@ -1542,59 +1541,57 @@ recordLockedKey records stats for individual keys. Returns whether the key shoul
 aka it's been a while
 */
 func (khs *KeyHotnessStats) recordLockedKey(now time.Time) bool {
-	khs.count += 1
+	khs.Count += 1
 
-	elapsedSinceLastQPS := now.Sub(khs.lastQPSRollover)
-	if elapsedSinceLastQPS >= 5*time.Second {
-		if elapsedSinceLastQPS > 10*time.Second {
-			khs.count = 0
-			if elapsedSinceLastQPS > 15*time.Second {
+	elapsedSinceLastQPS := now.Sub(khs.LastQPSRollover)
+	if elapsedSinceLastQPS >= 1*time.Second {
+		if elapsedSinceLastQPS > 2*time.Second {
+			khs.Count = 0
+			if elapsedSinceLastQPS > 3*time.Second {
 				return false
 			}
 		}
 
-		khs.qps = (float64(khs.count) / float64(elapsedSinceLastQPS)) * 1e9
-		khs.lastQPSRollover = now
-		khs.count = 0
+		khs.Qps = (float32(khs.Count) / float32(elapsedSinceLastQPS)) * 1e9
+		khs.LastQPSRollover = now
+		khs.Count = 0
 	}
 
 	return true
-}
-func isUserKey(str string) bool {
-	components := strings.Split(str, "/")
-	if strings.Contains(components[1], "Table") {
-		if tableNum, err := strconv.Atoi(components[2]); err == nil {
-			if tableNum >= 53 {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func (r *Replica) RecordKey(now time.Time, ba *roachpb.BatchRequest) bool {
 
 	for _, req := range ba.Requests {
-		if !isUserKey(req.GetInner().Header().Key.String()) {
+		if !kv.IsUserKey(req.GetInner().Header().Key.String()) {
 			continue
 		}
 		var key = req.GetInner().Header().Key
 
-		khsInterface, keyExistsYet := r.keyStats.Load(key.String())
+		//switch t := req.GetValue().(type) {
+		//default:
+		//	log.Warningf(context.Background(), "jenndebug %+v, req %+v\n", key.String(), t)
+		//}
+
+		mapStr := kv.TableIndexKeyColFamOnly(key.String())
+		khsInterface, keyExistsYet := r.keyStats.Load(mapStr)
 		if !keyExistsYet {
-			khs := KeyHotnessStats{
-				key:             key,
-				lastQPSRollover: timeutil.Now(),
-				qps:             0,
-				count:           1,
+			if req.GetPut() != nil {
+				khs := KeyHotnessStats{
+					Key:             key,
+					LastQPSRollover: timeutil.Now(),
+					Qps:             0,
+					Count:           1,
+				}
+
+				r.keyStats.Store(mapStr, khs)
 			}
-			r.keyStats.Store(key.String(), khs)
 		} else {
 			khs := khsInterface.(KeyHotnessStats)
 			if keepKeyInMap := khs.recordLockedKey(now); keepKeyInMap {
-				r.keyStats.Store(key.String(), khs)
+				r.keyStats.Store(mapStr, khs)
 			} else {
-				r.keyStats.Delete(key.String())
+				r.keyStats.Delete(mapStr)
 			}
 		}
 	}

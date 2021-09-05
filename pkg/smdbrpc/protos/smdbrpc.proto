@@ -43,19 +43,50 @@ message KVPair {
 // The greeting service definition.
 service HotshardGateway {
   // Sends a greeting
+  rpc CalculateCicadaStats (CalculateCicadaReq) returns (CalculateCicadaStatsResp) {}
   rpc ContactHotshard (HotshardRequest) returns (HotshardReply) {}
-  rpc TriggerDemotion (TriggerDemotionRequest) returns (TriggerDemotionReply) {}
+  rpc DemoteKeys (stream KVVersion) returns (stream KeyMigrationStatus) {}
+  rpc PromoteKeys (PromoteKeysReq) returns (PromoteKeysResp) {}
   rpc RequestCRDBKeyStats(KeyStatsRequest) returns (CRDBKeyStatsResponse) {}
-  rpc RequestCicadaStats (KeyStatsRequest) returns (CicadaStatsResponse) {}
+  rpc TriggerDemotionByNums (TriggerDemotionByNumsReq) returns (TriggerDemotionByNumsResp) {}
+  rpc TriggerDemotion (TriggerDemotionRequest) returns (TriggerDemotionReply) {}
+
+  //rpc RequestCicadaStats (KeyStatsRequest) returns (CicadaStatsResponse) {}
+
+}
+
+
+message CalculateCicadaReq {
+  optional float cpu_target = 1;
+  optional float cpu_ceiling = 2;
+  optional float cpu_floor = 3;
+  optional float mem_target = 4;
+  optional float mem_ceiling = 5;
+  optional float mem_floor = 6;
+  optional float percentile_n = 7;
+}
+
+message CalculateCicadaStatsResp {
+  optional bool demotion_only = 1;
+  optional uint64 qps_avail_for_promotion = 2;
+  optional uint64 num_keys_avail_for_promotion = 3;
+  optional float qps_at_nth_percentile = 4;
+}
+
+message CicadaStatsResponse {
+  repeated KeyStat keystats = 1;
+  optional uint64 cpuusage = 2;
+  optional uint64 memusage = 3;
+}
+
+message CRDBKeyStatsResponse {
+  repeated KeyStat keystats = 1;
 }
 
 message HotshardRequest {
   // optional string sqlstring = 1;
-
   optional HLCTimestamp hlctimestamp = 1;
-
   repeated KVPair write_keyset = 2;
-
   repeated uint64 read_keyset = 3;
 
 }
@@ -63,43 +94,58 @@ message HotshardRequest {
 // The response message containing the greetings
 message HotshardReply {
   optional bool is_committed = 1;
-
   repeated KVPair read_valueset = 2;
-
   // optional HLCTimestamp hlctimestamp = 2;
 }
 
-message TriggerDemotionRequest {
-  repeated uint64 keys = 1;
+message KVVersion {
+  optional bytes key = 1;
+  optional bytes value = 2;
+  optional HLCTimestamp timestamp = 3;
+  optional uint64 hotness = 4;
 }
 
-message TriggerDemotionStatus {
-  optional uint64 key = 1;
-  optional bool isDemotionTriggered = 2;
-}
-
-message TriggerDemotionReply {
-  repeated TriggerDemotionStatus triggerDemotionStatuses = 1;
+message KeyMigrationStatus {
+  optional bytes key = 1;
+  optional bool is_successfully_migrated = 2;
 }
 
 message KeyStat {
-  optional uint64 key = 1;
-  optional uint64 qps = 2;
-  optional uint64 writeQps = 3;
+  optional bytes key = 1;
+  optional float qps = 2;
+  optional float writeQps = 3;
 }
 
 message KeyStatsRequest {
   optional bool placeholder = 1;
 }
 
-message CRDBKeyStatsResponse {
-  repeated KeyStat keystats = 1;
+message PromoteKeysReq {
+  repeated KVVersion keys = 1;
 }
 
-message CicadaStatsResponse {
-  repeated KeyStat keystats = 1;
-  optional uint64 cpuusage = 2;
-  optional uint64 memusage = 3;
-  optional uint64 cpuusageprogram = 4;
-  optional uint64 memusageprogram = 5;
+message PromoteKeysResp {
+  repeated KeyMigrationStatus were_successfully_migrated = 1;
+}
+
+message TriggerDemotionByNumsReq {
+  optional uint64 qps_in_excess = 1;
+  optional uint64 num_keys_in_excess = 2;
+}
+
+message TriggerDemotionByNumsResp {
+  optional bool were_demotions_triggered = 1;
+}
+
+message TriggerDemotionRequest {
+  repeated bytes keys = 1;
+}
+
+message TriggerDemotionReply {
+  repeated TriggerDemotionStatus triggerDemotionStatuses = 1;
+}
+
+message TriggerDemotionStatus {
+  optional bytes key = 1;
+  optional bool isDemotionTriggered = 2;
 }
