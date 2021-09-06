@@ -1983,25 +1983,44 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				}
 			}
 
-			promotionReq := smdbrpc.PromoteKeysReq{Keys: []*smdbrpc.KVVersion{}}
 			if len(pq) > 0 {
-				item := heap.Pop(&pq)
-				for ; item.(*Item).value.(KeyStatWrapper).qps > 0; item = heap.Pop(&pq) {
+				for item := heap.Pop(&pq); item.(*Item).value.(KeyStatWrapper).qps > 0; item = heap.Pop(&pq) {
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
-					promotionReq.Keys = append(promotionReq.Keys, &smdbrpc.KVVersion{
-						Key: keyStatWrapper.key,
-					})
-				}
+					promotionReq := smdbrpc.PromoteKeysReq{
+						Keys: []*smdbrpc.KVVersion{
+							{
+								Key: keyStatWrapper.key,
+							},
+						},
+					}
 
-				// we don't really care if the keys make it to the other side or not
-				//go func () {
-				if len(promotionReq.Keys) > 0 {
-					crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-					defer crdbCancel()
-					_, _ = wrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
+					go func () {
+						crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+						defer crdbCancel()
+						_, _ = wrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
+					}()
 				}
-				//} ()
 			}
+			//
+			//promotionReq := smdbrpc.PromoteKeysReq{Keys: []*smdbrpc.KVVersion{}}
+			//if len(pq) > 0 {
+			//	item := heap.Pop(&pq)
+			//	for ; item.(*Item).value.(KeyStatWrapper).qps > 0; item = heap.Pop(&pq) {
+			//		keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
+			//		promotionReq.Keys = append(promotionReq.Keys, &smdbrpc.KVVersion{
+			//			Key: keyStatWrapper.key,
+			//		})
+			//	}
+			//
+			//	// we don't really care if the keys make it to the other side or not
+			//	//go func () {
+			//	if len(promotionReq.Keys) > 0 {
+			//		crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+			//		defer crdbCancel()
+			//		_, _ = wrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
+			//	}
+			//	//} ()
+			//}
 
 			// check if cicada has excess resources
 			//cpuExcess := 65 - *cicadaStatsResponse.Cpuusage
@@ -2181,23 +2200,34 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 
 	log.Warningf(ctx, "jenndebug keyValue 2 %+v\n", keyValue.Value.String())
 	//// now that key is locked, start sending over Cicada
-	//clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
-	//defer txn.DB().ReturnClient(index)
-	//c := *clientPtr
-	//cicadaKVVersion := smdbrpc.KVVersion{
-	//	Key:       kvVersion.Key,
-	//	Value:     keyValue.Value.RawBytes,
-	//	Timestamp: &smdbrpc.HLCTimestamp{
-	//		Walltime:    &keyValue.Value.Timestamp.WallTime,
-	//		Logicaltime: &keyValue.Value.Timestamp.Logical,
-	//	},
-	//}
-	//promoteKeysResp, promoErr := c.PromoteKeys(ctx, &smdbrpc.PromoteKeysReq{
-	//	Keys: []*smdbrpc.KVVersion{&cicadaKVVersion},
-	//})
-	//if promoErr != nil {
-	//	log.Warningf(ctx, "jenndebug promoting keys to Cicada didn't work %+v\n", promoErr)
-	//}
+	clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
+	defer txn.DB().ReturnClient(index)
+	c := *clientPtr
+
+	table, idx, keyCols:= extractKey(roachpb.Key(kvVersion.Key).String())
+
+	cmd := smdbrpc.Cmd_PUT
+	op := smdbrpc.Op{
+		Cmd:     &cmd,
+		Table:   &table,
+		Index:   &idx,
+		KeyCols: keyCols,
+		Key:     kvVersion.Key,
+		Value:   StripValueToBytes(keyValue.Value),
+	}
+	txnReq := smdbrpc.TxnReq{
+		Ops: []*smdbrpc.Op{&op},
+		Timestamp: &smdbrpc.HLCTimestamp{
+			Walltime:    &keyValue.Value.Timestamp.WallTime,
+			Logicaltime: &keyValue.Value.Timestamp.Logical,
+		},
+	}
+	txnResp, promoErr := c.SendTxn(ctx, &txnReq)
+	if promoErr != nil {
+		log.Warningf(ctx, "jenndebug promoting keys to Cicada didn't work %+v\n", promoErr)
+	} else {
+		log.Warningf(ctx, "jenndebug txnResp committed %+v\n", *txnResp.IsCommitted)
+	}
 
 	// unlock the promotion map
 	cicadaKey.PromotionTimestamp = hlc.Timestamp{
@@ -2223,6 +2253,19 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	}
 
 	return &resp, nil
+}
+
+func extractKey(key string) (int64, int64, []int64) {
+	components := strings.Split(key, "/")
+	log.Warningf(context.Background(), "jenndebug components %+v\n", components)
+	table, _ := strconv.Atoi(components[2])
+	index, _ := strconv.Atoi(components[3])
+	keyCols := make([]int64, 0)
+	for _, keyCol := range components[4:len(components)-1] {
+		col, _ := strconv.Atoi(keyCol)
+		keyCols = append(keyCols, int64(col))
+	}
+	return int64(table), int64(index), keyCols
 }
 
 func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
@@ -2276,7 +2319,7 @@ func (s *Store) startRebalanceHotkeysServer(ctx context.Context) {
 	server := grpc.NewServer()
 	smdbrpc.RegisterHotshardGatewayServer(server, &rebalanceServer{store: s})
 	log.Warningf(ctx, "jenndebug rebalanceHotkeysServer serving\n")
-	if err := server.Serve(lis); err != nil {
+	if err = server.Serve(lis); err != nil {
 		log.Fatalf(ctx, "jenndebug rebalanceHotkeysServer failed to serve %+v\n", err)
 	}
 }

@@ -1356,11 +1356,13 @@ func initializeAndPopulateHotshardRequest(
 	// populate request write hotkey set
 	for i := 0; i < len(writeHotkeys); i += 2 {
 
-		var key uint64 = binary.BigEndian.Uint64(writeHotkeys[i])
-		var value uint64 = binary.BigEndian.Uint64(writeHotkeys[i+1])
+		//var key uint64 = binary.BigEndian.Uint64(writeHotkeys[i])
+		key := writeHotkeys[i]
+		//var value uint64 = binary.BigEndian.Uint64(writeHotkeys[i+1])
+		value := writeHotkeys[i+1]
 		kvPair := execinfrapb.KVPair{
-			Key:   &key,
-			Value: &value,
+			Key:   key,
+			Value: value,
 		}
 		request.WriteKeyset = append(request.WriteKeyset, &kvPair)
 	}
@@ -1377,10 +1379,10 @@ func initializeAndPopulateHotshardRequest(
 
 func extractHotshardReply(readResults [][]byte, reply *execinfrapb.HotshardReply) ([][]byte, bool) {
 	for _, kvPair := range reply.ReadValueset {
-		key, value := make([]byte, 8), make([]byte, 8)
-		binary.BigEndian.PutUint64(key, *kvPair.Key)
-		binary.BigEndian.PutUint64(value, *kvPair.Value)
-		readResults = append(readResults, key, value)
+		//key, value := make([]byte, 8), make([]byte, 8)
+		//binary.BigEndian.PutUint64(key, *kvPair.Key)
+		//binary.BigEndian.PutUint64(value, *kvPair.Value)
+		readResults = append(readResults, kvPair.Key, kvPair.Value)
 
 		//log.Warningf(context.Background(), "jenndebug read(%d)=%d\n", *kvPair.Key, *kvPair.Value)
 	}

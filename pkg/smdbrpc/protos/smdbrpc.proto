@@ -18,7 +18,7 @@ syntax = "proto2";
 // option java_package = "io.grpc.examples.helloworld";
 // option java_outer_classname = "HelloWorldProto";
 // option objc_class_prefix = "HLW";
-option go_package="execinfrapb";
+option go_package = "execinfrapb";
 
 //package cockroach.sql.distsqlrun;
 package smdbrpc;
@@ -36,18 +36,32 @@ message HLCTimestamp {
 }
 
 message KVPair {
-  optional uint64 key = 1;
-  optional uint64 value = 2;
+  optional bytes key = 1;
+  optional bytes value = 2;
 }
 
 // The greeting service definition.
 service HotshardGateway {
   // Sends a greeting
+
+  // Asks Cicada whether it will 1) only demote keys, 2) only request CRDB promotions,
+  // or 3) ask CRDB to trigger demotions and promotions
   rpc CalculateCicadaStats (CalculateCicadaReq) returns (CalculateCicadaStatsResp) {}
+
+  // a txn to the hotshard
   rpc ContactHotshard (HotshardRequest) returns (HotshardReply) {}
-  rpc DemoteKeys (stream KVVersion) returns (stream KeyMigrationStatus) {}
+
+  // (singular) Demotes a key from Cicada to CRDB
+  // (multiple) Demotes multiple keys from Cicada to CRDB (this essentially calls
+  // DemoteKey, but the asynchronous batching is handled on Cicada's side
+  rpc DemoteKey (KeyMigrationReq) returns (KeyMigrationStatus) {}
+  rpc DemoteKeys (MultiKeyMigrationReq) returns (MultiKeyMigrationStatus) {}
+
+  rpc PromoteKey (KeyMigrationReq) returns (KeyMigrationStatus) {}
   rpc PromoteKeys (PromoteKeysReq) returns (PromoteKeysResp) {}
+
   rpc RequestCRDBKeyStats(KeyStatsRequest) returns (CRDBKeyStatsResponse) {}
+  rpc SendTxn(TxnReq) returns (TxnResp) {}
   rpc TriggerDemotionByNums (TriggerDemotionByNumsReq) returns (TriggerDemotionByNumsResp) {}
   rpc TriggerDemotion (TriggerDemotionRequest) returns (TriggerDemotionReply) {}
 
@@ -55,6 +69,29 @@ service HotshardGateway {
 
 }
 
+enum Cmd {
+  GET = 0;
+  SCAN = 1;
+  PUT = 2;
+}
+
+message Op {
+  optional Cmd cmd = 1;
+  optional int64 table = 2;
+  optional int64 index = 3;
+  repeated int64 key_cols = 4;
+  optional bytes key = 5;
+  optional bytes value = 6;
+}
+
+message TxnReq {
+  repeated Op ops = 1;
+  optional HLCTimestamp timestamp = 2;
+}
+
+message TxnResp {
+  optional bool is_committed = 1;
+}
 
 message CalculateCicadaReq {
   optional float cpu_target = 1;
@@ -105,6 +142,11 @@ message KVVersion {
   optional uint64 hotness = 4;
 }
 
+message KeyMigrationReq {
+  optional uint64 key = 1;
+}
+
+
 message KeyMigrationStatus {
   optional bytes key = 1;
   optional bool is_successfully_migrated = 2;
@@ -120,12 +162,12 @@ message KeyStatsRequest {
   optional bool placeholder = 1;
 }
 
-message PromoteKeysReq {
-  repeated KVVersion keys = 1;
+message MultiKeyMigrationReq {
+  repeated uint64 keys = 1;
 }
 
-message PromoteKeysResp {
-  repeated KeyMigrationStatus were_successfully_migrated = 1;
+message MultiKeyMigrationStatus {
+  repeated KeyMigrationStatus statuses = 1;
 }
 
 message TriggerDemotionByNumsReq {
@@ -149,3 +191,12 @@ message TriggerDemotionStatus {
   optional bytes key = 1;
   optional bool isDemotionTriggered = 2;
 }
+
+message PromoteKeysReq {
+  repeated KVVersion keys = 1;
+}
+
+message PromoteKeysResp {
+  repeated KeyMigrationStatus were_successfully_migrated = 1;
+}
+
