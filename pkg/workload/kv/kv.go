@@ -17,6 +17,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/cockroachdb/cockroach-go/crdb"
+	"github.com/cockroachdb/cockroach/pkg/util/log"
 	"github.com/jackc/pgx"
 	"hash"
 	"math"
@@ -388,7 +389,7 @@ func correctTxnParams(batchSize int, generateKey generateKeyFunc, greatestHotKey
 			key = generateKey()
 		}
 		duplicates[key] = true
-		argsInt[i] = key + 1000000
+		argsInt[i] = key
 	}
 	sort.Sort(byInt(argsInt))
 
@@ -433,6 +434,8 @@ func (o *kvOp) run(ctx context.Context) error {
 			}
 			empty := true
 			for rows.Next() {
+				val, _ := rows.Values()
+				log.Warning(ctx, "jenndebug key %+v, val %+v\n", args[0], val)
 				empty = false
 			}
 			if empty {
@@ -667,8 +670,10 @@ func randomBlock(config *kv, r *rand.Rand) []byte {
 		if i >= uniqueSize {
 			blockData[i] = blockData[i-uniqueSize]
 		} else {
-			blockData[i] = byte(r.Int() & 0xff)
+			//blockData[i] = byte(r.Int() & 0xff)
+			blockData[i] = byte('j')
 		}
 	}
+	blockData = []byte("jennifer")
 	return blockData
 }

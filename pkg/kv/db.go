@@ -13,15 +13,9 @@ package kv
 import (
 	"context"
 	"fmt"
-	execinfrapbgrpc "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
-	"google.golang.org/grpc"
-	"math/rand"
-	"strconv"
-	"strings"
-	"sync"
-
 	"github.com/cockroachdb/cockroach/pkg/base"
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
+	execinfrapbgrpc "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
 	"github.com/cockroachdb/cockroach/pkg/storage/enginepb"
 	"github.com/cockroachdb/cockroach/pkg/util/hlc"
 	"github.com/cockroachdb/cockroach/pkg/util/log"
@@ -30,6 +24,11 @@ import (
 	"github.com/cockroachdb/cockroach/pkg/util/stop"
 	"github.com/cockroachdb/cockroach/pkg/util/tracing"
 	"github.com/pkg/errors"
+	"google.golang.org/grpc"
+	"math/rand"
+	"strconv"
+	"strings"
+	"sync"
 )
 
 // KeyValue represents a single key/value pair. This is similar to
@@ -265,20 +264,19 @@ type DB struct {
 	// crs is the sender used for non-transactional requests.
 	crs CrossRangeTxnWrapperSender
 
-	cicadaClients	sync.Map
-	numClients	int
+	cicadaClients sync.Map
+	numClients    int
 
 	CicadaAffiliatedKeys sync.Map
 }
 
 type CicadaAffiliatedKey struct {
-	Key roachpb.Key
+	Key                roachpb.Key
 	PromotionTimestamp hlc.Timestamp
-	CanRead bool
+	CanRead            bool
 }
 
 type ConnectionObjectWrapper struct {
-
 	serializer chan bool
 	clientConn execinfrapbgrpc.HotshardGatewayClient
 }
@@ -301,7 +299,7 @@ func NewConnectionObjectWrapper(address string) (*ConnectionObjectWrapper, error
 }
 
 func (connObj *ConnectionObjectWrapper) TryGetClient() (*execinfrapbgrpc.HotshardGatewayClient, bool) {
-	select{
+	select {
 	case connObj.serializer <- true:
 		return &connObj.clientConn, true
 	default:
@@ -315,7 +313,7 @@ func (connObj *ConnectionObjectWrapper) ReturnClient() {
 
 func (db *DB) GetClientPtrAndItsIndex() (*execinfrapbgrpc.HotshardGatewayClient, int) {
 	i := rand.Intn(db.numClients)
-    //failed := 0
+	//failed := 0
 	for {
 		if connObj, ok := db.cicadaClients.Load(i); ok {
 			cObj := connObj.(*ConnectionObjectWrapper)
@@ -819,24 +817,24 @@ func TableIndexKeyColFamOnly(key string) string {
 	return strings.Join(components, "/")
 }
 
-func (db *DB) isKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) bool {
-	for {
-		mapStr := TableIndexKeyColFamOnly(key.String())
-		if val, alreadyExists := db.CicadaAffiliatedKeys.Load(mapStr); alreadyExists {
-			cicadaKey := val.(CicadaAffiliatedKey)
-			if !cicadaKey.CanRead {
-				continue
-			} else {
-				if cicadaKey.PromotionTimestamp.Less(ts) {
-					return true
-				} else {
-					return false
-				}
-			}
-		} else {
-			return false
+func (db *DB) IsKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) (CicadaAffiliatedKey, bool) {
+	mapStr := TableIndexKeyColFamOnly(key.String())
+	if val, alreadyExists := db.CicadaAffiliatedKeys.Load(mapStr); alreadyExists {
+		cicadaKey := val.(CicadaAffiliatedKey)
+
+		// no timestamp given
+		if ts.WallTime == 0 {
+			return cicadaKey, true
 		}
+
+		if cicadaKey.PromotionTimestamp.Less(ts) {
+			return cicadaKey, true
+		}
+		//log.Warningf(context.Background(), "jenndebug wrong key %+v, promotion timestamp %+v, timestamp %+v\n",
+		//	mapStr, cicadaKey.PromotionTimestamp, ts)
 	}
+	//log.Warningf(context.Background(), "jenndebug not in Cicada key %+v\n", mapStr)
+	return CicadaAffiliatedKey{}, false
 }
 
 func IsUserKey(str string) bool {
@@ -854,6 +852,19 @@ func IsUserKey(str string) bool {
 	return false
 }
 
+func ExtractKey(key string) (int64, int64, []int64) {
+	components := strings.Split(key, "/")
+	//log.Warningf(context.Background(), "jenndebug components %+v\n", components)
+	table, _ := strconv.Atoi(components[2])
+	index, _ := strconv.Atoi(components[3])
+	keyCols := make([]int64, 0)
+	for _, keyCol := range components[4 : len(components)-1] {
+		col, _ := strconv.Atoi(keyCol)
+		keyCols = append(keyCols, int64(col))
+	}
+	return int64(table), int64(index), keyCols
+}
+
 // sendUsingSender uses the specified sender to send the batch request.
 func (db *DB) sendUsingSender(
 	ctx context.Context, ba roachpb.BatchRequest, sender Sender,
@@ -868,18 +879,6 @@ func (db *DB) sendUsingSender(
 		ba.UserPriority = db.ctx.UserPriority
 	}
 
-	for _, req := range ba.Requests {
-		key := req.GetInner().Header().Key
-		if !IsUserKey(key.String()) {
-			continue
-		}
-		if req.GetPut() != nil || req.GetScan() != nil {
-			if db.isKeyInCicadaAtTimestamp(key, ba.Timestamp) {
-				log.Warningf(ctx, "jenndebug key's here! %+v\n", key)
-				fmt.Printf("jenndebug key's here! %+v\n", key)
-			}
-		}
-	}
 	tracing.AnnotateTrace()
 	br, pErr := sender.Send(ctx, ba)
 	if pErr != nil {

@@ -38,6 +38,8 @@ message HLCTimestamp {
 message KVPair {
   optional bytes key = 1;
   optional bytes value = 2;
+  optional int64 walltime = 3;
+  optional int32 logicaltime = 4;
 }
 
 // The greeting service definition.
@@ -91,6 +93,7 @@ message TxnReq {
 
 message TxnResp {
   optional bool is_committed = 1;
+  repeated KVPair responses = 2;
 }
 
 message CalculateCicadaReq {

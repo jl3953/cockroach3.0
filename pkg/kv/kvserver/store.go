@@ -1994,11 +1994,11 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 						},
 					}
 
-					go func () {
+					//go func () {
 						crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 						defer crdbCancel()
 						_, _ = wrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
-					}()
+					//}()
 				}
 			}
 			//
@@ -2161,7 +2161,6 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	t := true
 	k := roachpb.Key(kvVersion.Key).String()
 	if _, valExists := rbServer.store.DB().CicadaAffiliatedKeys.Load(k); valExists {
-		log.Warningf(ctx, "jenndebug key is already in Cicada %+v\n", roachpb.Key(kvVersion.Key))
 		resp.WereSuccessfullyMigrated = append(resp.WereSuccessfullyMigrated, &smdbrpc.KeyMigrationStatus{
 			Key:                    kvVersion.Key,
 			IsSuccessfullyMigrated: &t,
@@ -2176,7 +2175,8 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		PromotionTimestamp: hlc.Timestamp{},
 		CanRead:          false,
 	}
-	rbServer.store.DB().CicadaAffiliatedKeys.Store(k, cicadaKey)
+	//rbServer.store.DB().CicadaAffiliatedKeys.Store(k, cicadaKey)
+	//log.Warningf(ctx, "jenndebug we stored key %+v, but haven't managed to promote it\n", k)
 
 	// Lock the key in CRDB.
 	var keyValue kv.KeyValue
@@ -2185,26 +2185,21 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	for shouldTryAgain := true; shouldTryAgain; {
 		txn = kv.NewTxn(context.Background(), rbServer.store.db, rbServer.store.nodeDesc.NodeID)
 		if keyValue, err = txn.Get(ctx, roachpb.Key(kvVersion.Key)); err != nil {
-			log.Warningf(ctx, "jenndebug you beefed the read %+v\n", err)
 			continue
 		} else {
-			log.Warningf(ctx, "jenndebug keyValue %+v\n", keyValue.Value.String())
-			fmt.Printf("jenndebug keyValue %+v\n", keyValue.Value.String())
 			if err = txn.CPut(ctx, roachpb.Key(kvVersion.Key), StripValueToBytes(keyValue.Value), keyValue.Value); err != nil {
-				log.Warningf(ctx, "jenndebug you beefed the write first %+v\n", err)
 			} else {
 				shouldTryAgain = false
 			}
 		}
 	}
 
-	log.Warningf(ctx, "jenndebug keyValue 2 %+v\n", keyValue.Value.String())
 	//// now that key is locked, start sending over Cicada
 	clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
 	defer txn.DB().ReturnClient(index)
 	c := *clientPtr
 
-	table, idx, keyCols:= extractKey(roachpb.Key(kvVersion.Key).String())
+	table, idx, keyCols:= kv.ExtractKey(roachpb.Key(kvVersion.Key).String())
 
 	cmd := smdbrpc.Cmd_PUT
 	op := smdbrpc.Op{
@@ -2213,7 +2208,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		Index:   &idx,
 		KeyCols: keyCols,
 		Key:     kvVersion.Key,
-		Value:   StripValueToBytes(keyValue.Value),
+		Value:   keyValue.Value.RawBytes,
 	}
 	txnReq := smdbrpc.TxnReq{
 		Ops: []*smdbrpc.Op{&op},
@@ -2225,8 +2220,8 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	txnResp, promoErr := c.SendTxn(ctx, &txnReq)
 	if promoErr != nil {
 		log.Warningf(ctx, "jenndebug promoting keys to Cicada didn't work %+v\n", promoErr)
-	} else {
-		log.Warningf(ctx, "jenndebug txnResp committed %+v\n", *txnResp.IsCommitted)
+	} else if !*txnResp.IsCommitted{
+		log.Warningf(ctx, "jenndebug txnResp did not commit")
 	}
 
 	// unlock the promotion map
@@ -2244,7 +2239,6 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 
 	// respond to the call
 	for _, key := range promoteKeysReq.Keys {
-		log.Warningf(ctx, "jenndebug promoted key %s\n", roachpb.Key(key.Key))
 		resp.WereSuccessfullyMigrated = append(resp.WereSuccessfullyMigrated,
 			&smdbrpc.KeyMigrationStatus{
 				Key:                    key.Key,
@@ -2255,18 +2249,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	return &resp, nil
 }
 
-func extractKey(key string) (int64, int64, []int64) {
-	components := strings.Split(key, "/")
-	log.Warningf(context.Background(), "jenndebug components %+v\n", components)
-	table, _ := strconv.Atoi(components[2])
-	index, _ := strconv.Atoi(components[3])
-	keyCols := make([]int64, 0)
-	for _, keyCol := range components[4:len(components)-1] {
-		col, _ := strconv.Atoi(keyCol)
-		keyCols = append(keyCols, int64(col))
-	}
-	return int64(table), int64(index), keyCols
-}
+
 
 func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
 	_ *smdbrpc.KeyStatsRequest) (*smdbrpc.CRDBKeyStatsResponse, error) {

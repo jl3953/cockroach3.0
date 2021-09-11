@@ -616,24 +616,24 @@ func (txn *Txn) CleanupOnError(ctx context.Context, err error) {
 	}
 }
 
-func (txn *Txn) ContactHotshardHelper(ctx context.Context) bool {
-	if txn.HasWriteHotkeys() || txn.HasReadHotkeys() {
-		// TODO jenndebug implement reads here
-		if readResults, succeeded := txn.ContactHotshard(txn.GetWriteHotkeys(),
-			txn.GetReadHotkeys(),
-			txn.ProvisionalCommitTimestamp()); succeeded {
-			txn.AddResultReadHotkeys(readResults)
-			txn.ClearWriteHotkeys()
-			txn.ClearReadHotkeys()
-			return true
-		} else {
-			return false
-		}
-	} else {
-		// no hotkeys!
-		return true
-	}
-}
+//func (txn *Txn) ContactHotshardHelper(ctx context.Context) bool {
+//	if txn.HasWriteHotkeys() || txn.HasReadHotkeys() {
+//		// TODO jenndebug implement reads here
+//		if readResults, succeeded := txn.ContactHotshard(txn.GetWriteHotkeys(),
+//			txn.GetReadHotkeys(),
+//			txn.ProvisionalCommitTimestamp()); succeeded {
+//			txn.AddResultReadHotkeys(readResults)
+//			txn.ClearWriteHotkeys()
+//			txn.ClearReadHotkeys()
+//			return true
+//		} else {
+//			return false
+//		}
+//	} else {
+//		// no hotkeys!
+//		return true
+//	}
+//}
 
 // Commit is the same as CommitOrCleanup but will not attempt to clean
 // up on failure. This can be used when the caller is prepared to do proper
@@ -643,9 +643,59 @@ func (txn *Txn) Commit(ctx context.Context) error {
 		return errors.WithContextTags(errors.AssertionFailedf("Commit() called on leaf txn"), ctx)
 	}
 
-	if succeeded := txn.ContactHotshardHelper(ctx); !succeeded {
-		return txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard retryable err")
+	if len(txn.writeHotkeys) > 0 {
+		fmt.Printf("jenndebug do we ever fucking get in here?\n")
+		var ops []*execinfrapb.Op
+		for i := 0; i < len(txn.writeHotkeys); i += 2 {
+			key := txn.writeHotkeys[i]
+			val := txn.writeHotkeys[i+1]
+			put := execinfrapb.Cmd_PUT
+			table, index, keyCols := ExtractKey(roachpb.Key(key).String())
+			op := execinfrapb.Op{
+				Cmd:     &put,
+				Table:   &table,
+				Index:   &index,
+				KeyCols: keyCols,
+				Key:     key,
+				Value:   val,
+			}
+			ops = append(ops, &op)
+		}
+
+		wall := txn.ProvisionalCommitTimestamp().WallTime
+		logical := txn.ProvisionalCommitTimestamp().Logical
+		txnReq := execinfrapb.TxnReq{
+			Ops: ops,
+			Timestamp: &execinfrapb.HLCTimestamp{
+				Walltime:    &wall,
+				Logicaltime: &logical,
+			},
+		}
+		clientPtr, idx := txn.DB().GetClientPtrAndItsIndex()
+		defer txn.DB().ReturnClient(idx)
+		c := *clientPtr
+		cicadaCtx, cicadaCancel := context.WithTimeout(ctx, time.Second)
+		defer cicadaCancel()
+		txnResp, err := c.SendTxn(cicadaCtx, &txnReq)
+		if err != nil {
+			log.Warningf(ctx, "jenndebug cicada write couldn't send txnReq %+v\n", err)
+			return txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard retryable err")
+		} else if !*txnResp.IsCommitted {
+			log.Warningf(ctx, "jenndebug cicada write txn didn't commit\n")
+			return txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard retryable err")
+		} else {
+			log.Warningf(ctx, "jenndebug cicada write txn committed\n")
+		}
+
+		txn.ClearWriteHotkeys()
+	} else {
+		log.Warningf(ctx, "jenndebug commit\n")
 	}
+
+	//if succeeded := txn.ContactHotshardHelper(ctx); !succeeded {
+	//	return txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard retryable err")
+	//}
+
 	return txn.commit(ctx)
 }
 
@@ -683,10 +733,58 @@ func (txn *Txn) CommitOrCleanup(ctx context.Context) error {
 	if txn.typ != RootTxn {
 		return errors.WithContextTags(errors.AssertionFailedf("CommitOrCleanup() called on leaf txn"), ctx)
 	}
+	if len(txn.writeHotkeys) > 0 {
+		fmt.Printf("jenndebug do we ever fucking get in here 2\n")
+		var ops []*execinfrapb.Op
+		for i := 0; i < len(txn.writeHotkeys); i += 2 {
+			key := txn.writeHotkeys[i]
+			val := txn.writeHotkeys[i+1]
+			put := execinfrapb.Cmd_PUT
+			table, index, keyCols := ExtractKey(roachpb.Key(key).String())
+			op := execinfrapb.Op{
+				Cmd:     &put,
+				Table:   &table,
+				Index:   &index,
+				KeyCols: keyCols,
+				Key:     key,
+				Value:   val,
+			}
+			ops = append(ops, &op)
+		}
 
-	if succeeded := txn.ContactHotshardHelper(ctx); !succeeded {
-		return txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard retryable err")
+		wall := txn.ProvisionalCommitTimestamp().WallTime
+		logical := txn.ProvisionalCommitTimestamp().Logical
+		txnReq := execinfrapb.TxnReq{
+			Ops: ops,
+			Timestamp: &execinfrapb.HLCTimestamp{
+				Walltime:    &wall,
+				Logicaltime: &logical,
+			},
+		}
+		clientPtr, idx := txn.DB().GetClientPtrAndItsIndex()
+		defer txn.DB().ReturnClient(idx)
+		c := *clientPtr
+		cicadaCtx, cicadaCancel := context.WithTimeout(ctx, time.Second)
+		defer cicadaCancel()
+		txnResp, err := c.SendTxn(cicadaCtx, &txnReq)
+		if err != nil {
+			log.Warningf(ctx, "jenndebug cicada write couldn't send txnReq %+v\n", err)
+			return txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard retryable err")
+		} else if !*txnResp.IsCommitted {
+			log.Warningf(ctx, "jenndebug cicada write txn didn't commit\n")
+			return txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard retryable err")
+		} else {
+			log.Warningf(ctx, "jenndebug cicada write txn committed\n")
+		}
+
+		txn.ClearWriteHotkeys()
+	} else {
+		log.Warningf(ctx, "jenndebug commitOrCleanup\n")
 	}
+
+	//if succeeded := txn.ContactHotshardHelper(ctx); !succeeded {
+	//	return txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard retryable err")
+	//}
 	err := txn.commit(ctx)
 	if err != nil {
 		txn.CleanupOnError(ctx, err)
@@ -942,31 +1040,230 @@ func (txn *Txn) Send(
 		ba.Header.GatewayNodeID = txn.gatewayNodeID
 	}
 
+	// copy of the original batchRequests
+	originalRequests := make([]roachpb.RequestUnion, len(ba.Requests))
+	copy(originalRequests, ba.Requests)
+
+	// batchRequests to be sent to CRDB
+	warmKeysRequests := make([]roachpb.RequestUnion, 0)
+	isInCicada := make([]bool, len(ba.Requests))
+
+	// batchRequests (reads) to be sent to Cicada
+	var ops []*execinfrapb.Op
+
+	// multiplexing requests to CRDB, Cicada reads, and Cicada writes
+	for i, req := range ba.Requests {
+		isInCicada[i] = false
+		key := req.GetInner().Header().Key
+
+		if !IsUserKey(key.String()) {
+			warmKeysRequests = append(warmKeysRequests, req)
+			continue
+		}
+
+		timestamp := txn.ProvisionalCommitTimestamp()
+		if putReq := req.GetPut(); putReq != nil {
+			if cicadaAffiliatedKey, isIn := txn.DB().IsKeyInCicadaAtTimestamp(key, timestamp); isIn {
+				txn.writeHotkeys = append(txn.writeHotkeys, cicadaAffiliatedKey.Key, putReq.Value.RawBytes)
+				isInCicada[i] = true
+			} else {
+				warmKeysRequests = append(warmKeysRequests, req)
+			}
+		} else if req.GetGet() != nil || req.GetScan() != nil {
+			if cicadaAffiliatedKey, isIn := txn.db.IsKeyInCicadaAtTimestamp(key, timestamp); isIn {
+				get := execinfrapb.Cmd_GET
+				table, index, keyCols := ExtractKey(cicadaAffiliatedKey.Key.String())
+				op := execinfrapb.Op{
+					Cmd:     &get,
+					Table:   &table,
+					Index:   &index,
+					KeyCols: keyCols,
+					Key:     cicadaAffiliatedKey.Key,
+				}
+				ops = append(ops, &op)
+				isInCicada[i] = true
+			} else {
+				warmKeysRequests = append(warmKeysRequests, req)
+			}
+		} else {
+			warmKeysRequests = append(warmKeysRequests, req)
+		}
+	}
+
+	// if there are CRDB requests to be sent, send them
+	var brCRDB *roachpb.BatchResponse
+	var pErr *roachpb.Error
 	txn.mu.Lock()
 	requestTxnID := txn.mu.ID
 	sender := txn.mu.sender
 	txn.mu.Unlock()
-	br, pErr := txn.db.sendUsingSender(ctx, ba, sender)
-	if pErr == nil {
-		return br, nil
+	if len(warmKeysRequests) > 0 {
+		ba.Requests = warmKeysRequests
+		brCRDB, pErr = txn.db.sendUsingSender(ctx, ba, sender)
+		//if pErr == nil {
+		//	return brCRDB, nil
+		//}
+		if pErr != nil {
+
+			if retryErr, ok := pErr.GetDetail().(*roachpb.TransactionRetryWithProtoRefreshError); ok {
+				if requestTxnID != retryErr.TxnID {
+					// KV should not return errors for transactions other than the one that sent
+					// the request.
+					log.Fatalf(ctx, "retryable error for the wrong txn. "+
+						"requestTxnID: %s, retryErr.TxnID: %s. retryErr: %s",
+						requestTxnID, retryErr.TxnID, retryErr)
+				}
+				if txn.typ == RootTxn {
+					// On root senders, we bump the sender's identity upon retry errors.
+					txn.mu.Lock()
+					txn.handleErrIfRetryableLocked(ctx, retryErr)
+					txn.mu.Unlock()
+				}
+			}
+		}
 	}
 
-	if retryErr, ok := pErr.GetDetail().(*roachpb.TransactionRetryWithProtoRefreshError); ok {
-		if requestTxnID != retryErr.TxnID {
-			// KV should not return errors for transactions other than the one that sent
-			// the request.
-			log.Fatalf(ctx, "retryable error for the wrong txn. "+
-				"requestTxnID: %s, retryErr.TxnID: %s. retryErr: %s",
-				requestTxnID, retryErr.TxnID, retryErr)
+	if len(ops) == 0 && !txn.HasWriteHotkeys() {
+		return brCRDB, pErr
+	}
+
+	// if there are Cicada read requests to be sent, send them.
+	var brCicada *roachpb.BatchResponse
+	if len(ops) > 0 {
+		brCicada = &roachpb.BatchResponse{
+			Responses: make([]roachpb.ResponseUnion, len(ops)),
 		}
-		if txn.typ == RootTxn {
-			// On root senders, we bump the sender's identity upon retry errors.
-			txn.mu.Lock()
-			txn.handleErrIfRetryableLocked(ctx, retryErr)
-			txn.mu.Unlock()
+		wall := txn.ProvisionalCommitTimestamp().WallTime
+		logical := txn.ProvisionalCommitTimestamp().Logical
+		txnReq := execinfrapb.TxnReq{
+			Ops: ops,
+			Timestamp: &execinfrapb.HLCTimestamp{
+				Walltime:    &wall,
+				Logicaltime: &logical,
+			},
+		}
+		clientPtr, idx := txn.db.GetClientPtrAndItsIndex()
+		defer txn.db.ReturnClient(idx)
+		c := *clientPtr
+		cicadaCtx, cicadaCancel := context.WithTimeout(ctx, time.Second)
+		defer cicadaCancel()
+		txnResp, err := c.SendTxn(cicadaCtx, &txnReq)
+		if err != nil {
+			log.Warningf(ctx, "jenndebug cicada read couldn't send txnReq %+v\n", err)
+			return nil, &roachpb.Error{
+				Message:            "sendTxn failed",
+				TransactionRestart: roachpb.TransactionRestart_IMMEDIATE,
+			}
+		} else if !*txnResp.IsCommitted {
+			log.Warningf(ctx, "jenndebug cicada read txn didn't commit\n")
+			return nil, &roachpb.Error{
+				Message:            "cicada txn didn't commit",
+				TransactionRestart: roachpb.TransactionRestart_IMMEDIATE,
+			}
+		}
+
+		// populate responses from Cicada
+		for i, kvPair := range txnResp.Responses {
+			var val roachpb.Value
+			val.SetBytes(kvPair.Value)
+			brCicada.Responses[i].Value = &roachpb.ResponseUnion_Scan{
+				Scan: &roachpb.ScanResponse{
+					BatchResponses: reconstructValue(kvPair.Key, kvPair.Value,
+						*kvPair.Walltime, *kvPair.Logicaltime),
+				},
+			}
 		}
 	}
-	return br, pErr
+
+	// merge responses from CRDB and Cicada
+	br := &roachpb.BatchResponse{
+		BatchResponse_Header: roachpb.BatchResponse_Header{},
+		Responses:            make([]roachpb.ResponseUnion, len(isInCicada)),
+	}
+	crdbCounter, cicadaCounter := 0, 0
+	for i, isIn := range isInCicada{
+		if !isIn {
+			// the response comes from CRDB
+			br.Responses[i] = brCRDB.Responses[crdbCounter]
+			crdbCounter++
+		} else {
+			if originalRequests[i].GetScan() != nil {
+				br.Responses[i] = brCicada.Responses[cicadaCounter]
+				cicadaCounter++
+			} else {
+				br.Responses[i].Value = &roachpb.ResponseUnion_Put{
+					Put: &roachpb.PutResponse{},
+				}
+			}
+		}
+	}
+
+	if len(warmKeysRequests) > 0 {
+		br.BatchResponse_Header = brCRDB.BatchResponse_Header
+	}
+
+	return br, nil
+}
+
+func reconstructValue(key []byte, value []byte, walltime int64, logicaltime int32) [][]byte {
+	VAL_LEN_MARKER := 4
+	KEY_LEN_MARKER := 4
+	keyLen := len(key)
+	ZERO_LEN := 1
+	WALLTIME_LEN := 8
+	LOGICAL_LEN := 0
+	if logicaltime > 0 {
+		LOGICAL_LEN = 4
+	}
+	TIMESTAMP_BOOKEND_LEN := 1
+	valLen := len(value)
+
+	resp := make([]byte, VAL_LEN_MARKER+KEY_LEN_MARKER+keyLen+ZERO_LEN+
+		WALLTIME_LEN+LOGICAL_LEN+TIMESTAMP_BOOKEND_LEN+valLen)
+	respBookmark := 0
+
+	uint32Bytes := make([]byte, VAL_LEN_MARKER)
+	binary.LittleEndian.PutUint32(uint32Bytes, uint32(valLen))
+	for _, b := range uint32Bytes {
+		resp[respBookmark] = b
+		respBookmark++
+	}
+	binary.LittleEndian.PutUint32(uint32Bytes, uint32(keyLen+ZERO_LEN+WALLTIME_LEN+LOGICAL_LEN+TIMESTAMP_BOOKEND_LEN))
+	for _, b := range uint32Bytes {
+		resp[respBookmark] = b
+		respBookmark++
+	}
+	for _, b := range key {
+		resp[respBookmark] = b
+		respBookmark++
+	}
+	// ZERO LEN
+	resp[respBookmark] = 0
+	respBookmark++
+
+	uint64Byte := make([]byte, WALLTIME_LEN)
+	binary.BigEndian.PutUint64(uint64Byte, uint64(walltime))
+	for _, b := range uint64Byte {
+		resp[respBookmark] = b
+		respBookmark++
+	}
+	if LOGICAL_LEN > 0 {
+		binary.BigEndian.PutUint32(uint32Bytes, uint32(logicaltime))
+		for _, b := range uint32Bytes {
+			resp[respBookmark] = b
+			respBookmark++
+		}
+	}
+	resp[respBookmark] = byte(ZERO_LEN + WALLTIME_LEN + LOGICAL_LEN)
+	respBookmark++
+	for _, b := range value {
+		resp[respBookmark] = b
+		respBookmark++
+	}
+
+	respSlice := make([][]byte, 1)
+	respSlice[0] = resp
+	return respSlice
 }
 
 func (txn *Txn) handleErrIfRetryableLocked(ctx context.Context, err error) {
@@ -1348,8 +1645,8 @@ func initializeAndPopulateHotshardRequest(
 	// populate request timestamp
 	request := execinfrapb.HotshardRequest{
 		Hlctimestamp: &execinfrapb.HLCTimestamp{
-			Walltime:    &provisionalCommitTimestamp.WallTime,
-			Logicaltime: &provisionalCommitTimestamp.Logical,
+			//Walltime:    &provisionalCommitTimestamp.WallTime,
+			//Logicaltime: &provisionalCommitTimestamp.Logical,
 		},
 	}
 
@@ -1437,14 +1734,14 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 		return readResults, true
 	}
 }
-
-func (txn *Txn) GetWriteHotkeys() [][]byte {
-	if len(txn.writeHotkeys) > 0 {
-		return txn.writeHotkeys
-	} else {
-		return nil
-	}
-}
+//
+//func (txn *Txn) GetWriteHotkeys() [][]byte {
+//	if len(txn.writeHotkeys) > 0 {
+//		return txn.writeHotkeys
+//	} else {
+//		return nil
+//	}
+//}
 
 func (txn *Txn) ClearWriteHotkeys() {
 	txn.writeHotkeys = make([][]byte, 0)
