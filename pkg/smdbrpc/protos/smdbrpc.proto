@@ -61,6 +61,7 @@ service HotshardGateway {
 
   rpc PromoteKey (KeyMigrationReq) returns (KeyMigrationStatus) {}
   rpc PromoteKeys (PromoteKeysReq) returns (PromoteKeysResp) {}
+  rpc UpdatePromotionMap (PromoteKeysReq) returns (PromoteKeysResp) {}
 
   rpc RequestCRDBKeyStats(KeyStatsRequest) returns (CRDBKeyStatsResponse) {}
   rpc SendTxn(TxnReq) returns (TxnResp) {}
@@ -68,6 +69,7 @@ service HotshardGateway {
   rpc TriggerDemotion (TriggerDemotionRequest) returns (TriggerDemotionReply) {}
 
   //rpc RequestCicadaStats (KeyStatsRequest) returns (CicadaStatsResponse) {}
+
 
 }
 

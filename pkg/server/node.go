@@ -160,6 +160,8 @@ type Node struct {
 	txnMetrics  kvcoord.TxnMetrics
 
 	perReplicaServer kvserver.Server
+	joinList base.JoinListType
+	listeningAddr string
 }
 
 // allocateNodeID increments the node id generator key to allocate
@@ -260,6 +262,8 @@ func NewNode(
 	txnMetrics kvcoord.TxnMetrics,
 	execCfg *sql.ExecutorConfig,
 	clusterID *base.ClusterIDContainer,
+	joinList []string,
+	listeningAddr string,
 ) *Node {
 	var eventLogger sql.EventLogger
 	if execCfg != nil {
@@ -277,6 +281,8 @@ func NewNode(
 		txnMetrics:  txnMetrics,
 		eventLogger: eventLogger,
 		clusterID:   clusterID,
+		joinList: joinList,
+		listeningAddr: listeningAddr,
 	}
 	n.perReplicaServer = kvserver.MakeServer(&n.Descriptor, n.stores)
 	return n
@@ -414,7 +420,7 @@ func (n *Node) start(
 
 	// Create stores from the engines that were already bootstrapped.
 	for _, e := range initializedEngines {
-		s := kvserver.NewStore(ctx, n.storeCfg, e, &n.Descriptor)
+		s := kvserver.NewStore(ctx, n.storeCfg, e, &n.Descriptor, n.joinList, n.listeningAddr)
 		if err := s.Start(ctx, n.stopper); err != nil {
 			return errors.Errorf("failed to start store: %s", err)
 		}
@@ -616,7 +622,7 @@ func (n *Node) bootstrapStores(
 				return err
 			}
 
-			s := kvserver.NewStore(ctx, n.storeCfg, eng, &n.Descriptor)
+			s := kvserver.NewStore(ctx, n.storeCfg, eng, &n.Descriptor, n.joinList, n.listeningAddr)
 			if err := s.Start(ctx, stopper); err != nil {
 				return err
 			}

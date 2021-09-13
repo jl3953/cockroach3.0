@@ -418,6 +418,10 @@ type Store struct {
 	txnWaitMetrics     *txnwait.Metrics
 	sstSnapshotStorage SSTSnapshotStorage
 	protectedtsCache   protectedts.Cache
+	crdbServers []string
+	listeningHost string
+	listeningPort int
+
 
 	// gossipRangeCountdown and leaseRangeCountdown are countdowns of
 	// changes to range and leaseholder counts, after which the store
@@ -793,6 +797,7 @@ func (sc *StoreConfig) LeaseExpiration() int64 {
 // NewStore returns a new instance of a store.
 func NewStore(
 	ctx context.Context, cfg StoreConfig, eng storage.Engine, nodeDesc *roachpb.NodeDescriptor,
+	joinList base.JoinListType, listeningAddr string,
 ) *Store {
 	// TODO(tschottdorf): find better place to set these defaults.
 	cfg.SetDefaults()
@@ -800,12 +805,17 @@ func NewStore(
 	if !cfg.Valid() {
 		log.Fatalf(ctx, "invalid store configuration: %+v", &cfg)
 	}
+	listeningHost, listeningPort, _ := net.SplitHostPort(listeningAddr)
+	intPort, _ := strconv.Atoi(listeningPort)
 	s := &Store{
 		cfg:      cfg,
 		db:       cfg.DB, // TODO(tschottdorf): remove redundancy.
 		engine:   eng,
 		nodeDesc: nodeDesc,
 		metrics:  newStoreMetrics(cfg.HistogramWindowInterval),
+		crdbServers: joinList,
+		listeningHost: listeningHost,
+		listeningPort: intPort,
 	}
 	if cfg.RPCContext != nil {
 		s.allocator = MakeAllocator(cfg.StorePool, cfg.RPCContext.RemoteClocks.Latency)
@@ -1671,8 +1681,10 @@ func (s *Store) Start(ctx context.Context, stopper *stop.Stopper) error {
 		s.startGossip()
 
 		s.stopper.RunWorker(ctx, s.startRebalanceHotkeysServer)
-		// only if nodeId is the first one!!! Remember when you're testing!!!
-		s.stopper.RunWorker(ctx, s.triggerRebalanceHotkeysAtInterval)
+		// only the first store triggers the promotion
+		if s.StoreID() == 1 {
+			s.stopper.RunWorker(ctx, s.triggerRebalanceHotkeysAtInterval)
+		}
 
 		// Start the scanner. The construction here makes sure that the scanner
 		// only starts after Gossip has connected, and that it does not block Start
@@ -1843,7 +1855,7 @@ func (wrapper *ConnWrapper) Init(ctx context.Context, address string, port int) 
 	// connect to other servers
 	wrapper.address = address
 	wrapper.port = port
-	wrapper.conn, err = grpc.Dial(address+":"+strconv.Itoa(port), grpc.WithInsecure())
+	wrapper.conn, err = grpc.Dial(net.JoinHostPort(address, strconv.Itoa(port)), grpc.WithInsecure())
 	if err != nil {
 		log.Warningf(ctx, "jenndebug wrapper Init() failed on %+v:%+d, %+v\n", address, port, err)
 		return err
@@ -1882,13 +1894,14 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	interval := 5 * time.Second
 
 	// connect to all CRDB servers
-	crdbServers := []string{"localhost"} // TODO jenndebug for now, let's see if I can make this passable
-	wrappers := make([]ConnWrapper, len(crdbServers))
-	port := 50055
+	wrappers := make([]ConnWrapper, len(s.crdbServers))
+	//port := 50055
 	// TODO jenndebug you can parallelize this
-	for i, serv := range crdbServers {
-		if err := wrappers[i].Init(ctx, serv, port); err != nil {
-			log.Fatalf(ctx, "jenndebug could not connect to %s:%d, %+v\n", serv, port, err)
+	for i, serv := range s.crdbServers {
+		listeningAddr, listeningPort, _ := net.SplitHostPort(serv)
+		thermopylaePort, _ := strconv.Atoi(listeningPort)
+		if err := wrappers[i].Init(ctx, listeningAddr, ConvertListeningToThermopylaePort(thermopylaePort)); err != nil {
+			log.Fatalf(ctx, "jenndebug could not connect to %s:%d, %+v\n", listeningAddr, thermopylaePort , err)
 		}
 		defer func(conn *grpc.ClientConn) {
 			_ = conn.Close()
@@ -1960,7 +1973,8 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 				crdbResponses[i], err = wrapper.client.RequestCRDBKeyStats(crdbCtx, &req)
 				if err != nil {
-					log.Fatalf(ctx, "jenndebug query to CRDB key stats failed %+v\n", err)
+					log.Fatalf(ctx, "jenndebug query to CRDB key stats failed %+v, wrapper %+v:%+v\n",
+						err, wrapper.address, wrapper.port)
 				}
 				defer crdbCancel()
 			}
@@ -1997,6 +2011,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					//go func () {
 						crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 						defer crdbCancel()
+						// always use yourself to promote keys
 						_, _ = wrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
 					//}()
 				}
@@ -2169,12 +2184,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		return &resp, nil
 	}
 
-	// Implement a rough spin lock on the key's row on the promoted keys map
-	cicadaKey := kv.CicadaAffiliatedKey{
-		Key:                kvVersion.Key,
-		PromotionTimestamp: hlc.Timestamp{},
-		CanRead:          false,
-	}
+
 	//rbServer.store.DB().CicadaAffiliatedKeys.Store(k, cicadaKey)
 	//log.Warningf(ctx, "jenndebug we stored key %+v, but haven't managed to promote it\n", k)
 
@@ -2224,13 +2234,43 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		log.Warningf(ctx, "jenndebug txnResp did not commit")
 	}
 
-	// unlock the promotion map
+	// store in the promotion map
+	cicadaKey := kv.CicadaAffiliatedKey{
+		Key:                kvVersion.Key,
+		PromotionTimestamp: hlc.Timestamp{},
+		CanRead:          false,
+	}
 	cicadaKey.PromotionTimestamp = hlc.Timestamp{
 		WallTime: keyValue.Value.Timestamp.WallTime,
 		Logical:  keyValue.Value.Timestamp.Logical,
 	}
 	cicadaKey.CanRead = true
 	rbServer.store.DB().CicadaAffiliatedKeys.Store(roachpb.Key(kvVersion.Key).String(), cicadaKey)
+
+	// parallelize this, prob
+	// connect to all CRDB servers
+	wrappers := make([]ConnWrapper, len(rbServer.store.crdbServers[1:]))
+	port := 50055
+	// TODO jenndebug you can parallelize this
+	for i, serv := range rbServer.store.crdbServers[1:] {
+		if err = wrappers[i].Init(ctx, serv, port); err != nil {
+			log.Fatalf(ctx, "jenndebug could not connect to %s:%d, %+v\n", serv, port, err)
+		}
+		defer func(conn *grpc.ClientConn) {
+			_ = conn.Close()
+		}(wrappers[i].conn)
+
+
+		crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+		defer crdbCancel()
+		promoResp, promoMapErr := wrappers[i].client.UpdatePromotionMap(crdbCtx, promoteKeysReq)
+		if promoMapErr != nil {
+			log.Fatalf(ctx, "jenndebug query to CRDB key stats failed %+v\n", err)
+		} else if !*promoResp.WereSuccessfullyMigrated[0].IsSuccessfullyMigrated {
+			log.Fatalf(ctx, "jenndebug some other crdb machine didn't update its promotion map\n")
+		}
+	}
+
 
 	// unlock the keys in CRDB and allow other transactions in
 	if err = txn.Rollback(ctx); err != nil {
@@ -2294,14 +2334,45 @@ func (rbServer *rebalanceServer) RequestCicadaStats(ctx context.Context,
 	return nil, nil
 }
 
+func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
+	req *smdbrpc.PromoteKeysReq) (*smdbrpc.PromoteKeysResp, error) {
+	key := roachpb.Key(req.Keys[0].Key)
+	cicadaAffiliatedKey := kv.CicadaAffiliatedKey{
+		Key:               	key,
+		PromotionTimestamp: hlc.Timestamp{
+			WallTime: *req.Keys[0].Timestamp.Walltime,
+			Logical:  *req.Keys[0].Timestamp.Logicaltime,
+		},
+		CanRead:            true,
+	}
+	rbServer.store.DB().CicadaAffiliatedKeys.Store(key.String(), cicadaAffiliatedKey)
+
+	resp := smdbrpc.PromoteKeysResp{
+		WereSuccessfullyMigrated: []*smdbrpc.KeyMigrationStatus{},
+	}
+	t := true
+	resp.WereSuccessfullyMigrated = append(resp.WereSuccessfullyMigrated, &smdbrpc.KeyMigrationStatus{
+		Key:                    req.Keys[0].Key,
+		IsSuccessfullyMigrated: &t,
+	})
+
+	return &resp, nil
+
+}
+
+func ConvertListeningToThermopylaePort (listeningPort int) (int) {
+	return listeningPort + 23798
+}
+
 func (s *Store) startRebalanceHotkeysServer(ctx context.Context) {
-	lis, err := net.Listen("tcp", ":50055")
+	address := s.listeningHost + ":" + strconv.Itoa(ConvertListeningToThermopylaePort(s.listeningPort))
+	lis, err := net.Listen("tcp", address)
 	if err != nil {
 		log.Fatalf(ctx, "jenndebug startRebalanceHotkeysServer failed to listen %+v\n", err)
 	}
 	server := grpc.NewServer()
 	smdbrpc.RegisterHotshardGatewayServer(server, &rebalanceServer{store: s})
-	log.Warningf(ctx, "jenndebug rebalanceHotkeysServer serving\n")
+	log.Warningf(ctx, "jenndebug rebalanceHotkeysServer serving on addr %+v\n", address)
 	if err = server.Serve(lis); err != nil {
 		log.Fatalf(ctx, "jenndebug rebalanceHotkeysServer failed to serve %+v\n", err)
 	}

@@ -570,7 +570,8 @@ func NewServer(cfg Config, stopper *stop.Stopper) (*Server, error) {
 
 	s.node = NewNode(
 		storeCfg, s.recorder, s.registry, s.stopper,
-		txnMetrics, nil /* execCfg */, &s.rpcContext.ClusterID)
+		txnMetrics, nil /* execCfg */, &s.rpcContext.ClusterID, cfg.JoinList,
+		cfg.Addr)
 	roachpb.RegisterInternalServer(s.grpc.Server, s.node)
 	kvserver.RegisterPerReplicaServer(s.grpc.Server, s.node.perReplicaServer)
 	s.node.storeCfg.ClosedTimestamp.RegisterClosedTimestampServer(s.grpc.Server)
