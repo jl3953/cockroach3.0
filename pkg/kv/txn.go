@@ -644,7 +644,6 @@ func (txn *Txn) Commit(ctx context.Context) error {
 	}
 
 	if len(txn.writeHotkeys) > 0 {
-		fmt.Printf("jenndebug do we ever fucking get in here?\n")
 		var ops []*execinfrapb.Op
 		for i := 0; i < len(txn.writeHotkeys); i += 2 {
 			key := txn.writeHotkeys[i]
@@ -683,13 +682,9 @@ func (txn *Txn) Commit(ctx context.Context) error {
 		} else if !*txnResp.IsCommitted {
 			log.Warningf(ctx, "jenndebug cicada write txn didn't commit\n")
 			return txn.GenerateForcedRetryableError(ctx, "jenndebug hotshard retryable err")
-		} else {
-			log.Warningf(ctx, "jenndebug cicada write txn committed\n")
 		}
 
 		txn.ClearWriteHotkeys()
-	} else {
-		log.Warningf(ctx, "jenndebug commit\n")
 	}
 
 	//if succeeded := txn.ContactHotshardHelper(ctx); !succeeded {
@@ -734,7 +729,6 @@ func (txn *Txn) CommitOrCleanup(ctx context.Context) error {
 		return errors.WithContextTags(errors.AssertionFailedf("CommitOrCleanup() called on leaf txn"), ctx)
 	}
 	if len(txn.writeHotkeys) > 0 {
-		fmt.Printf("jenndebug do we ever fucking get in here 2\n")
 		var ops []*execinfrapb.Op
 		for i := 0; i < len(txn.writeHotkeys); i += 2 {
 			key := txn.writeHotkeys[i]

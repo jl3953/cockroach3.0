@@ -421,6 +421,7 @@ type Store struct {
 	crdbServers []string
 	listeningHost string
 	listeningPort int
+	crdbClientWrappers []ConnWrapper
 
 
 	// gossipRangeCountdown and leaseRangeCountdown are countdowns of
@@ -1855,7 +1856,9 @@ func (wrapper *ConnWrapper) Init(ctx context.Context, address string, port int) 
 	// connect to other servers
 	wrapper.address = address
 	wrapper.port = port
-	wrapper.conn, err = grpc.Dial(net.JoinHostPort(address, strconv.Itoa(port)), grpc.WithInsecure())
+	addr := net.JoinHostPort(address, strconv.Itoa(port))
+	log.Warningf(ctx, "jenndebug wrapper dialed addr %+v\n", addr)
+	wrapper.conn, err = grpc.Dial(addr, grpc.WithInsecure())
 	if err != nil {
 		log.Warningf(ctx, "jenndebug wrapper Init() failed on %+v:%+d, %+v\n", address, port, err)
 		return err
@@ -1894,18 +1897,20 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	interval := 5 * time.Second
 
 	// connect to all CRDB servers
-	wrappers := make([]ConnWrapper, len(s.crdbServers))
 	//port := 50055
 	// TODO jenndebug you can parallelize this
-	for i, serv := range s.crdbServers {
-		listeningAddr, listeningPort, _ := net.SplitHostPort(serv)
-		thermopylaePort, _ := strconv.Atoi(listeningPort)
-		if err := wrappers[i].Init(ctx, listeningAddr, ConvertListeningToThermopylaePort(thermopylaePort)); err != nil {
-			log.Fatalf(ctx, "jenndebug could not connect to %s:%d, %+v\n", listeningAddr, thermopylaePort , err)
+	if len(s.crdbServers) != len(s.crdbClientWrappers) {
+		s.crdbClientWrappers = make([]ConnWrapper, len(s.crdbServers))
+		for i, serv := range s.crdbServers {
+			listeningAddr, listeningPort, _ := net.SplitHostPort(serv)
+			thermopylaePort, _ := strconv.Atoi(listeningPort)
+			if err := s.crdbClientWrappers[i].Init(ctx, listeningAddr, ConvertListeningToThermopylaePort(thermopylaePort)); err != nil {
+				log.Fatalf(ctx, "jenndebug could not connect to %s:%d, %+v\n", listeningAddr, thermopylaePort, err)
+			}
+			//defer func(conn *grpc.ClientConn) {
+			//	_ = conn.Close()
+			//}(s.crdbClientWrappers[i].conn)
 		}
-		defer func(conn *grpc.ClientConn) {
-			_ = conn.Close()
-		}(wrappers[i].conn)
 	}
 
 	// connect to Cicada
@@ -1968,8 +1973,8 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			// query the keys from CRDB
 			// TODO jenndebug you can parallelize this
 			var err error
-			crdbResponses := make([]*smdbrpc.CRDBKeyStatsResponse, len(wrappers))
-			for i, wrapper := range wrappers {
+			crdbResponses := make([]*smdbrpc.CRDBKeyStatsResponse, len(s.crdbClientWrappers))
+			for i, wrapper := range s.crdbClientWrappers {
 				crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 				crdbResponses[i], err = wrapper.client.RequestCRDBKeyStats(crdbCtx, &req)
 				if err != nil {
@@ -2012,7 +2017,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 						crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 						defer crdbCancel()
 						// always use yourself to promote keys
-						_, _ = wrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
+						_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
 					//}()
 				}
 			}
@@ -2197,7 +2202,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		if keyValue, err = txn.Get(ctx, roachpb.Key(kvVersion.Key)); err != nil {
 			continue
 		} else {
-			if err = txn.CPut(ctx, roachpb.Key(kvVersion.Key), StripValueToBytes(keyValue.Value), keyValue.Value); err != nil {
+			if err = txn.CPut(ctx, roachpb.Key(kvVersion.Key), []byte("jenndebugoops"), keyValue.Value); err != nil {
 			} else {
 				shouldTryAgain = false
 			}
@@ -2249,21 +2254,25 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 
 	// parallelize this, prob
 	// connect to all CRDB servers
-	wrappers := make([]ConnWrapper, len(rbServer.store.crdbServers[1:]))
-	port := 50055
+	//wrappers := make([]ConnWrapper, len(rbServer.store.crdbServers[1:]))
+	//port := 50055
 	// TODO jenndebug you can parallelize this
-	for i, serv := range rbServer.store.crdbServers[1:] {
-		if err = wrappers[i].Init(ctx, serv, port); err != nil {
-			log.Fatalf(ctx, "jenndebug could not connect to %s:%d, %+v\n", serv, port, err)
-		}
-		defer func(conn *grpc.ClientConn) {
-			_ = conn.Close()
-		}(wrappers[i].conn)
+	for _, wrapper := range rbServer.store.crdbClientWrappers {
+		//if err = wrappers[i].Init(ctx, serv, port); err != nil {
+		//	log.Fatalf(ctx, "jenndebug could not connect to %s:%d, %+v\n", serv, port, err)
+		//}
+		//defer func(conn *grpc.ClientConn) {
+		//	_ = conn.Close()
+		//}(wrappers[i].conn)
 
 
 		crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 		defer crdbCancel()
-		promoResp, promoMapErr := wrappers[i].client.UpdatePromotionMap(crdbCtx, promoteKeysReq)
+		kvVersion.Timestamp = &smdbrpc.HLCTimestamp{
+			Walltime:    &keyValue.Value.Timestamp.WallTime,
+			Logicaltime: &keyValue.Value.Timestamp.Logical,
+		}
+		promoResp, promoMapErr := wrapper.client.UpdatePromotionMap(crdbCtx, promoteKeysReq)
 		if promoMapErr != nil {
 			log.Fatalf(ctx, "jenndebug query to CRDB key stats failed %+v\n", err)
 		} else if !*promoResp.WereSuccessfullyMigrated[0].IsSuccessfullyMigrated {
