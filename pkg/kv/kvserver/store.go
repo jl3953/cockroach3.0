@@ -808,13 +808,15 @@ func NewStore(
 	}
 	listeningHost, listeningPort, _ := net.SplitHostPort(listeningAddr)
 	intPort, _ := strconv.Atoi(listeningPort)
+	crdbServers := []string{listeningAddr}
+	crdbServers = append(crdbServers, joinList...)
 	s := &Store{
 		cfg:      cfg,
 		db:       cfg.DB, // TODO(tschottdorf): remove redundancy.
 		engine:   eng,
 		nodeDesc: nodeDesc,
 		metrics:  newStoreMetrics(cfg.HistogramWindowInterval),
-		crdbServers: joinList,
+		crdbServers: crdbServers,
 		listeningHost: listeningHost,
 		listeningPort: intPort,
 	}
@@ -1893,12 +1895,16 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	// jenndebug
 	time.Sleep(10 * time.Second)
 
+	log.Warningf(ctx, "jenndebug promotion\n")
+	fmt.Printf("jenndebug promotion\n")
+
 	//TODO jenndebug make this an option somehow, or make the function a closure
 	interval := 5 * time.Second
 
 	// connect to all CRDB servers
 	//port := 50055
 	// TODO jenndebug you can parallelize this
+	log.Warningf(ctx, "jenndebug crdbServers %+v\n", s.crdbServers)
 	if len(s.crdbServers) != len(s.crdbClientWrappers) {
 		s.crdbClientWrappers = make([]ConnWrapper, len(s.crdbServers))
 		for i, serv := range s.crdbServers {
@@ -1972,9 +1978,11 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 			// query the keys from CRDB
 			// TODO jenndebug you can parallelize this
+			log.Warningf(ctx, "jenndebug are we even getting here\n")
 			var err error
 			crdbResponses := make([]*smdbrpc.CRDBKeyStatsResponse, len(s.crdbClientWrappers))
 			for i, wrapper := range s.crdbClientWrappers {
+				log.Warningf(ctx, "jenndebug we are not getting here are we\n")
 				crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 				crdbResponses[i], err = wrapper.client.RequestCRDBKeyStats(crdbCtx, &req)
 				if err != nil {
@@ -2003,6 +2011,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			}
 
 			if len(pq) > 0 {
+				log.Warningf(ctx, "jenndebug promoting keys now")
 				for item := heap.Pop(&pq); item.(*Item).value.(KeyStatWrapper).qps > 0; item = heap.Pop(&pq) {
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 					promotionReq := smdbrpc.PromoteKeysReq{
@@ -2020,6 +2029,8 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 						_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
 					//}()
 				}
+			} else {
+				log.Warningf(ctx, "jenndebug promotion map empty")
 			}
 			//
 			//promotionReq := smdbrpc.PromoteKeysReq{Keys: []*smdbrpc.KVVersion{}}
@@ -2167,10 +2178,50 @@ func (pq *PriorityQueue) update(item *Item, value interface{}, priority float64)
 	heap.Fix(pq, item.index)
 }
 
+func (rbServer *rebalanceServer) TestAddKeyToPromotionMap(_ context.Context,
+	testPromotionKeyReq *smdbrpc.TestPromotionKeyReq) (*smdbrpc.TestPromotionKeyResp, error) {
+	keyStr := string(testPromotionKeyReq.Key)
+	cicadaAffiliatedKey := kv.CicadaAffiliatedKey{
+		Key:                testPromotionKeyReq.Key,
+		PromotionTimestamp: hlc.Timestamp{
+			WallTime: *testPromotionKeyReq.PromotionTimestamp.Walltime,
+			Logical:  *testPromotionKeyReq.PromotionTimestamp.Logicaltime,
+		},
+	}
+	rbServer.store.DB().CicadaAffiliatedKeys.Store(keyStr, cicadaAffiliatedKey)
+
+	t := true
+	resp := smdbrpc.TestPromotionKeyResp{IsKeyIn: &t}
+	return &resp, nil
+}
+
+func (rbServer *rebalanceServer) TestIsKeyInPromotionMap (_ context.Context,
+	testPromotionKeyReq *smdbrpc.TestPromotionKeyReq) (*smdbrpc.TestPromotionKeyResp, error) {
+	keyStr := string(testPromotionKeyReq.Key)
+	value, alreadyExists := rbServer.store.DB().CicadaAffiliatedKeys.Load(keyStr)
+	if alreadyExists {
+		cicadaAffiliatedKey := value.(kv.CicadaAffiliatedKey)
+		reqPromotionTs := hlc.Timestamp{
+			WallTime: *testPromotionKeyReq.PromotionTimestamp.Walltime,
+			Logical: *testPromotionKeyReq.PromotionTimestamp.Logicaltime,
+		}
+		if cicadaAffiliatedKey.PromotionTimestamp.Less(reqPromotionTs) {
+			t := true
+			resp := smdbrpc.TestPromotionKeyResp{IsKeyIn: &t}
+			return &resp, nil
+		}
+	}
+
+	f := false
+	resp := smdbrpc.TestPromotionKeyResp{IsKeyIn: &f}
+	return &resp, nil
+}
+
 // PromoteKeys Promote only a single key
 func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	promoteKeysReq *smdbrpc.PromoteKeysReq) (*smdbrpc.PromoteKeysResp, error) {
 
+	// boilerplate
 	ctx := context.Background()
 	kvVersion := promoteKeysReq.Keys[0]
 	resp := smdbrpc.PromoteKeysResp{
@@ -2189,10 +2240,6 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		return &resp, nil
 	}
 
-
-	//rbServer.store.DB().CicadaAffiliatedKeys.Store(k, cicadaKey)
-	//log.Warningf(ctx, "jenndebug we stored key %+v, but haven't managed to promote it\n", k)
-
 	// Lock the key in CRDB.
 	var keyValue kv.KeyValue
 	var err error
@@ -2200,8 +2247,13 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	for shouldTryAgain := true; shouldTryAgain; {
 		txn = kv.NewTxn(context.Background(), rbServer.store.db, rbServer.store.nodeDesc.NodeID)
 		if keyValue, err = txn.Get(ctx, roachpb.Key(kvVersion.Key)); err != nil {
+			// didn't manage to read key, try again
 			continue
+		} else if keyValue.Value == nil {
+			// key doesn't exist, don't promote it
+			return &resp, nil
 		} else {
+			// key exists, lock it
 			if err = txn.CPut(ctx, roachpb.Key(kvVersion.Key), []byte("jenndebugoops"), keyValue.Value); err != nil {
 			} else {
 				shouldTryAgain = false
@@ -2318,6 +2370,7 @@ func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
 		})
 		return true
 	})
+	log.Warningf(ctx, "jenndebug pq.Len() %d\n", pq.Len())
 
 	response := smdbrpc.CRDBKeyStatsResponse{
 		Keystats: make([]*smdbrpc.KeyStat, 0),
@@ -2334,6 +2387,7 @@ func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
 		response.Keystats = append(response.Keystats, &keyStat)
 	}
 
+	log.Warningf(ctx, "jenndebug len(response.keystats) %d\n", len(response.Keystats))
 	return &response, nil
 }
 

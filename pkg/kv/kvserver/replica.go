@@ -509,7 +509,7 @@ type Replica struct {
 	// loadBasedSplitter keeps information about load-based splitting.
 	loadBasedSplitter split.Decider
 
-	keyStats	sync.Map
+	keyStats sync.Map
 
 	unreachablesMu struct {
 		syncutil.Mutex
@@ -1530,10 +1530,10 @@ func init() {
 }
 
 type KeyHotnessStats struct {
-	Key roachpb.Key
+	Key             roachpb.Key
 	LastQPSRollover time.Time
-	Qps float32
-	Count int64
+	Qps             float32
+	Count           int64
 }
 
 /**
@@ -1567,25 +1567,18 @@ func (r *Replica) RecordKey(now time.Time, ba *roachpb.BatchRequest) bool {
 			continue
 		}
 		var key = req.GetInner().Header().Key
-
-		//switch t := req.GetValue().(type) {
-		//default:
-		//	log.Warningf(context.Background(), "jenndebug %+v, req %+v\n", key.String(), t)
-		//}
-
-		mapStr := kv.TableIndexKeyColFamOnly(key.String())
+		writeKey := append(key, byte(136))
+		mapStr := kv.TableIndexKeyColFamOnly(writeKey.String())
 		khsInterface, keyExistsYet := r.keyStats.Load(mapStr)
 		if !keyExistsYet {
-			if req.GetPut() != nil {
-				khs := KeyHotnessStats{
-					Key:             key,
-					LastQPSRollover: timeutil.Now(),
-					Qps:             0,
-					Count:           1,
-				}
-
-				r.keyStats.Store(mapStr, khs)
+			khs := KeyHotnessStats{
+				Key:             writeKey,
+				LastQPSRollover: timeutil.Now(),
+				Qps:             0,
+				Count:           1,
 			}
+
+			r.keyStats.Store(mapStr, khs)
 		} else {
 			khs := khsInterface.(KeyHotnessStats)
 			if keepKeyInMap := khs.recordLockedKey(now); keepKeyInMap {

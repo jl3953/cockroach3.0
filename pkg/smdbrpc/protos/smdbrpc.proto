@@ -68,9 +68,20 @@ service HotshardGateway {
   rpc TriggerDemotionByNums (TriggerDemotionByNumsReq) returns (TriggerDemotionByNumsResp) {}
   rpc TriggerDemotion (TriggerDemotionRequest) returns (TriggerDemotionReply) {}
 
+  rpc TestAddKeyToPromotionMap (TestPromotionKeyReq) returns (TestPromotionKeyResp) {}
+  rpc TestIsKeyInPromotionMap(TestPromotionKeyReq) returns (TestPromotionKeyResp) {}
+
   //rpc RequestCicadaStats (KeyStatsRequest) returns (CicadaStatsResponse) {}
 
+}
 
+message TestPromotionKeyReq {
+  optional bytes key = 1;
+  optional HLCTimestamp promotionTimestamp = 2;
+}
+
+message TestPromotionKeyResp {
+  optional bool isKeyIn = 1;
 }
 
 enum Cmd {
@@ -148,7 +159,7 @@ message KVVersion {
 }
 
 message KeyMigrationReq {
-  optional uint64 key = 1;
+  optional bytes key = 1;
 }
 
 
@@ -168,7 +179,7 @@ message KeyStatsRequest {
 }
 
 message MultiKeyMigrationReq {
-  repeated uint64 keys = 1;
+  repeated bytes keys = 1;
 }
 
 message MultiKeyMigrationStatus {
