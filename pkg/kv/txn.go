@@ -1143,17 +1143,19 @@ func (txn *Txn) Send(
 		defer cicadaCancel()
 		txnResp, err := c.SendTxn(cicadaCtx, &txnReq)
 		if err != nil {
-			log.Warningf(ctx, "jenndebug cicada read couldn't send txnReq %+v\n", err)
-			return nil, &roachpb.Error{
-				Message:            "sendTxn failed",
-				TransactionRestart: roachpb.TransactionRestart_IMMEDIATE,
-			}
+			errMsg := "cicada read could not send txnReq"
+			log.Fatalf(ctx, "jenndebug errMsg %s err %+v\n", errMsg, err)
 		} else if !*txnResp.IsCommitted {
-			log.Warningf(ctx, "jenndebug cicada read txn didn't commit\n")
-			return nil, &roachpb.Error{
-				Message:            "cicada txn didn't commit",
-				TransactionRestart: roachpb.TransactionRestart_IMMEDIATE,
-			}
+			errMsg := "cicada read txn did not commit"
+			log.Warningf(ctx, "jenndebug errMsg %s\n", errMsg)
+			retryableErr := txn.GenerateForcedRetryableError(ctx, errMsg)
+			transaction := roachpb.MakeTransaction(
+				txn.DebugName(),
+				nil,
+				txn.mu.userPriority,
+				txn.db.clock.Now(),
+				txn.db.clock.MaxOffset().Nanoseconds())
+			return nil, roachpb.NewErrorWithTxn(retryableErr, &transaction)
 		}
 
 		// populate responses from Cicada
@@ -1175,7 +1177,7 @@ func (txn *Txn) Send(
 		Responses:            make([]roachpb.ResponseUnion, len(isInCicada)),
 	}
 	crdbCounter, cicadaCounter := 0, 0
-	for i, isIn := range isInCicada{
+	for i, isIn := range isInCicada {
 		if !isIn {
 			// the response comes from CRDB
 			br.Responses[i] = brCRDB.Responses[crdbCounter]
@@ -1370,6 +1372,7 @@ func (txn *Txn) UpdateStateOnRemoteRetryableErr(ctx context.Context, pErr *roach
 	// Note that in case of TransactionAbortedError, pErr.GetTxn() returns the
 	// original transaction; a new transaction has not been created yet.
 	origTxnID := pErr.GetTxn().ID
+	log.Warningf(ctx, "jenndebug pErr %+v\n", pErr)
 	if origTxnID != txn.mu.ID {
 		return errors.Errorf("retryable error for an older version of txn (current: %s), err: %s",
 			txn.mu.ID, pErr)
@@ -1728,6 +1731,7 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 		return readResults, true
 	}
 }
+
 //
 //func (txn *Txn) GetWriteHotkeys() [][]byte {
 //	if len(txn.writeHotkeys) > 0 {
