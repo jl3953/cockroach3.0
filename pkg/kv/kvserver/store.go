@@ -2248,18 +2248,34 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		txn = kv.NewTxn(context.Background(), rbServer.store.db, rbServer.store.nodeDesc.NodeID)
 		if keyValue, err = txn.Get(ctx, roachpb.Key(kvVersion.Key)); err != nil {
 			// didn't manage to read key, try again
+			if err = txn.Rollback(ctx); err != nil {
+				log.Fatalf(ctx, "jenndebug cannot rollback failed txn %+v\n", err)
+			}
 			continue
 		} else if keyValue.Value == nil {
 			// key doesn't exist, don't promote it
+			if err = txn.Rollback(ctx); err != nil {
+				log.Fatalf(ctx, "jenndebug cannot rollback failed txn promoting non-existent val %+v\n", err)
+			}
 			return &resp, nil
 		} else {
 			// key exists, lock it
-			if err = txn.CPut(ctx, roachpb.Key(kvVersion.Key), []byte("jenndebugoops"), keyValue.Value); err != nil {
+			err = txn.CPut(ctx, roachpb.Key(kvVersion.Key), []byte("jenndebugoops"), keyValue.Value)
+			if err != nil {
+				if err = txn.Rollback(ctx); err != nil {
+					log.Fatalf(ctx, "jenndebug cannot rollback failed txn cput failed %+v\n", err)
+				}
 			} else {
 				shouldTryAgain = false
 			}
 		}
 	}
+
+	defer func(ctx context.Context) {
+		if rollbackErr := txn.Rollback(ctx); rollbackErr != nil {
+			log.Fatalf(ctx, "jenndebug rolling back of txn failed %+v\n", rollbackErr)
+		}
+	}(ctx)
 
 	//// now that key is locked, start sending over Cicada
 	clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
@@ -2286,11 +2302,29 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		},
 		IsPromotion: &tr,
 	}
-	txnResp, promoErr := c.SendTxn(ctx, &txnReq)
-	if promoErr != nil {
-		log.Warningf(ctx, "jenndebug promoting keys to Cicada didn't work %+v\n", promoErr)
+	txnResp, sendErr := c.SendTxn(ctx, &txnReq)
+	if sendErr != nil {
+		log.Errorf(ctx, "jenndebug promoting keys to Cicada didn't work %+v\n", sendErr)
+		f := false
+		for _, key := range promoteKeysReq.Keys {
+			resp.WereSuccessfullyMigrated = append(resp.WereSuccessfullyMigrated,
+				&smdbrpc.KeyMigrationStatus{
+					Key:                    key.Key,
+					IsSuccessfullyMigrated: &f,
+				})
+		}
+		return &resp, nil
 	} else if !*txnResp.IsCommitted{
-		log.Warningf(ctx, "jenndebug txnResp did not commit")
+		log.Warningf(ctx, "jenndebug promotion failed to commit")
+		f := false
+		for _, key := range promoteKeysReq.Keys {
+			resp.WereSuccessfullyMigrated = append(resp.WereSuccessfullyMigrated,
+				&smdbrpc.KeyMigrationStatus{
+					Key:                    key.Key,
+					IsSuccessfullyMigrated: &f,
+				})
+		}
+		return &resp, nil
 	}
 
 	// store in the promotion map
@@ -2306,19 +2340,9 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	cicadaKey.CanRead = true
 	rbServer.store.DB().CicadaAffiliatedKeys.Store(roachpb.Key(kvVersion.Key).String(), cicadaKey)
 
-	// parallelize this, prob
 	// connect to all CRDB servers
-	//wrappers := make([]ConnWrapper, len(rbServer.store.crdbServers[1:]))
-	//port := 50055
 	// TODO jenndebug you can parallelize this
 	for _, wrapper := range rbServer.store.crdbClientWrappers {
-		//if err = wrappers[i].Init(ctx, serv, port); err != nil {
-		//	log.Fatalf(ctx, "jenndebug could not connect to %s:%d, %+v\n", serv, port, err)
-		//}
-		//defer func(conn *grpc.ClientConn) {
-		//	_ = conn.Close()
-		//}(wrappers[i].conn)
-
 
 		crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 		defer crdbCancel()
@@ -2334,10 +2358,9 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		}
 	}
 
-
 	// unlock the keys in CRDB and allow other transactions in
 	if err = txn.Rollback(ctx); err != nil {
-		log.Warningf(ctx, "jenndebug txn rolled back %+v\n", err)
+		log.Fatalf(ctx, "jenndebug txn could not be rolled back %+v\n", err)
 	}
 
 	// respond to the call
@@ -2348,7 +2371,6 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 				IsSuccessfullyMigrated: &t,
 			})
 	}
-
 	return &resp, nil
 }
 
