@@ -102,6 +102,7 @@ message Op {
 message TxnReq {
   repeated Op ops = 1;
   optional HLCTimestamp timestamp = 2;
+  optional bool is_promotion = 3;
 }
 
 message TxnResp {

@@ -1567,7 +1567,10 @@ func (r *Replica) RecordKey(now time.Time, ba *roachpb.BatchRequest) bool {
 			continue
 		}
 		var key = req.GetInner().Header().Key
-		writeKey := append(key, byte(136))
+		writeKey := key
+		if key[len(key)-1] != byte(136) {
+			writeKey = append(writeKey, byte(136))
+		}
 		mapStr := kv.TableIndexKeyColFamOnly(writeKey.String())
 		khsInterface, keyExistsYet := r.keyStats.Load(mapStr)
 		if !keyExistsYet {

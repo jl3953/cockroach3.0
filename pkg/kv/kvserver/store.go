@@ -2277,12 +2277,14 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		Key:     kvVersion.Key,
 		Value:   keyValue.Value.RawBytes,
 	}
+	tr := true
 	txnReq := smdbrpc.TxnReq{
 		Ops: []*smdbrpc.Op{&op},
 		Timestamp: &smdbrpc.HLCTimestamp{
 			Walltime:    &keyValue.Value.Timestamp.WallTime,
 			Logicaltime: &keyValue.Value.Timestamp.Logical,
 		},
+		IsPromotion: &tr,
 	}
 	txnResp, promoErr := c.SendTxn(ctx, &txnReq)
 	if promoErr != nil {
