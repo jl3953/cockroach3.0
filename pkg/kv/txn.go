@@ -1071,7 +1071,7 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 	return true, nil
 }
 
-func (txn *Txn) constructInjectedRetryError (ctx context.Context, errMsg string) *roachpb.Error {
+func (txn *Txn) constructInjectedRetryError(ctx context.Context, errMsg string) *roachpb.Error {
 	log.Warningf(ctx, "errMsg %s\n", errMsg)
 	retryableErr := txn.GenerateForcedRetryableError(ctx, errMsg)
 	transaction := roachpb.MakeTransaction(
@@ -1170,8 +1170,16 @@ func mergeCRDBCicadaResponses(ctx context.Context,
 	for i, promotedToCicada := range isInCicada {
 		if promotedToCicada {
 			if scanReq := originalRequests[i].GetScan(); scanReq != nil {
+				if brCicada == nil {
+					log.Fatalf(ctx, "jenndebug nil but we expected a response from Cicada\n")
+				}
 				br.Responses[i] = brCicada.Responses[cicadaCounter]
+				//br.Responses[i] = brCRDB.Responses[crdbCounter]
+				//log.Warningf(ctx, "jenndebug compare brCRDB %+v, brCicada %+v\n",
+				//	brCRDB.Responses[crdbCounter].GetScan().BatchResponses, brCicada.Responses[cicadaCounter].GetScan().BatchResponses)
 				cicadaCounter++
+				//crdbCounter++
+
 			} else if putReq := originalRequests[i].GetPut(); putReq != nil {
 				br.Responses[i].Value = &roachpb.ResponseUnion_Put{
 					Put: &roachpb.PutResponse{},
@@ -1189,6 +1197,9 @@ func mergeCRDBCicadaResponses(ctx context.Context,
 				}
 			}
 		} else {
+			if brCRDB == nil {
+				log.Fatalf(ctx, "jenndebug nil from CRDB response\n")
+			}
 			br.Responses[i] = brCRDB.Responses[crdbCounter]
 			crdbCounter++
 		}
@@ -1215,10 +1226,10 @@ func (txn *Txn) Send(
 
 	// "accounting" variables
 	originalRequests := make([]roachpb.RequestUnion, len(ba.Requests))
-	copy(originalRequests, ba.Requests) // copy of the original batchRequests
+	copy(originalRequests, ba.Requests)                 // copy of the original batchRequests
 	warmKeysRequests := make([]roachpb.RequestUnion, 0) // to be sent to CRDB
-	isInCicada := make([]bool, len(originalRequests)) // which of the requests is in Cicada
-	var ops []*execinfrapb.Op // batchRequests (reads) to be sent to Cicada
+	isInCicada := make([]bool, len(originalRequests))   // which of the requests is in Cicada
+	var ops []*execinfrapb.Op                           // batchRequests (reads) to be sent to Cicada
 
 	for i, req := range originalRequests {
 		// by default, non-Cicada requests go through CRDB
@@ -1245,16 +1256,15 @@ func (txn *Txn) Send(
 				key, txn.ProvisionalCommitTimestamp()); isPromoted {
 
 				// remove from default CRDB path
-				if req.GetPut() != nil || req.GetScan() != nil {
+				if putReq := req.GetPut(); putReq != nil {
 					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
 					isInCicada[i] = true
-
-					if putReq := req.GetPut(); putReq != nil {
-						txn.AddWriteHotkeys([][]byte{cicadaAffiliatedKey.Key, putReq.Value.RawBytes})
-					} else if scanReq := req.GetScan(); scanReq != nil {
-						op := constructCicadaReadOp(cicadaAffiliatedKey)
-						ops = append(ops, &op)
-					}
+					txn.AddWriteHotkeys([][]byte{cicadaAffiliatedKey.Key, putReq.Value.RawBytes})
+				} else if scanReq := req.GetScan(); scanReq != nil {
+					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
+					isInCicada[i] = true
+					op := constructCicadaReadOp(cicadaAffiliatedKey)
+					ops = append(ops, &op)
 				}
 			}
 		}
@@ -1295,11 +1305,11 @@ func (txn *Txn) Send(
 	}
 
 	//if there are Cicada read requests to be sent, send them.
-	var brCicada *roachpb.BatchResponse
-	brCicada = &roachpb.BatchResponse{
-		Responses: make([]roachpb.ResponseUnion, len(ops)),
-	}
+	var brCicada *roachpb.BatchResponse = nil
 	if len(ops) > 0 {
+		brCicada = &roachpb.BatchResponse{
+			Responses: make([]roachpb.ResponseUnion, len(ops)),
+		}
 		didReadsSucceed, sendErr := txn.readsCicada(ctx, ops, brCicada)
 		if sendErr != nil {
 			log.Errorf(ctx, "jenndebug cicada reads never went through\n")
@@ -1310,7 +1320,8 @@ func (txn *Txn) Send(
 	}
 
 	// merge responses from CRDB and Cicada
-	br := &roachpb.BatchResponse{
+	var br *roachpb.BatchResponse = nil
+	br = &roachpb.BatchResponse{
 		BatchResponse_Header: roachpb.BatchResponse_Header{},
 		Responses:            make([]roachpb.ResponseUnion, len(isInCicada)),
 	}
@@ -1319,10 +1330,8 @@ func (txn *Txn) Send(
 	}
 	mergeCRDBCicadaResponses(ctx, isInCicada, originalRequests, brCRDB, brCicada, br)
 
-	return br, nil
+	return br, pErr
 }
-
-
 
 func reconstructValue(key []byte, value []byte, walltime int64, logicaltime int32) [][]byte {
 	VAL_LEN_MARKER := 4
