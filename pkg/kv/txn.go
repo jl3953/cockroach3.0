@@ -1245,14 +1245,16 @@ func (txn *Txn) Send(
 				key, txn.ProvisionalCommitTimestamp()); isPromoted {
 
 				// remove from default CRDB path
-				warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
-				isInCicada[i] = true
+				if req.GetPut() != nil || req.GetScan() != nil {
+					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
+					isInCicada[i] = true
 
-				if putReq := req.GetPut(); putReq != nil {
-					txn.AddWriteHotkeys([][]byte{cicadaAffiliatedKey.Key, putReq.Value.RawBytes})
-				} else if scanReq := req.GetScan(); scanReq != nil {
-					op := constructCicadaReadOp(cicadaAffiliatedKey)
-					ops = append(ops, &op)
+					if putReq := req.GetPut(); putReq != nil {
+						txn.AddWriteHotkeys([][]byte{cicadaAffiliatedKey.Key, putReq.Value.RawBytes})
+					} else if scanReq := req.GetScan(); scanReq != nil {
+						op := constructCicadaReadOp(cicadaAffiliatedKey)
+						ops = append(ops, &op)
+					}
 				}
 			}
 		}

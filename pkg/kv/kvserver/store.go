@@ -1978,11 +1978,9 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 			// query the keys from CRDB
 			// TODO jenndebug you can parallelize this
-			log.Warningf(ctx, "jenndebug are we even getting here\n")
 			var err error
 			crdbResponses := make([]*smdbrpc.CRDBKeyStatsResponse, len(s.crdbClientWrappers))
 			for i, wrapper := range s.crdbClientWrappers {
-				log.Warningf(ctx, "jenndebug we are not getting here are we\n")
 				crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 				crdbResponses[i], err = wrapper.client.RequestCRDBKeyStats(crdbCtx, &req)
 				if err != nil {
@@ -2276,6 +2274,15 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			log.Fatalf(ctx, "jenndebug rolling back of txn failed %+v\n", rollbackErr)
 		}
 	}(ctx)
+
+	if _, valExists := rbServer.store.DB().CicadaAffiliatedKeys.Load(k); valExists {
+		resp.WereSuccessfullyMigrated = append(resp.WereSuccessfullyMigrated, &smdbrpc.KeyMigrationStatus{
+			Key:                    kvVersion.Key,
+			IsSuccessfullyMigrated: &t,
+		})
+
+		return &resp, nil
+	}
 
 	//// now that key is locked, start sending over Cicada
 	clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
