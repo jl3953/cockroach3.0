@@ -1450,8 +1450,8 @@ func ReadStoreIdent(ctx context.Context, eng storage.Engine) (roachpb.StoreIdent
 func (rbServer *rebalanceServer) TestSendTxn(ctx context.Context,
 	request *smdbrpc.CRDBTxnReq) (*smdbrpc.CRDBTxnResp, error) {
 
-	resp := smdbrpc.CRDBTxnResp {
-		Responses:   []*smdbrpc.KVPair{},
+	resp := smdbrpc.CRDBTxnResp{
+		Responses: []*smdbrpc.KVPair{},
 	}
 
 	succeeded := false
@@ -1484,9 +1484,9 @@ func (rbServer *rebalanceServer) TestSendTxn(ctx context.Context,
 					break
 				}
 			} else if *op.Cmd == smdbrpc.Cmd_GET {
-				kvpair := smdbrpc.KVPair {
-					Key:         key,
-					Value:			 nil,
+				kvpair := smdbrpc.KVPair{
+					Key:   key,
+					Value: nil,
 				}
 				if keyValue, err := txn.Get(ctx, key); err != nil {
 					log.Warningf(ctx, "jenndebug TestSendTxn get failed, err %+v\n",
@@ -1510,7 +1510,7 @@ func (rbServer *rebalanceServer) TestSendTxn(ctx context.Context,
 			}
 
 			shouldReloop = false
-		} // all ops have completed
+		}                 // all ops have completed
 		if shouldReloop { // exclusively for the for loop of operations
 			continue
 		}
@@ -1527,7 +1527,6 @@ func (rbServer *rebalanceServer) TestSendTxn(ctx context.Context,
 
 		succeeded = true
 	}
-
 
 	resp.IsCommitted = &succeeded
 	return &resp, nil
@@ -1592,7 +1591,9 @@ func (rbServer *rebalanceServer) DemoteKey(ctx context.Context,
 		demotionSucceededYet = true
 	}
 
-	resp := smdbrpc.KeyMigrationResp{IsSuccessfullyMigrated: &demotionSucceededYet}
+	resp := smdbrpc.KeyMigrationResp{
+		IsSuccessfullyMigrated: &demotionSucceededYet,
+	}
 	return &resp, nil
 }
 
@@ -2048,7 +2049,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	fmt.Printf("jenndebug promotion\n")
 
 	//TODO jenndebug make this an option somehow, or make the function a closure
-	interval := 5 * time.Second
+	interval := 10 * time.Second
 
 	// connect to all CRDB servers
 	//port := 50055
@@ -2077,14 +2078,6 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 		_ = conn.Close()
 	}(cicadaWrapper.conn)
 
-	//crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-	//defer crdbCancel()
-
-	// TODO jenndebug you need to figure out the Cicada version too
-
-	//cicadaCtx, cicadaCancel := context.WithTimeout(ctx, time.Second)
-	//defer cicadaCancel()
-
 	timerChan := time.After(interval)
 
 	for {
@@ -2093,39 +2086,50 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			return
 
 		case <-timerChan:
-			// Connect to CRDB severs and ask about the key's numbers
+
+			// reset timer
+			timerChan = time.After(interval)
+
+			// query for stats from Cicada
+			cicadaCtx, cicadaCancel := context.WithTimeout(ctx, 3 * time.Second)
+			defer cicadaCancel()
+			cpuTarget, cpuCeiling, cpuFloor := 0.7, 0.8, 0.5
+			memTarget, memCeiling, memFloor := 0.7, 0.8, 0.5
+			percentileN := 0.25
+			walltime, logicaltime := time.Now().UnixNano(), int32(0)
+			calculateCicadaReq := smdbrpc.CalculateCicadaReq{
+				CpuTarget:   &cpuTarget,
+				CpuCeiling:  &cpuCeiling,
+				CpuFloor:    &cpuFloor,
+				MemTarget:   &memTarget,
+				MemCeiling:  &memCeiling,
+				MemFloor:    &memFloor,
+				PercentileN: &percentileN,
+				Timestamp: &smdbrpc.HLCTimestamp{
+					Walltime:    &walltime,
+					Logicaltime: &logicaltime,
+				},
+			}
+			calculateCicadaResp, calculateCicadaErr := cicadaWrapper.client.CalculateCicadaStats(cicadaCtx, &calculateCicadaReq)
+			if calculateCicadaErr != nil {
+				log.Errorf(ctx, "jenndebug calculateCicadaStats err %+v\n", calculateCicadaErr)
+				continue
+			}
+
+			log.Warningf(ctx, "jenndebug cicadaResp.demotion_only %t, qps %d, numkeys %d, nth_qps %f",
+				*calculateCicadaResp.DemotionOnly,
+				*calculateCicadaResp.QpsAvailForPromotion, *calculateCicadaResp.NumKeysAvailForPromotion,
+				*calculateCicadaResp.QpsAtNthPercentile)
+
+			// if demotion only, this method is done, just keep going
+			if *calculateCicadaResp.DemotionOnly {
+				log.Warningf(ctx, "jenndebug demotion only")
+				continue
+			}
+
+			// Connect to CRDB severs and query keys from CRDB
 			t := true
 			req := smdbrpc.KeyStatsRequest{Placeholder: &t}
-
-			// Connect to Cicada servers
-			//cicadaCtx, cicadaCancel := context.WithTimeout(ctx, time.Second)
-			//cicadaStatsResponse, err := cicadaWrapper.client.RequestCicadaStats(cicadaCtx, &req)
-			//if err != nil {
-			//	log.Fatalf(ctx, "jenndebug query to Cicada key status failed %+v\n", err)
-			//}
-			//defer cicadaCancel()
-
-			// check if cicada is bottlenecked by cpu or ram
-			//qpsSum := sumAllKeysQps(cicadaStatsResponse.Keystats)
-			//memPerKey := float64(len(cicadaStatsResponse.Keystats)) * 1.33
-			//qpsPerCPUPercent := float64(*cicadaStatsResponse.Cpuusageprogram) / float64(qpsSum)
-			//if qpsInExcess, numKeysToDemote := calculateAnyCicadaBottlenecks(
-			//	qpsPerCPUPercent,
-			//	memPerKey,
-			//	float64(*cicadaStatsResponse.Cpuusage),
-			//	float64(*cicadaStatsResponse.Memusage));
-			//qpsInExcess > 0 || numKeysToDemote > 0 {
-			//	demoteClient := smdbrpc.NewDemoteHotkeysGatewayClient(cicadaWrapper.conn)
-			//	if _, err := demoteClient.DemoteByNums(cicadaCtx, &smdbrpc.NumKeysToDemote{
-			//		QpsInExcess:     &qpsInExcess,
-			//		NumKeysToDemote: &numKeysToDemote,
-			//	}); err != nil {
-			//		log.Fatalf(ctx, "jenndebug can't demote by nums %+v\n", err)
-			//	}
-			//	continue
-			//}
-
-			// query the keys from CRDB
 			// TODO jenndebug you can parallelize this
 			var err error
 			crdbResponses := make([]*smdbrpc.CRDBKeyStatsResponse, len(s.crdbClientWrappers))
@@ -2147,7 +2151,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				for _, keyStat := range resp.Keystats {
 					item := &Item{
 						value: KeyStatWrapper{
-							key:           keyStat.Key, // TODO jenndebug fix this, this needs to be the actual key
+							key:           keyStat.Key,
 							qps:           *keyStat.Qps,
 							isKeyOnCicada: false,
 						},
@@ -2157,121 +2161,84 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				}
 			}
 
-			if len(pq) > 0 {
-				log.Warningf(ctx, "jenndebug promoting keys now")
-				for item := heap.Pop(&pq); item.(*Item).value.(KeyStatWrapper).qps > 0; item = heap.Pop(&pq) {
+			// if there are no keys in CRDB, continue
+			if len(pq) <= 0 {
+				log.Warningf(ctx, "jenndebug len(pq) %d, no keys in CRDB to promote\n", len(pq))
+				continue
+			}
+
+			// if promotion only
+			if *calculateCicadaResp.QpsAvailForPromotion > 0 &&
+				*calculateCicadaResp.NumKeysAvailForPromotion > 0 {
+
+				qps_avail_for_promo := *calculateCicadaResp.QpsAvailForPromotion
+				num_keys_avail_for_promo := *calculateCicadaResp.NumKeysAvailForPromotion
+				log.Warningf(ctx, "jenndebug promotion only qps %d, numKeys %d\n",
+					qps_avail_for_promo, num_keys_avail_for_promo)
+				for len(pq) > 0 && qps_avail_for_promo > 0 && num_keys_avail_for_promo > 0 {
+
+					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
-					promotionReq := smdbrpc.PromoteKeysReq{
-						Keys: []*smdbrpc.KVVersion{
-							{
-								Key: keyStatWrapper.key,
+
+					// promote keys in parallel
+					log.Warningf(ctx, "jenndebug promote key %+v, qps %f\n",
+						keyStatWrapper.key, keyStatWrapper.qps)
+					go func(crdbKey []byte) {
+						promotionReq := smdbrpc.PromoteKeysReq{
+							Keys: []*smdbrpc.KVVersion{
+								{Key: crdbKey},
 							},
-						},
+						}
+						crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+						defer crdbCancel()
+						_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
+					}(keyStatWrapper.key)
+				}
+				continue
+			} else {
+				// reorg hotkeys
+				log.Warningf(ctx, "jenndebug reorg hotkeys\n")
+				qps_from_promoted_keys, num_keys_promoted := 0, 0
+				shouldLoopAgain := true
+				for shouldLoopAgain {
+					if len(pq) <= 0 {
+						shouldLoopAgain = false
+						continue
 					}
 
-					//go func () {
-					crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-					defer crdbCancel()
-					// always use yourself to promote keys
-					_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
-					//}()
+					item := heap.Pop(&pq)
+					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
+					if keyStatWrapper.qps <= *calculateCicadaResp.QpsAtNthPercentile {
+						shouldLoopAgain = false
+						continue
+					}
+
+					// promote keys in parallel
+					log.Warningf(ctx, "jenndebug reorg promote key %+v, qps %f\n",
+						keyStatWrapper.key, keyStatWrapper.qps)
+					go func(crdbKey []byte) {
+						promotionReq := smdbrpc.PromoteKeysReq{
+							Keys: []*smdbrpc.KVVersion{
+								{Key: crdbKey},
+							},
+						}
+						crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+						defer crdbCancel()
+						_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
+					}(keyStatWrapper.key)
+
+					qps_from_promoted_keys += int(keyStatWrapper.qps)
+					num_keys_promoted++
 				}
-			} else {
-				log.Warningf(ctx, "jenndebug promotion map empty")
+
+				// TODO jenndebug trigger demotion by nums
+				log.Warningf(ctx, "jenndebug reorg demote qps_from_promoted %d, num_keys_promoted %d\n",
+					qps_from_promoted_keys, num_keys_promoted)
+
+
+				continue
 			}
-			//
-			//promotionReq := smdbrpc.PromoteKeysReq{Keys: []*smdbrpc.KVVersion{}}
-			//if len(pq) > 0 {
-			//	item := heap.Pop(&pq)
-			//	for ; item.(*Item).value.(KeyStatWrapper).qps > 0; item = heap.Pop(&pq) {
-			//		keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
-			//		promotionReq.Keys = append(promotionReq.Keys, &smdbrpc.KVVersion{
-			//			Key: keyStatWrapper.key,
-			//		})
-			//	}
-			//
-			//	// we don't really care if the keys make it to the other side or not
-			//	//go func () {
-			//	if len(promotionReq.Keys) > 0 {
-			//		crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-			//		defer crdbCancel()
-			//		_, _ = wrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
-			//	}
-			//	//} ()
-			//}
-
-			// check if cicada has excess resources
-			//cpuExcess := 65 - *cicadaStatsResponse.Cpuusage
-			//memExcess := 65 - *cicadaStatsResponse.Memusage
-			//if cpuExcess > 0 && memExcess > 0 {
-			//
-			//	// calculate how many more keys we can handle for CPU
-			//	promotionsFromQPS := make([]roachpb.Key, 0)
-			//	cpuExcess = 75 - *cicadaStatsResponse.Cpuusage
-			//	qpsAvailable := int(float64(cpuExcess) * qpsPerCPUPercent)
-			//	for qpsAvailable > 0 {
-			//		item := heap.Pop(&pq)
-			//		keyStatWrapper := item.(Item).value.(KeyStatWrapper)
-			//		promotionsFromQPS = append(promotionsFromQPS, keyStatWrapper.key)
-			//		qpsAvailable = qpsAvailable - int(keyStatWrapper.qps)
-			//	}
-			//
-			//	// calculate how many more keys we can handle for memory
-			//	promotionsFromMem := make([]roachpb.Key, 0)
-			//	memExcess = 75 - *cicadaStatsResponse.Memusage
-			//	memAvailable := float64(memExcess)
-			//	for memAvailable > 0 {
-			//		item := heap.Pop(&pq)
-			//		keyStatWrapper := item.(Item).value.(KeyStatWrapper)
-			//		promotionsFromMem = append(promotionsFromMem, keyStatWrapper.key)
-			//		memAvailable = memAvailable - memPerKey
-			//	}
-			//
-			//	if len(promotionsFromQPS) > len(promotionsFromMem) {
-			//		// TODO jenndebug promote from qps list
-			//	} else {
-			//		// TODO jenndebug promote from mem list
-			//	}
-			//	continue
-			//}
-
-			// see which keys to replace
-			//promotions := make([]roachpb.Key, 0)
-			//cicadaKeys := make(map[uint64]bool, 0)
-			//qpsAvailable := qpsSum
-			//numKeysAvailable := len(cicadaStatsResponse.Keystats)
-			//for _, keyStat := range cicadaStatsResponse.Keystats {
-			//	cicadaKeys[*keyStat.Key] = true
-			//	heap.Push(&pq, &Item{
-			//		value: KeyStatWrapper{
-			//			key:           roachpb.Key(keyStat.String()), // TODO jenndebug change this
-			//			qps:           *keyStat.Qps,
-			//			isKeyOnCicada: true,
-			//		},
-			//	})
-			//}
-
-			//for qpsAvailable > 0 && numKeysAvailable > 0 {
-			//	item := heap.Pop(&pq)
-			//	keyStatWrapper := item.(Item).value.(KeyStatWrapper)
-			//	qpsAvailable = qpsAvailable - int(keyStatWrapper.qps)
-			//	numKeysAvailable -= 1
-			//	if keyStatWrapper.isKeyOnCicada {
-			//		delete(cicadaKeys, 1994214) // TODO jenndebug should be keyStatWrapper
-			//	} else {
-			//		promotions = append(promotions, keyStatWrapper.key)
-			//	}
-			//}
-
-			// TODO jenndebug
-			// call demote on keys that need to be demoted
-
-			// TODO jenndebug how do you reset the timer so that it keeps going?
-			timerChan = time.After(interval)
-
 		}
-
-		// TODO jenndebug you have to have the store start this thing
 	}
 }
 
