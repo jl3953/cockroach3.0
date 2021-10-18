@@ -1510,7 +1510,7 @@ func (rbServer *rebalanceServer) TestSendTxn(ctx context.Context,
 			}
 
 			shouldReloop = false
-		}                 // all ops have completed
+		} // all ops have completed
 		if shouldReloop { // exclusively for the for loop of operations
 			continue
 		}
@@ -1540,7 +1540,7 @@ func (rbServer *rebalanceServer) DemoteKey(ctx context.Context,
 	value := roachpb.Value{
 		RawBytes: request.Value,
 	}
-	if *request.IsTest {
+	if request.IsTest != nil && *request.IsTest {
 		value = roachpb.MakeValueFromBytes(request.Value)
 	}
 
@@ -2091,10 +2091,10 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			timerChan = time.After(interval)
 
 			// query for stats from Cicada
-			cicadaCtx, cicadaCancel := context.WithTimeout(ctx, 3 * time.Second)
+			cicadaCtx, cicadaCancel := context.WithTimeout(ctx, 3*time.Second)
 			defer cicadaCancel()
 			cpuTarget, cpuCeiling, cpuFloor := 0.7, 0.8, 0.5
-			memTarget, memCeiling, memFloor := 0.7, 0.8, 0.5
+			memTarget, memCeiling, memFloor := 1.0, 1.0, 1.0
 			percentileN := 0.25
 			walltime, logicaltime := time.Now().UnixNano(), int32(0)
 			calculateCicadaReq := smdbrpc.CalculateCicadaReq{
@@ -2234,7 +2234,22 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				// TODO jenndebug trigger demotion by nums
 				log.Warningf(ctx, "jenndebug reorg demote qps_from_promoted %d, num_keys_promoted %d\n",
 					qps_from_promoted_keys, num_keys_promoted)
-
+				go func(qpsInExcess, numKeysInExcess uint64) {
+					walltime, logicaltime = time.Now().UnixNano(), 0
+					f := false
+					triggerDemotionByNumsReq := smdbrpc.TriggerDemotionByNumsReq{
+						QpsInExcess:     &qpsInExcess,
+						NumKeysInExcess: &numKeysInExcess,
+						DemotionTimestamp: &smdbrpc.HLCTimestamp{
+							Walltime:    &walltime,
+							Logicaltime: &logicaltime,
+						},
+						IsTest: &f,
+					}
+					if _, demotionErr := cicadaWrapper.client.TriggerDemotionByNums(ctx, &triggerDemotionByNumsReq); demotionErr != nil {
+						log.Fatalf(ctx, "jenndebug demotionByNums err %+v\n", demotionErr)
+					}
+				}(uint64(qps_from_promoted_keys), uint64(num_keys_promoted))
 
 				continue
 			}

@@ -213,10 +213,14 @@ message MultiKeyMigrationResp {
 message TriggerDemotionByNumsReq {
   optional uint64 qps_in_excess = 1;
   optional uint64 num_keys_in_excess = 2;
+  optional HLCTimestamp demotion_timestamp = 3;
+  optional bool isTest = 4;
 }
 
 message TriggerDemotionByNumsResp {
   optional bool were_demotions_triggered = 1;
+  optional uint64 qps_demoted = 2;
+  optional uint64 num_keys_demoted = 3;
 }
 
 message TriggerDemotionRequest {
