@@ -2116,10 +2116,18 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				continue
 			}
 
-			log.Warningf(ctx, "jenndebug cicadaResp.demotion_only %t, qps %d, numkeys %d, nth_qps %f",
-				*calculateCicadaResp.DemotionOnly,
-				*calculateCicadaResp.QpsAvailForPromotion, *calculateCicadaResp.NumKeysAvailForPromotion,
-				*calculateCicadaResp.QpsAtNthPercentile)
+			if demotionOnly := calculateCicadaResp.DemotionOnly; demotionOnly != nil {
+				log.Warningf(ctx, "jenndebug cicadaResp.demotion_only %t\n", *demotionOnly)
+			}
+			if qps_avail_promo := calculateCicadaResp.QpsAvailForPromotion; qps_avail_promo != nil {
+				log.Warningf(ctx, "jenndebug cicadaResp.qps_avail %d\n", *qps_avail_promo)
+			}
+			if num_keys := calculateCicadaResp.NumKeysAvailForPromotion; num_keys != nil {
+				log.Warningf(ctx, "jenndebug cicadaResp.num_keys %d\n", *num_keys)
+			}
+			if nth_percentile_qps := calculateCicadaResp.QpsAtNthPercentile; nth_percentile_qps != nil {
+				log.Warningf(ctx, "jenndebug cicadaResp.nth_percentile_qps %f\n", *nth_percentile_qps)
+			}
 
 			// if demotion only, this method is done, just keep going
 			if *calculateCicadaResp.DemotionOnly {
@@ -2171,11 +2179,12 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			if *calculateCicadaResp.QpsAvailForPromotion > 0 &&
 				*calculateCicadaResp.NumKeysAvailForPromotion > 0 {
 
-				qps_avail_for_promo := *calculateCicadaResp.QpsAvailForPromotion
-				num_keys_avail_for_promo := *calculateCicadaResp.NumKeysAvailForPromotion
-				log.Warningf(ctx, "jenndebug promotion only qps %d, numKeys %d\n",
-					qps_avail_for_promo, num_keys_avail_for_promo)
-				for len(pq) > 0 && qps_avail_for_promo > 0 && num_keys_avail_for_promo > 0 {
+				var qps_from_promoted_keys float64 = 0
+				var num_keys_promoted uint64 = 0
+				log.Warningf(ctx, "jenndebug promotion only resp.qpsAvail %d, resp.numKeys %d\n",
+					*calculateCicadaResp.QpsAvailForPromotion, *calculateCicadaResp.NumKeysAvailForPromotion)
+				for len(pq) > 0 && qps_from_promoted_keys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
+					num_keys_promoted < *calculateCicadaResp.NumKeysAvailForPromotion {
 
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
@@ -2193,11 +2202,18 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 						defer crdbCancel()
 						_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
 					}(keyStatWrapper.key)
+
+					qps_from_promoted_keys += float64(keyStatWrapper.qps)
+					num_keys_promoted++
 				}
+				log.Warningf(ctx, "jenndebug pq.len() %d, qps_from_promoted_keys %+v, num_keys_promoted %+v\n",
+					len(pq), qps_from_promoted_keys, num_keys_promoted)
 				continue
+
 			} else {
 				// reorg hotkeys
-				log.Warningf(ctx, "jenndebug reorg hotkeys\n")
+				log.Warningf(ctx, "jenndebug reorg hotkeys, qpsAtNthPercentile %+v\n",
+					*calculateCicadaResp.QpsAtNthPercentile)
 				qps_from_promoted_keys, num_keys_promoted := 0, 0
 				shouldLoopAgain := true
 				for shouldLoopAgain {
@@ -2208,14 +2224,16 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
+					log.Warningf(ctx, "jenndebug reorg key %+v, qps %f\n",
+						keyStatWrapper.key, keyStatWrapper.qps)
 					if keyStatWrapper.qps <= *calculateCicadaResp.QpsAtNthPercentile {
+						log.Warningf(ctx, "jenndebug reorg stopped\n")
 						shouldLoopAgain = false
 						continue
 					}
 
 					// promote keys in parallel
-					log.Warningf(ctx, "jenndebug reorg promote key %+v, qps %f\n",
-						keyStatWrapper.key, keyStatWrapper.qps)
+					log.Warningf(ctx, "jenndebug key promoted\n")
 					go func(crdbKey []byte) {
 						promotionReq := smdbrpc.PromoteKeysReq{
 							Keys: []*smdbrpc.KVVersion{
