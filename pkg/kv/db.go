@@ -809,16 +809,34 @@ func (db *DB) send(
 	return db.sendUsingSender(ctx, ba, db.NonTransactionalSender())
 }
 
-func TableIndexKeyColFamOnly(key string) string {
-	components := strings.Split(key, "/")
-	if components[len(components)-1] != "0" {
-		components = append(components, "0")
+//func TableIndexKeyColFamOnly(key string) string {
+//	components := strings.Split(key, "/")
+//	if components[len(components)-1] != "0" {
+//		components = append(components, "0")
+//	}
+//	return strings.Join(components, "/")
+//}
+
+
+func ConvertToWriteKey(key roachpb.Key) roachpb.Key {
+
+	isReadKey := len(strings.Split(key.String(), "/")) == 5
+	if !isReadKey {
+		return key
 	}
-	return strings.Join(components, "/")
+
+	result := make([]byte, len(key)+1)
+	for i, ch := range key {
+		result[i] = ch
+	}
+	result[len(result)-1] = byte(136)
+	return result
 }
 
 func (db *DB) IsKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) (CicadaAffiliatedKey, bool) {
-	mapStr := TableIndexKeyColFamOnly(key.String())
+	//mapStr := TableIndexKeyColFamOnly(key.String())
+	var writeKey roachpb.Key = ConvertToWriteKey(key)
+	mapStr := writeKey.String()
 	if val, alreadyExists := db.CicadaAffiliatedKeys.Load(mapStr); alreadyExists {
 		cicadaKey := val.(CicadaAffiliatedKey)
 
