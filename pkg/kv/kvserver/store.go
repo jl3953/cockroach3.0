@@ -2374,6 +2374,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	resp := smdbrpc.PromoteKeysResp{
 		WereSuccessfullyMigrated: []*smdbrpc.KeyMigrationResp{},
 	}
+	log.Warningf(ctx, "jenndebug promote here key %+v\n", roachpb.Key(kvVersion.Key))
 
 	// if, for w/e reason, the key is already there, just return successful
 	t := true
@@ -2384,6 +2385,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			IsSuccessfullyMigrated: &t,
 		})
 
+		log.Warningf(ctx, "jenndebug key %+v is here already\n", roachpb.Key(kvVersion.Key))
 		return &resp, nil
 	}
 
@@ -2393,6 +2395,9 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	var txn *kv.Txn
 	for shouldTryAgain := true; shouldTryAgain; {
 		txn = kv.NewTxn(context.Background(), rbServer.store.db, rbServer.store.nodeDesc.NodeID)
+		if prioErr := txn.SetUserPriority(roachpb.MaxUserPriority); prioErr != nil {
+			log.Fatalf(ctx, "jenndebug cannot set max user priority %+v\n", prioErr)
+		}
 		if keyValue, err = txn.Get(ctx, roachpb.Key(kvVersion.Key)); err != nil {
 			// didn't manage to read key, try again
 			if err = txn.Rollback(ctx); err != nil {
@@ -2407,7 +2412,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			return &resp, nil
 		} else {
 			// key exists, lock it
-			err = txn.CPut(ctx, roachpb.Key(kvVersion.Key), []byte("jenndebugoops"), keyValue.Value)
+			err = txn.Put(ctx, roachpb.Key(kvVersion.Key), []byte("jenndebug"))
 			if err != nil {
 				if err = txn.Rollback(ctx); err != nil {
 					log.Fatalf(ctx, "jenndebug cannot rollback failed txn cput failed %+v\n", err)
@@ -2539,6 +2544,9 @@ func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
 	replRanger.Visit(func(repl *Replica) bool {
 		repl.keyStats.Range(func(key, value interface{}) bool {
 			khs := value.(KeyHotnessStats)
+			if khs.Qps <= 0 {
+				return true
+			}
 			item := &Item{
 				value:    khs,
 				priority: float64(khs.Qps),
