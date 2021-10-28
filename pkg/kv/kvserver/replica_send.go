@@ -12,8 +12,9 @@ package kvserver
 
 import (
 	"context"
-	"github.com/cockroachdb/cockroach/pkg/util/timeutil"
+	"github.com/cockroachdb/cockroach/pkg/kv"
 	"reflect"
+	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/kv/kvserver/batcheval"
 	"github.com/cockroachdb/cockroach/pkg/kv/kvserver/concurrency"
@@ -34,7 +35,28 @@ import (
 func (r *Replica) Send(
 	ctx context.Context, ba roachpb.BatchRequest,
 ) (*roachpb.BatchResponse, *roachpb.Error) {
-	_ = r.RecordKey(timeutil.Now(), &ba)
+	for _, req := range ba.Requests {
+		if !kv.IsUserKey(req.GetInner().Header().Key.String()) {
+			continue
+		}
+		if req.GetPut() != nil || req.GetScan() != nil {
+			var key = req.GetInner().Header().Key
+			writeKey := kv.ConvertToWriteKey(key)
+			if _, ok := r.DB().IsKeyInCicadaAtTimestamp(writeKey,
+				hlc.Timestamp{WallTime: ba.Txn.WriteTimestamp.WallTime, Logical: ba.Txn.WriteTimestamp.Logical}); ok {
+				if ba.Txn != nil {
+					log.Warningf(context.Background(),
+						"jenndebug why is key %+v here, txn.ID %+v\n", writeKey, ba.Txn.ID)
+					return nil, roachpb.NewErrorf("jenndebug why is key %+v here, txn.ID %+v\n", key, ba.Txn.ID)
+				} else {
+					log.Warningf(context.Background(),
+						"jenndebug why is key %+v here?, no txn id\n", writeKey)
+					return nil, roachpb.NewErrorf("why is key %+v here no txn.ID", key)
+				}
+			}
+		}
+	}
+	_ = r.RecordKey(time.Now(), &ba)
 	return r.sendWithRangeID(ctx, r.RangeID, &ba)
 }
 

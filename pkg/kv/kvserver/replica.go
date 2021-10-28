@@ -1547,14 +1547,15 @@ func (khs *KeyHotnessStats) recordLockedKey(now time.Time) bool {
 	if elapsedSinceLastQPS >= 1*time.Second {
 		if elapsedSinceLastQPS > 2*time.Second {
 			khs.Count = 0
-			if elapsedSinceLastQPS > 3*time.Second {
-				return false
-			}
-		}
 
+		}
 		khs.Qps = (float32(khs.Count) / float32(elapsedSinceLastQPS)) * 1e9
 		khs.LastQPSRollover = now
 		khs.Count = 0
+
+		if elapsedSinceLastQPS > 3*time.Second {
+			return false
+		}
 	}
 
 	return true
@@ -1567,7 +1568,22 @@ func (r *Replica) RecordKey(now time.Time, ba *roachpb.BatchRequest) bool {
 			continue
 		}
 		var key = req.GetInner().Header().Key
-		var writeKey roachpb.Key = kv.ConvertToWriteKey(key)
+		writeKey := kv.ConvertToWriteKey(key)
+		switch t := req.GetInner().(type) {
+		default:
+			if _, ok := r.DB().IsKeyInCicadaAtTimestamp(writeKey,
+				hlc.Timestamp{WallTime: now.UnixNano()}); ok {
+				if ba.Txn != nil {
+					log.Warningf(context.Background(),
+						"jenndebug why is key %+v here..., txn.ID %+v, type %+v\n",
+						writeKey, ba.Txn.ID, t)
+				} else {
+					log.Warningf(context.Background(),
+						"jenndebug why is key %+v here?..., no txn id, type %+v\n", writeKey, t)
+				}
+				continue
+			}
+		}
 		mapStr := writeKey.String()
 		khsInterface, keyExistsYet := r.keyStats.Load(mapStr)
 		if !keyExistsYet {

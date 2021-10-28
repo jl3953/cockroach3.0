@@ -273,7 +273,6 @@ type DB struct {
 type CicadaAffiliatedKey struct {
 	Key                roachpb.Key
 	PromotionTimestamp hlc.Timestamp
-	CanRead            bool
 }
 
 type ConnectionObjectWrapper struct {

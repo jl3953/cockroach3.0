@@ -114,7 +114,11 @@ func NewTxn(ctx context.Context, db *DB, gatewayNodeID roachpb.NodeID) *Txn {
 		db.clock.MaxOffset().Nanoseconds(),
 	)
 
-	return NewTxnFromProto(ctx, db, gatewayNodeID, now, RootTxn, &kvTxn)
+	txn := NewTxnFromProto(ctx, db, gatewayNodeID, now, RootTxn, &kvTxn)
+	if err := txn.DisablePipelining(); err != nil {
+		log.Fatalf(ctx, "jenndebug NewTxn(...) txn.disablepipelining failed\n")
+	}
+	return txn
 }
 
 // NewTxnWithSteppingEnabled is like NewTxn but suitable for use by SQL.
@@ -918,6 +922,54 @@ func (e *AutoCommitError) Error() string {
 	return e.cause.Error()
 }
 
+func (txn *Txn) DemotionLock(ctx context.Context, key roachpb.Key, value *roachpb.Value) error {
+
+	// TODO jenndebug testing purposes--does the key exist in the first place
+	if kvValue, err := txn.Get(ctx, key); err != nil {
+		log.Warningf(ctx, "jenndebug demotion key %s get() failed, err %+v", key, err)
+		return err
+	} else if kvValue.Value == nil {
+		log.Fatalf(ctx, "jenndebug demotion key %s non-existent", key)
+	}
+
+	// lay down write intent for the key
+	if err := txn.Put(ctx, key, value); err != nil {
+		log.Warningf(ctx, "jenndebug demotion %s put failed, err %+v\n", key, err)
+		return err
+	}
+
+	// key is locked
+	return nil
+}
+
+func (txn *Txn) Lock(ctx context.Context, key roachpb.Key, keyValue *KeyValue) error {
+
+	var err error
+
+	// read txn's value
+	*keyValue, err = txn.Get(ctx, key)
+	if err != nil {
+		log.Warningf(ctx, "jenndebug cannot lock key %+v, Get(...) failed %+v\n", key, err)
+		return err
+	}
+
+	// key doesn't exist, don't promote it
+	if keyValue.Value == nil {
+		log.Warningf(ctx, "jenndebug cannot lock key %+v, does not exist\n", key)
+		return &roachpb.UnhandledRetryableError{}
+	}
+
+	// key exists, lock it
+	err = txn.Put(ctx, key, []byte("PROMOTION_IN_PROGRESS"))
+	if err != nil {
+		log.Warningf(ctx, "jenndebug cannot lock key %+v, Put(...) failed %+v\n", key, err)
+		return err
+	}
+
+	// key is locked
+	return nil
+}
+
 // exec executes fn in the context of a distributed transaction. The closure is
 // retried on retriable errors.
 // If no error is returned by the closure, an attempt to commit the txn is made.
@@ -1245,6 +1297,7 @@ func (txn *Txn) Send(
 				} else if didWritesCommit {
 					txn.ClearWriteHotkeys()
 				} else {
+					txn.ClearWriteHotkeys()
 					return nil, txn.constructInjectedRetryError(ctx, "jenndebug cicada writes failed to commit")
 				}
 			}
@@ -1295,8 +1348,22 @@ func (txn *Txn) Send(
 					txn.handleErrIfRetryableLocked(ctx, retryErr)
 					txn.mu.Unlock()
 				}
+			} else if brCRDB == nil {
+				return nil, txn.constructInjectedRetryError(ctx, "jenndebug ok\n")
 			} else {
 				return brCRDB, pErr
+			}
+		}
+	}
+
+	// check if any warm keys are in warm key batch. If there are, retry the txn
+	for _, req := range warmKeysRequests {
+		if key := req.GetInner().Header().Key; IsUserKey(key.String()) {
+			if req.GetScan() != nil || req.GetPut() != nil {
+				if _, isPromoted := txn.DB().IsKeyInCicadaAtTimestamp(key, txn.ProvisionalCommitTimestamp()); isPromoted {
+					log.Warningf(ctx, "jenndebug warmkey %+v promoted to Cicada\n", key)
+					return nil, txn.constructInjectedRetryError(ctx, "jenndebug warmkey promoted to Cicada")
+				}
 			}
 		}
 	}
