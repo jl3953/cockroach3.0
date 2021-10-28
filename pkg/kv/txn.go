@@ -1291,17 +1291,15 @@ func (txn *Txn) Send(
 		if req.GetEndTxn() != nil {
 			if txn.HasWriteHotkeys() {
 				didWritesCommit, sendErr := txn.oneTouchWritesCicada(ctx)
+				txn.ClearWriteHotkeys()
 				if sendErr != nil {
-					log.Errorf(ctx, "jenndebug cicada oneTouch write never went through\n")
-					txn.ClearWriteHotkeys()
-				} else if didWritesCommit {
-					txn.ClearWriteHotkeys()
-				} else {
-					txn.ClearWriteHotkeys()
-					return nil, txn.constructInjectedRetryError(ctx, "jenndebug cicada writes failed to commit")
+					log.Error(ctx, "jenndebug cicada grpc send err %+v\n", sendErr)
+					return nil, roachpb.NewError(roachpb.NewTransactionAbortedError(roachpb.ABORT_REASON_PUSHER_ABORTED))
+				} else if !didWritesCommit {
+					log.Error(ctx, "jenndebug cicada 1-touch write failed to commit\n")
+					return nil, roachpb.NewError(roachpb.NewTransactionAbortedError(roachpb.ABORT_REASON_PUSHER_ABORTED))
 				}
 			}
-			continue
 		}
 
 		if key := req.GetInner().Header().Key; IsUserKey(key.String()) {

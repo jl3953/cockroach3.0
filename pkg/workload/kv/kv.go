@@ -426,6 +426,7 @@ func (o *kvOp) run(ctx context.Context) error {
 		}
 
 		start := timeutil.Now()
+		isAborted := false
 		err := crdb.ExecuteInTx(ctx, (*workload.PgxTx)(tx), func() error {
 			rows, err := o.readStmt.QueryTx(ctx, tx, args...)
 			if err != nil {
@@ -441,14 +442,18 @@ func (o *kvOp) run(ctx context.Context) error {
 				atomic.AddInt64(o.numEmptyResults, 1)
 			}
 			if rowErr := rows.Err(); rowErr != nil {
-				return rowErr
+				isAborted = true
+				fmt.Printf("jenndebug rowErr %+v\n", rowErr)
+				return nil
 			} else {
 				rows.Close()
 				return nil
 			}
 		})
 		elapsed := timeutil.Since(start)
-		o.hists.Get(`read`).Record(elapsed)
+		if !isAborted {
+			o.hists.Get(`read`).Record(elapsed)
+		}
 		return err
 	}
 	// Since we know the statement is not a read, we recalibrate
@@ -471,14 +476,26 @@ func (o *kvOp) run(ctx context.Context) error {
 		args[j+1] = randomBlock(o.config, o.g.rand())
 	}
 
+	isAborted := false
 	start := timeutil.Now()
 	err := crdb.ExecuteInTx(ctx, (*workload.PgxTx)(tx), func() error {
 		_, err := o.writeStmt.ExecTx(ctx, tx, args...)
-		return err
+		if err != nil {
+			isAborted = true
+			fmt.Printf("jenndebug write err %+v\n", err)
+		}
+		return nil
+		//return err
 	})
 	elapsed := timeutil.Since(start)
-	o.hists.Get(`write`).Record(elapsed)
-	return err
+	if !isAborted {
+		o.hists.Get(`write`).Record(elapsed)
+	}
+	if err != nil {
+		fmt.Printf("jenndebug write executeInTxn err %+v\n", err)
+	}
+	//return err
+	return nil
 }
 
 func (o *kvOp) close(context.Context) {
