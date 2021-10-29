@@ -2620,11 +2620,12 @@ func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
 }
 
 func ConvertListeningToThermopylaePort(listeningPort int) int {
-	return listeningPort + 50055
+	return listeningPort + 23798
 }
 
 func (s *Store) startRebalanceHotkeysServer(ctx context.Context) {
 	address := s.listeningHost + ":" + strconv.Itoa(ConvertListeningToThermopylaePort(s.listeningPort))
+    log.Warningf(ctx, "jenndebug startRebalance address %s\n", address)
 	lis, err := net.Listen("tcp", address)
 	if err != nil {
 		log.Fatalf(ctx, "jenndebug startRebalanceHotkeysServer failed to listen %+v\n", err)
