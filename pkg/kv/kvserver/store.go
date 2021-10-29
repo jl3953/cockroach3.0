@@ -807,7 +807,8 @@ func NewStore(
 	}
 	listeningHost, listeningPort, _ := net.SplitHostPort(listeningAddr)
 	intPort, _ := strconv.Atoi(listeningPort)
-	crdbServers := []string{listeningAddr}
+	// crdbServers := []string{listeningAddr}
+    crdbServers := []string{}
 	crdbServers = append(crdbServers, joinList...)
 	s := &Store{
 		cfg:           cfg,
@@ -2620,7 +2621,7 @@ func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
 }
 
 func ConvertListeningToThermopylaePort(listeningPort int) int {
-	return listeningPort + 23798
+	return 50055
 }
 
 func (s *Store) startRebalanceHotkeysServer(ctx context.Context) {
