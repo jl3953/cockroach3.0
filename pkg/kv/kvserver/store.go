@@ -2620,7 +2620,7 @@ func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
 }
 
 func ConvertListeningToThermopylaePort(listeningPort int) int {
-	return listeningPort + 23798
+	return listeningPort + 50055
 }
 
 func (s *Store) startRebalanceHotkeysServer(ctx context.Context) {
