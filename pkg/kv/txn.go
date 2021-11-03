@@ -56,6 +56,7 @@ type Txn struct {
 	writeHotkeys      [][]byte
 	readHotkeys       [][]byte
 	resultReadHotkeys [][]byte
+	isDemotion bool
 
 	// mu holds fields that need to be synchronized for concurrent request execution.
 	mu struct {
@@ -118,7 +119,16 @@ func NewTxn(ctx context.Context, db *DB, gatewayNodeID roachpb.NodeID) *Txn {
 	if err := txn.DisablePipelining(); err != nil {
 		log.Fatalf(ctx, "jenndebug NewTxn(...) txn.disablepipelining failed\n")
 	}
+	txn.isDemotion = false
 	return txn
+}
+
+func (txn *Txn) SetDemotion(isDemotion bool) {
+	txn.isDemotion = isDemotion
+}
+
+func (txn *Txn) IsDemotion() bool {
+	return txn.isDemotion
 }
 
 // NewTxnWithSteppingEnabled is like NewTxn but suitable for use by SQL.
@@ -922,7 +932,7 @@ func (e *AutoCommitError) Error() string {
 	return e.cause.Error()
 }
 
-func (txn *Txn) DemotionLock(ctx context.Context, key roachpb.Key, value *roachpb.Value) error {
+func (txn *Txn) DemotionLock(ctx context.Context, key roachpb.Key, value []byte) error {
 
 	// TODO jenndebug testing purposes--does the key exist in the first place
 	if kvValue, err := txn.Get(ctx, key); err != nil {
@@ -1304,7 +1314,7 @@ func (txn *Txn) Send(
 
 		if key := req.GetInner().Header().Key; IsUserKey(key.String()) {
 			if cicadaAffiliatedKey, isPromoted := txn.DB().IsKeyInCicadaAtTimestamp(
-				key, txn.ProvisionalCommitTimestamp()); isPromoted {
+				key, txn.ProvisionalCommitTimestamp()); isPromoted && !txn.IsDemotion(){
 
 				// remove from default CRDB path
 				if putReq := req.GetPut(); putReq != nil {
@@ -1359,6 +1369,9 @@ func (txn *Txn) Send(
 		if key := req.GetInner().Header().Key; IsUserKey(key.String()) {
 			if req.GetScan() != nil || req.GetPut() != nil {
 				if _, isPromoted := txn.DB().IsKeyInCicadaAtTimestamp(key, txn.ProvisionalCommitTimestamp()); isPromoted {
+					if txn.IsDemotion() {
+						continue
+					}
 					log.Warningf(ctx, "jenndebug warmkey %+v promoted to Cicada\n", key)
 					return nil, txn.constructInjectedRetryError(ctx, "jenndebug warmkey promoted to Cicada")
 				}
