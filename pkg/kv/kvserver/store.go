@@ -2098,7 +2098,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	fmt.Printf("jenndebug promotion\n")
 
 	//TODO jenndebug make this an option somehow, or make the function a closure
-	interval := 40 * time.Second
+	interval := 10 * time.Second
 
 	// connect to all CRDB servers
 	//port := 50055
@@ -2234,7 +2234,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				*calculateCicadaResp.QpsAvailForPromotion, *calculateCicadaResp.NumKeysAvailForPromotion)
 			//for len(pq) > 0 && qps_from_promoted_keys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
 			//	num_keys_promoted < *calculateCicadaResp.NumKeysAvailForPromotion {
-			for i := 0; i < 10; i++ {
+			for i := 0; i < 15; i++ {
 
 				if pq.Len() > 0 {
 					item := heap.Pop(&pq)
@@ -2480,7 +2480,10 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	if err != nil {
 		log.Warningf(ctx, "jenndebug promotion failed, %+v\n", err)
 		f := false
-		resp.WereSuccessfullyMigrated[0].IsSuccessfullyMigrated = &f
+		resp.WereSuccessfullyMigrated = append(resp.WereSuccessfullyMigrated, &smdbrpc.KeyMigrationResp{
+			//Key:                    kvVersion.Key,
+			IsSuccessfullyMigrated: &f,
+		})
 
 		txn.CleanupOnError(ctx, err)
 		return &resp, nil
@@ -2508,6 +2511,9 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	c := *clientPtr
 
 	table, idx, keyCols := kv.ExtractKey(roachpb.Key(kvVersion.Key).String())
+	if roachpb.Key(kvVersion.Key).String() == "/Table/53/1/22/0" {
+		log.Warningf(ctx, "jenndebug promote key 22 %+v\n", keyValue.Value.RawBytes)
+	}
 
 	cmd := smdbrpc.Cmd_PUT
 	op := smdbrpc.Op{
@@ -2541,7 +2547,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		txn.CleanupOnError(ctx, sendErr)
 		return &resp, nil
 	} else if !*txnResp.IsCommitted {
-		log.Warningf(ctx, "jenndebug promotion failed to commit")
+		log.Errorf(ctx, "jenndebug promotion failed to commit %+v", keyValue.Key)
 		f := false
 		for range promoteKeysReq.Keys {
 			resp.WereSuccessfullyMigrated = append(resp.WereSuccessfullyMigrated,
@@ -2553,6 +2559,9 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		txn.CleanupOnError(ctx, roachpb.NewErrorf("Cicada aborted promotion %+v", keyValue.Key).GoError())
 		return &resp, nil
 	}
+
+	log.Warningf(ctx, "jenndebug key %s, written value %+v\n",
+		keyValue.Key, keyValue.Value.RawBytes)
 
 	log.Warningf(ctx, "jenndebug cicada key %s, time elapsed %f\n",
 		keyValue.Key, time.Now().Sub(start).Seconds())

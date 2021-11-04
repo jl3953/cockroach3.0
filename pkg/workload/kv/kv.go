@@ -17,6 +17,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/cockroachdb/cockroach-go/crdb"
+	"github.com/cockroachdb/cockroach/pkg/util/log"
 	"github.com/jackc/pgx"
 	"hash"
 	"math"
@@ -435,10 +436,11 @@ func (o *kvOp) run(ctx context.Context) error {
 			empty := true
 			for rows.Next() {
 				//val, _ := rows.Values()
-				//log.Warning(ctx, "jenndebug key %+v, val %+v\n", args[0], val)
+				//log.Warning(ctx, "jenndebug key val %d, %s\n", args[0], val)
 				empty = false
 			}
 			if empty {
+				log.Warningf(ctx, "jenndebug empty key %d\n", argsInt[0])
 				atomic.AddInt64(o.numEmptyResults, 1)
 			}
 			if rowErr := rows.Err(); rowErr != nil {
@@ -454,7 +456,10 @@ func (o *kvOp) run(ctx context.Context) error {
 		if !isAborted {
 			o.hists.Get(`read`).Record(elapsed)
 		}
-		return err
+		if err != nil {
+			fmt.Printf("jenndebug read %+v, err %+v\n", argsInt[0], err)
+		}
+		return nil
 	}
 	// Since we know the statement is not a read, we recalibrate
 	// statementProbability to only consider the other statements.

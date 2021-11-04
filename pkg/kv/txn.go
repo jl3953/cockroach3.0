@@ -56,7 +56,7 @@ type Txn struct {
 	writeHotkeys      [][]byte
 	readHotkeys       [][]byte
 	resultReadHotkeys [][]byte
-	isDemotion bool
+	isDemotion        bool
 
 	// mu holds fields that need to be synchronized for concurrent request execution.
 	mu struct {
@@ -1209,11 +1209,17 @@ func (txn *Txn) readsCicada(ctx context.Context, ops []*execinfrapb.Op,
 	// populate responses from Cicada
 	for i, kvPair := range txnResp.Responses {
 		var val roachpb.Value
+		if roachpb.Key(txnReq.Ops[0].Key).String() == "/Table/53/1/22/0" {
+			for j := 0; j < 15; j++ {
+				log.Warningf(ctx, "jenndebug key 22, j=%d, %+v, %+v\n",
+					j, kvPair.Value[j], kvPair.IsZero)
+			}
+		}
 		val.SetBytes(kvPair.Value)
 		brCicada.Responses[i].Value = &roachpb.ResponseUnion_Scan{
 			Scan: &roachpb.ScanResponse{
 				BatchResponses: reconstructValue(kvPair.Key, kvPair.Value,
-					*kvPair.Walltime, *kvPair.Logicaltime),
+					*kvPair.Walltime, *kvPair.Logicaltime, kvPair.IsZero),
 			},
 		}
 	}
@@ -1314,7 +1320,7 @@ func (txn *Txn) Send(
 
 		if key := req.GetInner().Header().Key; IsUserKey(key.String()) {
 			if cicadaAffiliatedKey, isPromoted := txn.DB().IsKeyInCicadaAtTimestamp(
-				key, txn.ProvisionalCommitTimestamp()); isPromoted && !txn.IsDemotion(){
+				key, txn.ProvisionalCommitTimestamp()); isPromoted && !txn.IsDemotion() {
 
 				// remove from default CRDB path
 				if putReq := req.GetPut(); putReq != nil {
@@ -1411,7 +1417,7 @@ func (txn *Txn) Send(
 	return br, pErr
 }
 
-func reconstructValue(key []byte, value []byte, walltime int64, logicaltime int32) [][]byte {
+func reconstructValue(key []byte, value []byte, walltime int64, logicaltime int32, isZero []byte) [][]byte {
 	VAL_LEN_MARKER := 4
 	KEY_LEN_MARKER := 4
 	keyLen := len(key)
@@ -1462,9 +1468,18 @@ func reconstructValue(key []byte, value []byte, walltime int64, logicaltime int3
 	}
 	resp[respBookmark] = byte(ZERO_LEN + WALLTIME_LEN + LOGICAL_LEN)
 	respBookmark++
-	for _, b := range value {
+	for j, b := range value {
 		resp[respBookmark] = b
+		if isZero[j] == 't' {
+			resp[respBookmark] = byte(0)
+		}
 		respBookmark++
+	}
+
+	if roachpb.Key(key).String() == "/Table/53/1/22/0" {
+		log.Warningf(context.Background(), "jenndebug resp key 22 %+v\n", resp)
+	} else if roachpb.Key(key).String() == "/Table/53/1/15/0" {
+		log.Warningf(context.Background(), "jenndebug resp key 15 %+v\n", resp)
 	}
 
 	respSlice := make([][]byte, 1)

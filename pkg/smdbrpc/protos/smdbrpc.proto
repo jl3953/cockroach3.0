@@ -40,6 +40,7 @@ message KVPair {
   optional bytes value = 2;
   optional int64 walltime = 3;
   optional int32 logicaltime = 4;
+  optional bytes isZero = 5; // ffttf, t=true, f=false
 }
 
 // The greeting service definition.
