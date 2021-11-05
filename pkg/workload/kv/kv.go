@@ -17,7 +17,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/cockroachdb/cockroach-go/crdb"
-	"github.com/cockroachdb/cockroach/pkg/util/log"
 	"github.com/jackc/pgx"
 	"hash"
 	"math"
@@ -440,12 +439,12 @@ func (o *kvOp) run(ctx context.Context) error {
 				empty = false
 			}
 			if empty {
-				log.Warningf(ctx, "jenndebug empty key %d\n", argsInt[0])
+				//log.Warningf(ctx, "jenndebug empty key %d\n", argsInt[0])
 				atomic.AddInt64(o.numEmptyResults, 1)
 			}
 			if rowErr := rows.Err(); rowErr != nil {
 				isAborted = true
-				fmt.Printf("jenndebug rowErr %+v\n", rowErr)
+				//fmt.Printf("jenndebug rowErr %+v\n", rowErr)
 				return nil
 			} else {
 				rows.Close()
@@ -457,7 +456,7 @@ func (o *kvOp) run(ctx context.Context) error {
 			o.hists.Get(`read`).Record(elapsed)
 		}
 		if err != nil {
-			fmt.Printf("jenndebug read %+v, err %+v\n", argsInt[0], err)
+			//fmt.Printf("jenndebug read %+v, err %+v\n", argsInt[0], err)
 		}
 		return nil
 	}
@@ -487,7 +486,7 @@ func (o *kvOp) run(ctx context.Context) error {
 		_, err := o.writeStmt.ExecTx(ctx, tx, args...)
 		if err != nil {
 			isAborted = true
-			fmt.Printf("jenndebug write err %+v\n", err)
+			//fmt.Printf("jenndebug write err %+v\n", err)
 		}
 		return nil
 		//return err
@@ -497,7 +496,7 @@ func (o *kvOp) run(ctx context.Context) error {
 		o.hists.Get(`write`).Record(elapsed)
 	}
 	if err != nil {
-		fmt.Printf("jenndebug write executeInTxn err %+v\n", err)
+		//fmt.Printf("jenndebug write executeInTxn err %+v\n", err)
 	}
 	//return err
 	return nil

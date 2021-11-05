@@ -48,12 +48,12 @@ func (r *Replica) Send(
 					continue
 				}
 				if ba.Txn != nil {
-					log.Warningf(context.Background(),
-						"jenndebug why is key %+v here, txn.ID %+v\n", writeKey, ba.Txn.ID)
+					//log.Warningf(context.Background(),
+					//	"jenndebug why is key %+v here, txn.ID %+v\n", writeKey, ba.Txn.ID)
 					return nil, roachpb.NewErrorf("jenndebug why is key %+v here, txn.ID %+v\n", key, ba.Txn.ID)
 				} else {
-					log.Warningf(context.Background(),
-						"jenndebug why is key %+v here?, no txn id\n", writeKey)
+					//log.Warningf(context.Background(),
+					//	"jenndebug why is key %+v here?, no txn id\n", writeKey)
 					return nil, roachpb.NewErrorf("why is key %+v here no txn.ID", key)
 				}
 			}

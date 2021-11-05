@@ -1541,7 +1541,7 @@ func (rbServer *rebalanceServer) DemoteKey(ctx context.Context,
 	if request.IsTest != nil && *request.IsTest {
 		value = request.Value
 	}
-	log.Warningf(ctx, "jenndebug TRYING TO DEMOTE KEY %+v, %s\n", key, value)
+	//log.Warningf(ctx, "jenndebug TRYING TO DEMOTE KEY %+v, %s\n", key, value)
 
 	var err error
 	txn := kv.NewTxn(ctx, rbServer.store.DB(), rbServer.store.nodeDesc.NodeID)
@@ -1567,10 +1567,10 @@ func (rbServer *rebalanceServer) DemoteKey(ctx context.Context,
 		updateDemotionReq := smdbrpc.UpdateInProgressDemotionMapReq{Key: &keyStr}
 		updateDemotionResp, demotionMapErr := wrapper.client.UpdateInProgressDemotionMap(crdbCtx, &updateDemotionReq)
 		if demotionMapErr != nil {
-			log.Errorf(ctx, "jenndebug UpdateInProgressDemotionMaps failed, rpc err %+v\n", demotionMapErr)
+			//log.Errorf(ctx, "jenndebug UpdateInProgressDemotionMaps failed, rpc err %+v\n", demotionMapErr)
 			return &resp, demotionMapErr
 		} else if !*updateDemotionResp.Added {
-			log.Errorf(ctx, "jenndebug UpdateInProgressDemotionMaps failed, returned false\n")
+			//log.Errorf(ctx, "jenndebug UpdateInProgressDemotionMaps failed, returned false\n")
 			return &resp, nil
 		}
 	}
@@ -1595,18 +1595,15 @@ func (rbServer *rebalanceServer) DemoteKey(ctx context.Context,
 	for {
 		err = txn.DemotionLock(ctx, key, value)
 		if err == nil {
-			log.Warningf(ctx, "jenndebug demotionLocking key %s succeeded\n",
-				key)
 			break
 		}
 
 		cause := errors.UnwrapAll(err)
 		switch causeType := cause.(type) {
 		case *roachpb.TransactionRetryWithProtoRefreshError:
-			log.Warningf(ctx, "jenndebug demotionLocking key %+v failed, retry\n", key)
 			txn.PrepareForRetry(ctx, err)
 		default:
-			log.Warningf(ctx, "jenndebug demotionLocking key %+v failed, unknown causeType %+v\n",
+			log.Errorf(ctx, "jenndebug demotionLocking key %+v failed, unknown causeType %+v\n",
 				key, causeType)
 		}
 	}
@@ -1615,7 +1612,7 @@ func (rbServer *rebalanceServer) DemoteKey(ctx context.Context,
 	demotionSucceededYet := true
 	commitErr := txn.Commit(ctx)
 	if commitErr != nil {
-		log.Warningf(ctx, "jenndebug demotion %s commit failed, err %+v\n", key, commitErr)
+		//log.Warningf(ctx, "jenndebug demotion %s commit failed, err %+v\n", key, commitErr)
 		demotionSucceededYet = false
 	}
 
@@ -2095,7 +2092,6 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	time.Sleep(10 * time.Second)
 
 	log.Warningf(ctx, "jenndebug promotion\n")
-	fmt.Printf("jenndebug promotion\n")
 
 	//TODO jenndebug make this an option somehow, or make the function a closure
 	interval := 10 * time.Second
@@ -2159,24 +2155,25 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					Logicaltime: &logicaltime,
 				},
 			}
-			calculateCicadaResp, calculateCicadaErr := cicadaWrapper.client.CalculateCicadaStats(cicadaCtx, &calculateCicadaReq)
+			_, calculateCicadaErr := cicadaWrapper.client.CalculateCicadaStats(cicadaCtx, &calculateCicadaReq)
+			// calculateCicadaResp, calculateCicadaErr := cicadaWrapper.client.CalculateCicadaStats(cicadaCtx, &calculateCicadaReq)
 			if calculateCicadaErr != nil {
 				log.Errorf(ctx, "jenndebug calculateCicadaStats err %+v\n", calculateCicadaErr)
 				continue
 			}
 
-			if demotionOnly := calculateCicadaResp.DemotionOnly; demotionOnly != nil {
-				log.Warningf(ctx, "jenndebug cicadaResp.demotion_only %t\n", *demotionOnly)
-			}
-			if qps_avail_promo := calculateCicadaResp.QpsAvailForPromotion; qps_avail_promo != nil {
-				log.Warningf(ctx, "jenndebug cicadaResp.qps_avail %d\n", *qps_avail_promo)
-			}
-			if num_keys := calculateCicadaResp.NumKeysAvailForPromotion; num_keys != nil {
-				log.Warningf(ctx, "jenndebug cicadaResp.num_keys %d\n", *num_keys)
-			}
-			if nth_percentile_qps := calculateCicadaResp.QpsAtNthPercentile; nth_percentile_qps != nil {
-				log.Warningf(ctx, "jenndebug cicadaResp.nth_percentile_qps %f\n", *nth_percentile_qps)
-			}
+			//if demotionOnly := calculateCicadaResp.DemotionOnly; demotionOnly != nil {
+			//	log.Warningf(ctx, "jenndebug cicadaResp.demotion_only %t\n", *demotionOnly)
+			//}
+			//if qps_avail_promo := calculateCicadaResp.QpsAvailForPromotion; qps_avail_promo != nil {
+			//	log.Warningf(ctx, "jenndebug cicadaResp.qps_avail %d\n", *qps_avail_promo)
+			//}
+			//if num_keys := calculateCicadaResp.NumKeysAvailForPromotion; num_keys != nil {
+			//	log.Warningf(ctx, "jenndebug cicadaResp.num_keys %d\n", *num_keys)
+			//}
+			//if nth_percentile_qps := calculateCicadaResp.QpsAtNthPercentile; nth_percentile_qps != nil {
+			//	log.Warningf(ctx, "jenndebug cicadaResp.nth_percentile_qps %f\n", *nth_percentile_qps)
+			//}
 
 			//// if demotion only, this method is done, just keep going
 			//if *calculateCicadaResp.DemotionOnly {
@@ -2230,8 +2227,8 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 			var qps_from_promoted_keys float64 = 0
 			var num_keys_promoted uint64 = 0
-			log.Warningf(ctx, "jenndebug promotion only resp.qpsAvail %d, resp.numKeys %d\n",
-				*calculateCicadaResp.QpsAvailForPromotion, *calculateCicadaResp.NumKeysAvailForPromotion)
+			//log.Warningf(ctx, "jenndebug promotion only resp.qpsAvail %d, resp.numKeys %d\n",
+			//	*calculateCicadaResp.QpsAvailForPromotion, *calculateCicadaResp.NumKeysAvailForPromotion)
 			//for len(pq) > 0 && qps_from_promoted_keys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
 			//	num_keys_promoted < *calculateCicadaResp.NumKeysAvailForPromotion {
 			for i := 0; i < 15; i++ {
@@ -2258,8 +2255,8 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					num_keys_promoted++
 				}
 			}
-			log.Warningf(ctx, "jenndebug pq.len() %d, qps_from_promoted_keys %+v, num_keys_promoted %+v\n",
-				len(pq), qps_from_promoted_keys, num_keys_promoted)
+			//log.Warningf(ctx, "jenndebug pq.len() %d, qps_from_promoted_keys %+v, num_keys_promoted %+v\n",
+			//	len(pq), qps_from_promoted_keys, num_keys_promoted)
 			continue
 
 		}
@@ -2421,7 +2418,7 @@ func (rbServer *rebalanceServer) TestIsKeyInPromotionMap(_ context.Context,
 func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	promoteKeysReq *smdbrpc.PromoteKeysReq) (*smdbrpc.PromoteKeysResp, error) {
 
-	start := time.Now()
+	//start := time.Now()
 
 	// boilerplate
 	ctx := context.Background()
@@ -2429,7 +2426,6 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	resp := smdbrpc.PromoteKeysResp{
 		WereSuccessfullyMigrated: []*smdbrpc.KeyMigrationResp{},
 	}
-	log.Warningf(ctx, "jenndebug promote here key %+v\n", roachpb.Key(kvVersion.Key))
 
 	// if, for w/e reason, the key is already there, just return successful
 	t := true
@@ -2440,12 +2436,8 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			IsSuccessfullyMigrated: &t,
 		})
 
-		log.Warningf(ctx, "jenndebug key %+v is here already\n", roachpb.Key(kvVersion.Key))
 		return &resp, nil
 	}
-
-	log.Warningf(ctx, "jenndebug lookup key %s, time elapsed %f\n",
-		kvVersion.Key, time.Now().Sub(start).Seconds())
 
 	var keyValue kv.KeyValue
 	var err error
@@ -2454,20 +2446,14 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	for {
 		err = txn.Lock(ctx, kvVersion.Key, &keyValue)
 		if err == nil {
-			log.Warningf(ctx, "jenndebug locking key %+v succeeded\n",
-				roachpb.Key(kvVersion.Key))
 			break
 		}
 		shouldBreakForLoop := false
 		cause := errors.UnwrapAll(err)
 		switch causeType := cause.(type) {
 		case *roachpb.TransactionRetryWithProtoRefreshError:
-			log.Warningf(ctx, "jenndebug locking key %+v failed, retry\n",
-				roachpb.Key(kvVersion.Key))
 			txn.PrepareForRetry(ctx, err)
 		case *roachpb.UnhandledRetryableError:
-			log.Warningf(ctx, "jenndebug locking key %+v failed, cannot retry\n",
-				roachpb.Key(kvVersion.Key))
 			shouldBreakForLoop = true
 		default:
 			log.Warningf(ctx, "jenndebug locking key %+v failed, unknown causeType %+v\n",
@@ -2478,7 +2464,6 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		}
 	}
 	if err != nil {
-		log.Warningf(ctx, "jenndebug promotion failed, %+v\n", err)
 		f := false
 		resp.WereSuccessfullyMigrated = append(resp.WereSuccessfullyMigrated, &smdbrpc.KeyMigrationResp{
 			//Key:                    kvVersion.Key,
@@ -2488,10 +2473,6 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		txn.CleanupOnError(ctx, err)
 		return &resp, nil
 	}
-
-	log.Warningf(ctx, "jenndebug locked key %s, time elapsed %f\n",
-		keyValue.Key, time.Now().Sub(start).Seconds())
-
 	if _, valExists := rbServer.store.DB().CicadaAffiliatedKeys.Load(k); valExists {
 		resp.WereSuccessfullyMigrated = append(resp.WereSuccessfullyMigrated, &smdbrpc.KeyMigrationResp{
 			//Key:                    kvVersion.Key,
@@ -2502,18 +2483,12 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		return &resp, nil
 	}
 
-	log.Warningf(ctx, "jenndebug lookup second key %s, time elapsed %f\n",
-		keyValue.Key, time.Now().Sub(start).Seconds())
-
 	// now that key is locked, start sending over Cicada
 	clientPtr, index := txn.DB().GetClientPtrAndItsIndex()
 	defer txn.DB().ReturnClient(index)
 	c := *clientPtr
 
 	table, idx, keyCols := kv.ExtractKey(roachpb.Key(kvVersion.Key).String())
-	if roachpb.Key(kvVersion.Key).String() == "/Table/53/1/22/0" {
-		log.Warningf(ctx, "jenndebug promote key 22 %+v\n", keyValue.Value.RawBytes)
-	}
 
 	cmd := smdbrpc.Cmd_PUT
 	op := smdbrpc.Op{
@@ -2547,7 +2522,6 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		txn.CleanupOnError(ctx, sendErr)
 		return &resp, nil
 	} else if !*txnResp.IsCommitted {
-		log.Errorf(ctx, "jenndebug promotion failed to commit %+v", keyValue.Key)
 		f := false
 		for range promoteKeysReq.Keys {
 			resp.WereSuccessfullyMigrated = append(resp.WereSuccessfullyMigrated,
@@ -2560,12 +2534,6 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		return &resp, nil
 	}
 
-	log.Warningf(ctx, "jenndebug key %s, written value %+v\n",
-		keyValue.Key, keyValue.Value.RawBytes)
-
-	log.Warningf(ctx, "jenndebug cicada key %s, time elapsed %f\n",
-		keyValue.Key, time.Now().Sub(start).Seconds())
-
 	// store in the promotion map
 	cicadaKey := kv.CicadaAffiliatedKey{
 		Key: kvVersion.Key,
@@ -2575,9 +2543,6 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		},
 	}
 	rbServer.store.DB().CicadaAffiliatedKeys.Store(roachpb.Key(kvVersion.Key).String(), cicadaKey)
-
-	log.Warningf(ctx, "jenndebug store key %s, time elapsed %f\n",
-		keyValue.Key, time.Now().Sub(start).Seconds())
 
 	// connect to all CRDB servers
 	// TODO jenndebug you can parallelize this
@@ -2606,9 +2571,6 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			})
 	}
 
-	log.Warningf(ctx, "jenndebug PROMOTED key [%s], value[%s]\n",
-		keyValue.Key, keyValue.Value.RawBytes)
-
 	_ = txn.Commit(ctx)
 	return &resp, nil
 }
@@ -2628,7 +2590,7 @@ func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
 			} else if khs.Qps <= 0 {
 				return true
 			}
-			log.Warningf(ctx, "jenndebug khs.key %s, khs.qps %f\n", khs.Key, khs.Qps)
+			//log.Warningf(ctx, "jenndebug khs.key %s, khs.qps %f\n", khs.Key, khs.Qps)
 			item := &Item{
 				value:    khs,
 				priority: float64(khs.Qps),
@@ -2638,7 +2600,7 @@ func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
 		})
 		return true
 	})
-	log.Warningf(ctx, "jenndebug pq.Len() %d\n", pq.Len())
+	//log.Warningf(ctx, "jenndebug pq.Len() %d\n", pq.Len())
 
 	response := smdbrpc.CRDBKeyStatsResponse{
 		Keystats: make([]*smdbrpc.KeyStat, 0),
@@ -2655,7 +2617,7 @@ func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
 		response.Keystats = append(response.Keystats, &keyStat)
 	}
 
-	log.Warningf(ctx, "jenndebug len(response.keystats) %d\n", len(response.Keystats))
+	//log.Warningf(ctx, "jenndebug len(response.keystats) %d\n", len(response.Keystats))
 	return &response, nil
 }
 
