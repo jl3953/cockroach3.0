@@ -44,13 +44,16 @@ func (r *Replica) Send(
 			writeKey := kv.ConvertToWriteKey(key)
 			if _, ok := r.DB().IsKeyInCicadaAtTimestamp(writeKey,
 				hlc.Timestamp{WallTime: ba.Txn.WriteTimestamp.WallTime, Logical: ba.Txn.WriteTimestamp.Logical}); ok {
+				if _, demotionInProgress := r.DB().InProgressDemotion.Load(key.String()); demotionInProgress {
+					continue
+				}
 				if ba.Txn != nil {
-					log.Warningf(context.Background(),
-						"jenndebug why is key %+v here, txn.ID %+v\n", writeKey, ba.Txn.ID)
+					//log.Warningf(context.Background(),
+					//	"jenndebug why is key %+v here, txn.ID %+v\n", writeKey, ba.Txn.ID)
 					return nil, roachpb.NewErrorf("jenndebug why is key %+v here, txn.ID %+v\n", key, ba.Txn.ID)
 				} else {
-					log.Warningf(context.Background(),
-						"jenndebug why is key %+v here?, no txn id\n", writeKey)
+					//log.Warningf(context.Background(),
+					//	"jenndebug why is key %+v here?, no txn id\n", writeKey)
 					return nil, roachpb.NewErrorf("why is key %+v here no txn.ID", key)
 				}
 			}

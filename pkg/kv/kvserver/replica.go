@@ -1569,21 +1569,21 @@ func (r *Replica) RecordKey(now time.Time, ba *roachpb.BatchRequest) bool {
 		}
 		var key = req.GetInner().Header().Key
 		writeKey := kv.ConvertToWriteKey(key)
-		switch t := req.GetInner().(type) {
-		default:
-			if _, ok := r.DB().IsKeyInCicadaAtTimestamp(writeKey,
-				hlc.Timestamp{WallTime: now.UnixNano()}); ok {
-				if ba.Txn != nil {
-					log.Warningf(context.Background(),
-						"jenndebug why is key %+v here..., txn.ID %+v, type %+v\n",
-						writeKey, ba.Txn.ID, t)
-				} else {
-					log.Warningf(context.Background(),
-						"jenndebug why is key %+v here?..., no txn id, type %+v\n", writeKey, t)
-				}
-				continue
-			}
-		}
+		//switch t := req.GetInner().(type) {
+		//default:
+		//	if _, ok := r.DB().IsKeyInCicadaAtTimestamp(writeKey,
+		//		hlc.Timestamp{WallTime: now.UnixNano()}); ok {
+		//		if ba.Txn != nil {
+		//			log.Warningf(context.Background(),
+		//				"jenndebug why is key %+v here..., txn.ID %+v, type %+v\n",
+		//				writeKey, ba.Txn.ID, t)
+		//		} else {
+		//			log.Warningf(context.Background(),
+		//				"jenndebug why is key %+v here?..., no txn id, type %+v\n", writeKey, t)
+		//		}
+		//		continue
+		//	}
+		//}
 		mapStr := writeKey.String()
 		khsInterface, keyExistsYet := r.keyStats.Load(mapStr)
 		if !keyExistsYet {

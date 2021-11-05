@@ -435,15 +435,16 @@ func (o *kvOp) run(ctx context.Context) error {
 			empty := true
 			for rows.Next() {
 				//val, _ := rows.Values()
-				//log.Warning(ctx, "jenndebug key %+v, val %+v\n", args[0], val)
+				//log.Warning(ctx, "jenndebug key val %d, %s\n", args[0], val)
 				empty = false
 			}
 			if empty {
+				//log.Warningf(ctx, "jenndebug empty key %d\n", argsInt[0])
 				atomic.AddInt64(o.numEmptyResults, 1)
 			}
 			if rowErr := rows.Err(); rowErr != nil {
 				isAborted = true
-				fmt.Printf("jenndebug rowErr %+v\n", rowErr)
+				//fmt.Printf("jenndebug rowErr %+v\n", rowErr)
 				return nil
 			} else {
 				rows.Close()
@@ -454,7 +455,10 @@ func (o *kvOp) run(ctx context.Context) error {
 		if !isAborted {
 			o.hists.Get(`read`).Record(elapsed)
 		}
-		return err
+		if err != nil {
+			//fmt.Printf("jenndebug read %+v, err %+v\n", argsInt[0], err)
+		}
+		return nil
 	}
 	// Since we know the statement is not a read, we recalibrate
 	// statementProbability to only consider the other statements.
@@ -482,7 +486,7 @@ func (o *kvOp) run(ctx context.Context) error {
 		_, err := o.writeStmt.ExecTx(ctx, tx, args...)
 		if err != nil {
 			isAborted = true
-			fmt.Printf("jenndebug write err %+v\n", err)
+			//fmt.Printf("jenndebug write err %+v\n", err)
 		}
 		return nil
 		//return err
@@ -492,7 +496,7 @@ func (o *kvOp) run(ctx context.Context) error {
 		o.hists.Get(`write`).Record(elapsed)
 	}
 	if err != nil {
-		fmt.Printf("jenndebug write executeInTxn err %+v\n", err)
+		//fmt.Printf("jenndebug write executeInTxn err %+v\n", err)
 	}
 	//return err
 	return nil

@@ -40,6 +40,7 @@ message KVPair {
   optional bytes value = 2;
   optional int64 walltime = 3;
   optional int32 logicaltime = 4;
+  optional bytes isZero = 5; // ffttf, t=true, f=false
 }
 
 // The greeting service definition.
@@ -62,6 +63,9 @@ service HotshardGateway {
   rpc PromoteKey (KeyMigrationReq) returns (KeyMigrationResp) {}
   rpc PromoteKeys (PromoteKeysReq) returns (PromoteKeysResp) {}
   rpc UpdatePromotionMap (PromoteKeysReq) returns (PromoteKeysResp) {}
+  rpc DeleteFromPromotionMap (DeleteFromPromotionMapReq) returns (DeleteFromPromotionMapResp) {}
+  rpc UpdateInProgressDemotionMap (UpdateInProgressDemotionMapReq) returns (UpdateInProgressDemotionMapResp) {}
+  rpc DeleteFromInProgressDemotionMap (DeleteFromInProgressDemotionMapReq) returns (DeleteFromInProgressDemotionMapResp) {}
 
   rpc RequestCRDBKeyStats(KeyStatsRequest) returns (CRDBKeyStatsResponse) {}
   rpc SendTxn(TxnReq) returns (TxnResp) {}
@@ -93,6 +97,30 @@ message TestPromotionKeyReq {
 
 message TestPromotionKeyResp {
   optional bool isKeyIn = 1;
+}
+
+message DeleteFromPromotionMapReq {
+  optional string key = 1;
+}
+
+message DeleteFromPromotionMapResp {
+  optional bool deleted = 1;
+}
+
+message UpdateInProgressDemotionMapReq {
+  optional string key = 1;
+}
+
+message UpdateInProgressDemotionMapResp {
+  optional bool added = 1;
+}
+
+message DeleteFromInProgressDemotionMapReq {
+  optional string key = 1;
+}
+
+message DeleteFromInProgressDemotionMapResp {
+  optional bool deleted = 1;
 }
 
 enum Cmd {

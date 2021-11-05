@@ -268,6 +268,7 @@ type DB struct {
 	numClients    int
 
 	CicadaAffiliatedKeys sync.Map
+	InProgressDemotion sync.Map
 }
 
 type CicadaAffiliatedKey struct {
