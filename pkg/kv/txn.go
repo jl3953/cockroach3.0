@@ -1356,8 +1356,6 @@ func (txn *Txn) Send(
 					txn.handleErrIfRetryableLocked(ctx, retryErr)
 					txn.mu.Unlock()
 				}
-			} else if brCRDB == nil {
-				return nil, txn.constructInjectedRetryError(ctx, "jenndebug ok\n")
 			} else {
 				return brCRDB, pErr
 			}
@@ -1373,7 +1371,7 @@ func (txn *Txn) Send(
 						continue
 					}
 					//log.Warningf(ctx, "jenndebug warmkey %+v promoted to Cicada\n", key)
-					return nil, txn.constructInjectedRetryError(ctx, "jenndebug warmkey promoted to Cicada")
+					return nil, roachpb.NewError(roachpb.NewTransactionAbortedError(roachpb.ABORT_REASON_PUSHER_ABORTED))
 				}
 			}
 		}
