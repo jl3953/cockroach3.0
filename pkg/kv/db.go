@@ -22,6 +22,7 @@ import (
 	"github.com/cockroachdb/cockroach/pkg/util/protoutil"
 	"github.com/cockroachdb/cockroach/pkg/util/retry"
 	"github.com/cockroachdb/cockroach/pkg/util/stop"
+	"github.com/cockroachdb/cockroach/pkg/util/timeutil"
 	"github.com/cockroachdb/cockroach/pkg/util/tracing"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
@@ -29,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // KeyValue represents a single key/value pair. This is similar to
@@ -314,15 +316,15 @@ func (connObj *ConnectionObjectWrapper) ReturnClient() {
 func (db *DB) GetClientPtrAndItsIndex() (*execinfrapbgrpc.HotshardGatewayClient, int) {
 	i := rand.Intn(db.numClients)
 	//failed := 0
-	//start := time.Now()
+	start := time.Now()
 	retries := 0
 	for {
 		retries++
 		if connObj, ok := db.cicadaClients.Load(i); ok {
 			cObj := connObj.(*ConnectionObjectWrapper)
 			if clientPtr, acquired := cObj.TryGetClient(); acquired {
-				//elapsed := timeutil.Since(start)
-				log.Warningf(context.Background(), "jenndebug retries %d, elapsed %+v\n", retries, 0)
+				elapsed := timeutil.Since(start)
+				log.Warningf(context.Background(), "jenndebug retries %d, elapsed %+v\n", retries, elapsed)
 				return clientPtr, i
 			} else {
 				i = (i + 1) % db.numClients
