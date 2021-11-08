@@ -1390,7 +1390,7 @@ func (txn *Txn) Send(
 		}
 		didReadsSucceed, sendErr := txn.readsCicada(ctx, ops, brCicada)
 		if sendErr != nil {
-			log.Errorf(ctx, "jenndebug cicada reads never went through\n")
+			log.Errorf(ctx, "jenndebug cicada reads never went through %+v\n", sendErr)
 			populateScansWithEmptyResp(brCicada)
 		} else if !didReadsSucceed {
 			return nil, txn.constructInjectedRetryError(ctx, "jenndebug cicada reads failed to commit")
