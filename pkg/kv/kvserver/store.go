@@ -2090,7 +2090,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	// Wait until the workload is **probably** started. This is pretty hacky, but
 	// it'll probably get me correct results, and I couldn't care any less after that
 	// jenndebug
-	time.Sleep(30 * time.Second)
+	time.Sleep(100 * time.Second)
 
 	log.Warningf(ctx, "jenndebug promotion\n")
 
