@@ -2437,6 +2437,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			IsSuccessfullyMigrated: &t,
 		})
 
+		log.Warningf(ctx, "jenndebug key %s already promoted\n", k)
 		return &resp, nil
 	}
 
@@ -2447,6 +2448,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	for {
 		err = txn.Lock(ctx, kvVersion.Key, &keyValue)
 		if err == nil {
+			log.Warningf(ctx, "jenndebug promotion successfully locked key %s\n", k)
 			break
 		}
 		shouldBreakForLoop := false
@@ -2472,6 +2474,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		})
 
 		txn.CleanupOnError(ctx, err)
+		log.Warningf(ctx, "jenndebug promotion failed to lock key %s\n", k)
 		return &resp, nil
 	}
 	if _, valExists := rbServer.store.DB().CicadaAffiliatedKeys.Load(k); valExists {
@@ -2481,6 +2484,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		})
 
 		txn.CleanupOnError(ctx, roachpb.NewErrorf("%+v already promoted", keyValue.Key).GoError())
+		log.Warningf(ctx, "jenndebug promotion already promoted key %s\n", k)
 		return &resp, nil
 	}
 
@@ -2532,6 +2536,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 				})
 		}
 		txn.CleanupOnError(ctx, roachpb.NewErrorf("Cicada aborted promotion %+v", keyValue.Key).GoError())
+		log.Warningf(ctx, "jenndebug promotion to cicada failed by cicada key %s\n", k)
 		return &resp, nil
 	}
 
@@ -2573,6 +2578,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	}
 
 	_ = txn.Commit(ctx)
+	log.Warningf(ctx, "jenndebug successfully promoted key %s\n", k)
 	return &resp, nil
 }
 
