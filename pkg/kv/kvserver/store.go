@@ -2457,7 +2457,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		case *roachpb.TransactionRetryWithProtoRefreshError:
 			txn.PrepareForRetry(ctx, err)
 		case *roachpb.UnhandledRetryableError:
-			log.Warningf(ctx, "jenndebug promotion key %s encountered unhandledRetryableErr err %+v\n", err)
+			log.Warningf(ctx, "jenndebug promotion key %s encountered unhandledRetryableErr err %+v\n", k, err)
 			shouldBreakForLoop = true
 		default:
 			log.Warningf(ctx, "jenndebug locking key %+v failed, unknown causeType %+v\n",
