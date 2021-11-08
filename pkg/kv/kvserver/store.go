@@ -2090,7 +2090,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	// Wait until the workload is **probably** started. This is pretty hacky, but
 	// it'll probably get me correct results, and I couldn't care any less after that
 	// jenndebug
-	time.Sleep(80 * time.Second)
+	time.Sleep(40 * time.Second)
 
 	log.Warningf(ctx, "jenndebug promotion\n")
 
@@ -2232,7 +2232,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			//	*calculateCicadaResp.QpsAvailForPromotion, *calculateCicadaResp.NumKeysAvailForPromotion)
 			//for len(pq) > 0 && qps_from_promoted_keys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
 			//	num_keys_promoted < *calculateCicadaResp.NumKeysAvailForPromotion {
-			for i := 0; i < 10; i++ {
+			for i := 0; i < 50; i++ {
 
 				if pq.Len() > 0 {
 					item := heap.Pop(&pq)
