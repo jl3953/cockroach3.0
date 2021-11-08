@@ -965,14 +965,14 @@ func (txn *Txn) Lock(ctx context.Context, key roachpb.Key, keyValue *KeyValue) e
 
 	// key doesn't exist, don't promote it
 	if keyValue.Value == nil {
-		//log.Warningf(ctx, "jenndebug cannot lock key %+v, does not exist\n", key)
+		log.Warningf(ctx, "jenndebug cannot lock key %+v, does not exist\n", key)
 		return &roachpb.UnhandledRetryableError{}
 	}
 
 	// key exists, lock it
 	err = txn.Put(ctx, key, []byte("PROMOTION_IN_PROGRESS"))
 	if err != nil {
-		//log.Warningf(ctx, "jenndebug cannot lock key %+v, Put(...) failed %+v\n", key, err)
+		log.Warningf(ctx, "jenndebug cannot lock key %+v, Put(...) failed %+v\n", key, err)
 		return err
 	}
 
