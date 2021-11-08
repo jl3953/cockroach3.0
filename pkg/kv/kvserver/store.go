@@ -2124,7 +2124,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 		_ = conn.Close()
 	}(cicadaWrapper.conn)
 
-	timerChan := time.After(interval)
+	timerChan := time.After(time.Second)
 
 	for {
 		select {
