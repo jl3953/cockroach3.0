@@ -2126,7 +2126,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 	timerChan := time.After(time.Second)
 
-	for promotions := 0; promotions < 5; promotions++ {
+	for promotions := 0; promotions < 9; promotions++ {
 		select {
 		case <-s.stopper.ShouldStop():
 			return
@@ -2232,7 +2232,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			//	*calculateCicadaResp.QpsAvailForPromotion, *calculateCicadaResp.NumKeysAvailForPromotion)
 			//for len(pq) > 0 && qps_from_promoted_keys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
 			//	num_keys_promoted < *calculateCicadaResp.NumKeysAvailForPromotion {
-			for i := 0; i < 100; i++ {
+			for i := 0; i < 150; i++ {
 
 				if pq.Len() > 0 {
 					item := heap.Pop(&pq)
