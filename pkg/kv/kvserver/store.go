@@ -2095,7 +2095,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	log.Warningf(ctx, "jenndebug promotion\n")
 
 	//TODO jenndebug make this an option somehow, or make the function a closure
-	interval := 10000 * time.Second
+	interval := 30 * time.Second
 
 	// connect to all CRDB servers
 	//port := 50055
@@ -2126,7 +2126,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 	timerChan := time.After(time.Second)
 
-	for {
+	for promotions := 0; promotions < 5; promotions++ {
 		select {
 		case <-s.stopper.ShouldStop():
 			return
@@ -2232,7 +2232,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			//	*calculateCicadaResp.QpsAvailForPromotion, *calculateCicadaResp.NumKeysAvailForPromotion)
 			//for len(pq) > 0 && qps_from_promoted_keys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
 			//	num_keys_promoted < *calculateCicadaResp.NumKeysAvailForPromotion {
-			for i := 0; i < 250; i++ {
+			for i := 0; i < 50; i++ {
 
 				if pq.Len() > 0 {
 					item := heap.Pop(&pq)
