@@ -965,14 +965,14 @@ func (txn *Txn) Lock(ctx context.Context, key roachpb.Key, keyValue *KeyValue) e
 
 	// key doesn't exist, don't promote it
 	if keyValue.Value == nil {
-		//log.Warningf(ctx, "jenndebug cannot lock key %+v, does not exist\n", key)
+		log.Warningf(ctx, "jenndebug cannot lock key %+v, does not exist\n", key)
 		return &roachpb.UnhandledRetryableError{}
 	}
 
 	// key exists, lock it
 	err = txn.Put(ctx, key, []byte("PROMOTION_IN_PROGRESS"))
 	if err != nil {
-		//log.Warningf(ctx, "jenndebug cannot lock key %+v, Put(...) failed %+v\n", key, err)
+		log.Warningf(ctx, "jenndebug cannot lock key %+v, Put(...) failed %+v\n", key, err)
 		return err
 	}
 
@@ -1356,8 +1356,6 @@ func (txn *Txn) Send(
 					txn.handleErrIfRetryableLocked(ctx, retryErr)
 					txn.mu.Unlock()
 				}
-			} else if brCRDB == nil {
-				return nil, txn.constructInjectedRetryError(ctx, "jenndebug ok\n")
 			} else {
 				return brCRDB, pErr
 			}
@@ -1373,7 +1371,7 @@ func (txn *Txn) Send(
 						continue
 					}
 					//log.Warningf(ctx, "jenndebug warmkey %+v promoted to Cicada\n", key)
-					return nil, txn.constructInjectedRetryError(ctx, "jenndebug warmkey promoted to Cicada")
+					return nil, txn.constructInjectedRetryError(ctx, "jenndebug cicada reads failed to commit")
 				}
 			}
 		}
@@ -1390,7 +1388,7 @@ func (txn *Txn) Send(
 		}
 		didReadsSucceed, sendErr := txn.readsCicada(ctx, ops, brCicada)
 		if sendErr != nil {
-			log.Errorf(ctx, "jenndebug cicada reads never went through\n")
+			log.Errorf(ctx, "jenndebug cicada reads never went through %+v\n", sendErr)
 			populateScansWithEmptyResp(brCicada)
 		} else if !didReadsSucceed {
 			return nil, txn.constructInjectedRetryError(ctx, "jenndebug cicada reads failed to commit")
