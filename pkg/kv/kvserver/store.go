@@ -2307,7 +2307,6 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					if keyStatWrapper.qps <= *calculateCicadaResp.QpsAtNthPercentile {
 						log.Warningf(ctx, "jenndebug reorg stopped\n")
 						shouldLoopAgain = false
-						continue
 					}
 
 					// promote keys in parallel
