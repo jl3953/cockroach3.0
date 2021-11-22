@@ -2578,21 +2578,21 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 
 	// connect to all CRDB servers
 	// TODO jenndebug you can parallelize this
-	//for _, wrapper := range rbServer.store.crdbClientWrappers {
-	//
-	//	crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-	//	defer crdbCancel()
-	//	kvVersion.Timestamp = &smdbrpc.HLCTimestamp{
-	//		Walltime:    &keyValue.Value.Timestamp.WallTime,
-	//		Logicaltime: &keyValue.Value.Timestamp.Logical,
-	//	}
-	//	promoResp, promoMapErr := wrapper.client.UpdatePromotionMap(crdbCtx, promoteKeysReq)
-	//	if promoMapErr != nil {
-	//		log.Fatalf(ctx, "jenndebug query to update promotion map failed %+v\n", promoMapErr)
-	//	} else if !*promoResp.WereSuccessfullyMigrated[0].IsSuccessfullyMigrated {
-	//		log.Fatalf(ctx, "jenndebug some other crdb machine didn't update its promotion map\n")
-	//	}
-	//}
+	for _, wrapper := range rbServer.store.crdbClientWrappers {
+
+		crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+		defer crdbCancel()
+		kvVersion.Timestamp = &smdbrpc.HLCTimestamp{
+			Walltime:    &keyValue.Value.Timestamp.WallTime,
+			Logicaltime: &keyValue.Value.Timestamp.Logical,
+		}
+		promoResp, promoMapErr := wrapper.client.UpdatePromotionMap(crdbCtx, promoteKeysReq)
+		if promoMapErr != nil {
+			log.Fatalf(ctx, "jenndebug query to update promotion map failed %+v\n", promoMapErr)
+		} else if !*promoResp.WereSuccessfullyMigrated[0].IsSuccessfullyMigrated {
+			log.Fatalf(ctx, "jenndebug some other crdb machine didn't update its promotion map\n")
+		}
+	}
 
 	// respond to the call
 	for range promoteKeysReq.Keys {
