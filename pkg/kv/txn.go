@@ -1470,6 +1470,7 @@ func reconstructValue(key []byte, value []byte, walltime int64, logicaltime int3
 
 	respSlice := make([][]byte, 1)
 	respSlice[0] = resp
+	log.Warningf(context.Background(), "jenndebug respSlice[0] %+v\n", respSlice[0])
 	return respSlice
 }
 
