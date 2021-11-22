@@ -2140,8 +2140,8 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			// query for stats from Cicada
 			cicadaCtx, cicadaCancel := context.WithTimeout(ctx, 3*time.Second)
 			defer cicadaCancel()
-			cpuTarget, cpuCeiling, cpuFloor := 0.7, 1.0, 0.6
-			memTarget, memCeiling, memFloor := 0.7, 1.0, 0.6
+			cpuTarget, cpuCeiling, cpuFloor := 0.7, 0.8, 0.6
+			memTarget, memCeiling, memFloor := 0.7, 0.8, 0.6
 			percentileN := 0.25
 			walltime, logicaltime := time.Now().UnixNano(), int32(0)
 			calculateCicadaReq := smdbrpc.CalculateCicadaReq{
