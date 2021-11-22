@@ -62,6 +62,7 @@ service HotshardGateway {
 
   rpc PromoteKey (KeyMigrationReq) returns (KeyMigrationResp) {}
   rpc PromoteKeys (PromoteKeysReq) returns (PromoteKeysResp) {}
+  rpc PromoteKeysToCicada(PromoteKeysToCicadaReq) returns (PromoteKeysToCicadaResp) {}
   rpc UpdatePromotionMap (PromoteKeysReq) returns (PromoteKeysResp) {}
   rpc DeleteFromPromotionMap (DeleteFromPromotionMapReq) returns (DeleteFromPromotionMapResp) {}
   rpc UpdateInProgressDemotionMap (UpdateInProgressDemotionMapReq) returns (UpdateInProgressDemotionMapResp) {}
@@ -135,6 +136,7 @@ message Key {
   repeated int64 key_cols = 3;
   optional bytes key = 4;
   optional HLCTimestamp timestamp = 5;
+  optional bytes value = 6;
 }
 
 message Op {
@@ -173,6 +175,7 @@ message CalculateCicadaStatsResp {
   optional uint64 qps_avail_for_promotion = 2;
   optional uint64 num_keys_avail_for_promotion = 3;
   optional float qps_at_nth_percentile = 4;
+  optional bool keys_exist = 5;
 }
 
 message CicadaStatsResponse {
@@ -273,3 +276,10 @@ message PromoteKeysResp {
   repeated KeyMigrationResp were_successfully_migrated = 1;
 }
 
+message PromoteKeysToCicadaReq {
+  repeated Key keys = 1;
+}
+
+message PromoteKeysToCicadaResp {
+  repeated bool successfullyPromoted = 1;
+}
