@@ -2227,7 +2227,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			}
 
 			if !*calculateCicadaResp.KeysExist {
-				for i := 0; i < 1 && pq.Len() > 0 ; i++ {
+				for i := 0; i < 100 && pq.Len() > 0 ; i++ {
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 
