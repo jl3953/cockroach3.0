@@ -2167,14 +2167,14 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			if demotionOnly := calculateCicadaResp.DemotionOnly; demotionOnly != nil {
 				log.Warningf(ctx, "jenndebug cicadaResp.demotion_only %t\n", *demotionOnly)
 			}
-			if qps_avail_promo := calculateCicadaResp.QpsAvailForPromotion; qps_avail_promo != nil {
-				log.Warningf(ctx, "jenndebug cicadaResp.qps_avail %d\n", *qps_avail_promo)
+			if qpsAvailPromo := calculateCicadaResp.QpsAvailForPromotion; qpsAvailPromo != nil {
+				log.Warningf(ctx, "jenndebug cicadaResp.qps_avail %d\n", *qpsAvailPromo)
 			}
-			if num_keys := calculateCicadaResp.NumKeysAvailForPromotion; num_keys != nil {
-				log.Warningf(ctx, "jenndebug cicadaResp.num_keys %d\n", *num_keys)
+			if numKeys := calculateCicadaResp.NumKeysAvailForPromotion; numKeys != nil {
+				log.Warningf(ctx, "jenndebug cicadaResp.num_keys %d\n", *numKeys)
 			}
-			if nth_percentile_qps := calculateCicadaResp.QpsAtNthPercentile; nth_percentile_qps != nil {
-				log.Warningf(ctx, "jenndebug cicadaResp.nth_percentile_qps %f\n", *nth_percentile_qps)
+			if nthPercentileQps := calculateCicadaResp.QpsAtNthPercentile; nthPercentileQps != nil {
+				log.Warningf(ctx, "jenndebug cicadaResp.nth_percentile_qps %f\n", *nthPercentileQps)
 			}
 			if keysExist := calculateCicadaResp.KeysExist; keysExist != nil {
 				log.Warningf(ctx, "jenndebug cicadaResp.KeysExist %t\n", *keysExist)
@@ -2257,81 +2257,78 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				var num_keys_promoted uint64 = 0
 				log.Warningf(ctx, "jenndebug promotion only resp.qpsAvail %d, resp.numKeys %d\n",
 					*calculateCicadaResp.QpsAvailForPromotion, *calculateCicadaResp.NumKeysAvailForPromotion)
-				for len(pq) > 0 && qps_from_promoted_keys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
-					num_keys_promoted < *calculateCicadaResp.NumKeysAvailForPromotion {
-					//for i := 0; i < 15; i++ {
-
-					if pq.Len() > 0 {
-						item := heap.Pop(&pq)
-						keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
-
-						// promote keys in parallel
-						log.Warningf(ctx, "jenndebug promote key %+v, qps %f\n",
-							keyStatWrapper.key, keyStatWrapper.qps)
-						go func(crdbKey []byte) {
-							promotionReq := smdbrpc.PromoteKeysReq{
-								Keys: []*smdbrpc.KVVersion{
-									{Key: crdbKey},
-								},
-							}
-							crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-							defer crdbCancel()
-							_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
-						}(keyStatWrapper.key)
-
-						qps_from_promoted_keys += float64(keyStatWrapper.qps)
-						num_keys_promoted++
-					}
+				promoteInBatchReq := smdbrpc.PromoteKeysReq{
+					Keys: []*smdbrpc.KVVersion{},
 				}
+				for pq.Len() > 0 &&
+					qps_from_promoted_keys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
+					num_keys_promoted < *calculateCicadaResp.NumKeysAvailForPromotion {
+
+					item := heap.Pop(&pq)
+					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
+
+					qps_from_promoted_keys += float64(keyStatWrapper.qps)
+					num_keys_promoted++
+					promoteInBatchReq.Keys = append(promoteInBatchReq.Keys, &smdbrpc.KVVersion{
+						Key:       keyStatWrapper.key,
+					})
+
+					log.Warningf(ctx, "jenndebug promote key %+v, qps %f\n",
+						keyStatWrapper.key, keyStatWrapper.qps)
+				}
+				// promote keys in parallel
+				go func() {
+					crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+					defer crdbCancel()
+					_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promoteInBatchReq)
+				}()
 				log.Warningf(ctx, "jenndebug pq.len() %d, qps_from_promoted_keys %+v, num_keys_promoted %+v\n",
 					len(pq), qps_from_promoted_keys, num_keys_promoted)
 				continue
 
 			} else {
+
 				// reorg hotkeys
 				log.Warningf(ctx, "jenndebug reorg hotkeys, qpsAtNthPercentile %+v\n",
 					*calculateCicadaResp.QpsAtNthPercentile)
-				qps_from_promoted_keys, num_keys_promoted := 0, 0
-				shouldLoopAgain := true
-				for shouldLoopAgain {
-					if len(pq) <= 0 {
-						shouldLoopAgain = false
-						continue
-					}
+				qpsFromPromotedKeys, numKeysPromoted := 0, 0
 
+				promoteInBatchReq := smdbrpc.PromoteKeysReq{Keys: []*smdbrpc.KVVersion{}}
+
+				for pq.Len() > 0 {
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 					log.Warningf(ctx, "jenndebug reorg key %+v, qps %f\n",
 						keyStatWrapper.key, keyStatWrapper.qps)
 
-					// finished promoting hot enough keys
 					if keyStatWrapper.qps <= *calculateCicadaResp.QpsAtNthPercentile {
-						log.Warningf(ctx, "jenndebug reorg stopped\n")
-						shouldLoopAgain = false
-						continue
+						// no more sufficiently hot keys, break out of promotion loop
+						log.Warningf(ctx, "jenndebug no more sufficiently hot keys, key.qps %f, threshold qps %f\n",
+							keyStatWrapper.qps, *calculateCicadaResp.QpsAtNthPercentile)
+						break
 					}
 
-					// promote keys in parallel
-					go func(crdbKey []byte) {
-						promotionReq := smdbrpc.PromoteKeysReq{
-							Keys: []*smdbrpc.KVVersion{
-								{Key: crdbKey},
-							},
-						}
-						crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-						defer crdbCancel()
-						_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
-					}(keyStatWrapper.key)
+					// track how many keys we need to demote
+					qpsFromPromotedKeys += int(keyStatWrapper.qps)
+					numKeysPromoted++
 
-					qps_from_promoted_keys += int(keyStatWrapper.qps)
-					num_keys_promoted++
+					// add key to promotion request
+					promoteInBatchReq.Keys = append(promoteInBatchReq.Keys, &smdbrpc.KVVersion{
+						Key:       keyStatWrapper.key,
+					})
 				}
+				// promote keys in parallel
+				go func() {
+					crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+					defer crdbCancel()
+					_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promoteInBatchReq)
+				}()
 
-				// TODO jenndebug trigger demotion by nums
+				// demote as many keys or qps as you promoted
 				log.Warningf(ctx, "jenndebug reorg demote qps_from_promoted %d, num_keys_promoted %d\n",
-					qps_from_promoted_keys, num_keys_promoted)
+					qpsFromPromotedKeys, numKeysPromoted)
 				go func(qpsInExcess, numKeysInExcess uint64) {
-					walltime, logicaltime = time.Now().UnixNano(), 0
+					walltime, logicaltime = time.Now().UnixNano() + 7000000000, 0
 					f := false
 					triggerDemotionByNumsReq := smdbrpc.TriggerDemotionByNumsReq{
 						QpsInExcess:     &qpsInExcess,
@@ -2345,7 +2342,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					if _, demotionErr := cicadaWrapper.client.TriggerDemotionByNums(ctx, &triggerDemotionByNumsReq); demotionErr != nil {
 						log.Fatalf(ctx, "jenndebug demotionByNums err %+v\n", demotionErr)
 					}
-				}(uint64(qps_from_promoted_keys), uint64(num_keys_promoted))
+				}(uint64(qpsFromPromotedKeys), uint64(numKeysPromoted))
 				continue
 			}
 		}
@@ -2565,7 +2562,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	c := *clientPtr
 
 	// request to update all maps in CRDB
-	updateMapReq := smdbrpc.PromoteKeysReq{Keys: []*smdbrpc.KVVersion{} }
+	updateMapReq := smdbrpc.PromoteKeysReq{Keys: []*smdbrpc.KVVersion{}}
 
 	// updating successful and non-successful keys
 	if promotionRespFromCicada, sendErr := c.PromoteKeysToCicada(ctx, &promotionReqToCicada); sendErr == nil {
@@ -2594,7 +2591,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		}
 		for originalIdx := 0; originalIdx < len(respBools); originalIdx++ {
 			respBools[originalIdx] = false
-			failureResp.WereSuccessfullyMigrated[originalIdx] = &smdbrpc.KeyMigrationResp {
+			failureResp.WereSuccessfullyMigrated[originalIdx] = &smdbrpc.KeyMigrationResp{
 				IsSuccessfullyMigrated: &respBools[originalIdx],
 			}
 		}
@@ -2631,7 +2628,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			Key: promotedKey.Key,
 			PromotionTimestamp: hlc.Timestamp{
 				WallTime: *promotedKey.Timestamp.Walltime,
-				Logical: *promotedKey.Timestamp.Logicaltime,
+				Logical:  *promotedKey.Timestamp.Logicaltime,
 			},
 		}
 		rbServer.store.DB().CicadaAffiliatedKeys.Store(roachpb.Key(promotedKey.Key).String(), cicadaKey)
