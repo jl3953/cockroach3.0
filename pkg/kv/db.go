@@ -314,10 +314,15 @@ func (connObj *ConnectionObjectWrapper) ReturnClient() {
 func (db *DB) GetClientPtrAndItsIndex() (*execinfrapbgrpc.HotshardGatewayClient, int) {
 	i := rand.Intn(db.numClients)
 	//failed := 0
+	//start := time.Now()
+	//retries := 0
 	for {
+		//retries++
 		if connObj, ok := db.cicadaClients.Load(i); ok {
 			cObj := connObj.(*ConnectionObjectWrapper)
 			if clientPtr, acquired := cObj.TryGetClient(); acquired {
+				//elapsed := timeutil.Since(start)
+				//log.Warningf(context.Background(), "jenndebug retries %d, elapsed %+v\n", retries, elapsed)
 				return clientPtr, i
 			} else {
 				i = (i + 1) % db.numClients

@@ -456,7 +456,7 @@ func (o *kvOp) run(ctx context.Context) error {
 			o.hists.Get(`read`).Record(elapsed)
 		}
 		if err != nil {
-			//fmt.Printf("jenndebug read %+v, err %+v\n", argsInt[0], err)
+			fmt.Printf("jenndebug read %+v, err %+v\n", argsInt[0], err)
 		}
 		return nil
 	}
