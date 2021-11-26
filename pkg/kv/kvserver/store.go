@@ -1885,6 +1885,7 @@ func (s *Store) Start(ctx context.Context, stopper *stop.Stopper) error {
 		if s.StoreID() == 1 {
 			s.stopper.RunWorker(ctx, s.triggerRebalanceHotkeysAtInterval)
 		}
+		s.stopper.RunWorker(ctx, s.batchTxnsToCicada)
 
 		// Start the scanner. The construction here makes sure that the scanner
 		// only starts after Gossip has connected, and that it does not block Start
@@ -2085,6 +2086,106 @@ type KeyStatWrapper struct {
 	isKeyOnCicada bool
 }
 
+type CicadaTxnReplyChan chan smdbrpc.TxnResp
+
+func (s *Store) submitBatchToCicada(ctx context.Context,
+	batchOfCicadaTxns []kv.SubmitTxnWrapper) {
+
+	// TODO jenndebug sort txns by timestamp
+	sort.Slice(batchOfCicadaTxns, func(i, j int) bool {
+		iTs := hlc.Timestamp{
+			WallTime: *batchOfCicadaTxns[i].TxnReq.Timestamp.Walltime,
+			Logical:  *batchOfCicadaTxns[i].TxnReq.Timestamp.Logicaltime,
+		}
+
+		jTs := hlc.Timestamp{
+			WallTime: *batchOfCicadaTxns[j].TxnReq.Timestamp.Walltime,
+			Logical: *batchOfCicadaTxns[j].TxnReq.Timestamp.Logicaltime,
+		}
+		return iTs.Less(jTs)
+	})
+
+	// retrieve client connection
+	clientPtr, idx := s.DB().GetClientPtrAndItsIndex()
+	defer s.DB().ReturnClient(idx)
+	c := *clientPtr
+	cicadaCtx, cicadaCancel := context.WithTimeout(ctx, time.Second)
+	defer cicadaCancel()
+
+	// transaction requests to be populated
+	txnReqs := make([]*smdbrpc.TxnReq, len(batchOfCicadaTxns))
+
+	// map out txn ids to reply channels
+	txnIdsToReplyChans := make(map[string]CicadaTxnReplyChan)
+
+	// populate transactions
+	for i, submitTxnWrapper := range batchOfCicadaTxns {
+
+		// populate txn req
+		txnReqs[i] = &submitTxnWrapper.TxnReq
+
+		// populate reply channels
+		txnIdsToReplyChans[string(submitTxnWrapper.TxnReq.
+			TxnId)] = submitTxnWrapper.ReplyChan
+	}
+
+	// send request to Cicada
+	batchSendTxnResp, sendErr := c.BatchSendTxns(cicadaCtx,
+		&smdbrpc.BatchSendTxnsReq{Txns: txnReqs})
+
+	// handle reply
+	if sendErr != nil {
+		// send failed, reply failure to all the txns
+		log.Warningf(ctx, "jenndebug submitBatchToCicada failed to send, " +
+			"sendErr %+v\n", sendErr)
+		f := false
+		for _, replyChan := range txnIdsToReplyChans {
+			replyChan <- smdbrpc.TxnResp{
+				IsCommitted: &f,
+			}
+		}
+	} else {
+		//  reply with responses to all the txns
+		for _, txnResp := range batchSendTxnResp.TxnResps {
+			replyChan := txnIdsToReplyChans[string(txnResp.TxnId)]
+			replyChan <- *txnResp
+		}
+	}
+}
+
+func (s *Store) batchTxnsToCicada(ctx context.Context) {
+
+	batchingInterval := 30 * time.Millisecond
+	batchSize := 25
+	log.Warningf(ctx, "jenndebug Cicada batchingInterval %+v, batchSize %+v\n",
+		batchingInterval, batchSize)
+
+	batchOfCicadaTxns := make([]kv.SubmitTxnWrapper, 0)
+
+	timerChan := time.After(batchingInterval)
+
+	for {
+		select {
+		case <-timerChan:
+			timerChan = time.After(batchingInterval)
+			if len(batchOfCicadaTxns) > 0 {
+				log.Warningf(ctx, "jenndebug timeout fired batchSize=%d\n", len(batchOfCicadaTxns))
+				go s.submitBatchToCicada(ctx, batchOfCicadaTxns)
+			} else {
+				log.Warningf(ctx, "jenndebug timeout fired batchSize=0\n")
+			}
+		case submitTxnWrapper := <-s.DB().BatchChannel:
+			batchOfCicadaTxns = append(batchOfCicadaTxns, submitTxnWrapper)
+			if len(batchOfCicadaTxns) >= batchSize {
+				go s.submitBatchToCicada(ctx, batchOfCicadaTxns)
+				timerChan = time.After(batchingInterval)
+			}
+		default:
+			// nothing, I guess
+		}
+	}
+}
+
 func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 	// Wait until the workload is **probably** started. This is pretty hacky, but
@@ -2269,7 +2370,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					qps_from_promoted_keys += float64(keyStatWrapper.qps)
 					num_keys_promoted++
 					promoteInBatchReq.Keys = append(promoteInBatchReq.Keys, &smdbrpc.KVVersion{
-						Key:       keyStatWrapper.key,
+						Key: keyStatWrapper.key,
 					})
 
 					log.Warningf(ctx, "jenndebug promote key %+v, qps %f\n",
@@ -2313,7 +2414,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 					// add key to promotion request
 					promoteInBatchReq.Keys = append(promoteInBatchReq.Keys, &smdbrpc.KVVersion{
-						Key:       keyStatWrapper.key,
+						Key: keyStatWrapper.key,
 					})
 				}
 				// promote keys in parallel
@@ -2327,7 +2428,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				log.Warningf(ctx, "jenndebug reorg demote qps_from_promoted %d, num_keys_promoted %d\n",
 					qpsFromPromotedKeys, numKeysPromoted)
 				go func(qpsInExcess, numKeysInExcess uint64) {
-					walltime, logicaltime = time.Now().UnixNano() + 7000000000, 0
+					walltime, logicaltime = time.Now().UnixNano()+7000000000, 0
 					f := false
 					triggerDemotionByNumsReq := smdbrpc.TriggerDemotionByNumsReq{
 						QpsInExcess:     &qpsInExcess,
