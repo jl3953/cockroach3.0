@@ -47,6 +47,7 @@ message KVPair {
 service HotshardGateway {
   // Sends a greeting
 
+  rpc BatchSendTxns (BatchSendTxnsReq) returns (BatchSendTxnsResp) {}
   // Asks Cicada whether it will 1) only demote keys, 2) only request CRDB promotions,
   // or 3) ask CRDB to trigger demotions and promotions
   rpc CalculateCicadaStats (CalculateCicadaReq) returns (CalculateCicadaStatsResp) {}
@@ -79,6 +80,14 @@ service HotshardGateway {
 
   rpc RequestCicadaStats (CalculateCicadaReq) returns (CicadaStatsResponse) {}
 
+}
+
+message BatchSendTxnsReq {
+  repeated TxnReq txns = 1;
+}
+
+message BatchSendTxnsResp {
+  repeated TxnResp txnResps = 1;
 }
 
 message CRDBTxnReq {
@@ -152,11 +161,16 @@ message TxnReq {
   repeated Op ops = 1;
   optional HLCTimestamp timestamp = 2;
   optional bool is_promotion = 3;
+  optional bool is_test = 4;
+  optional bool is_demoted_test_field = 5;
+  optional bytes txn_id = 6;
 }
 
 message TxnResp {
   optional bool is_committed = 1;
   repeated KVPair responses = 2;
+  optional bytes txn_id = 3;
+  optional bytes is_zero = 4; // ttfft if zero for txn_id
 }
 
 message CalculateCicadaReq {

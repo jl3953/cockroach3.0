@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"github.com/cockroachdb/cockroach/pkg/base"
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
-	execinfrapbgrpc "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
+	smdbrpc "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
 	"github.com/cockroachdb/cockroach/pkg/storage/enginepb"
 	"github.com/cockroachdb/cockroach/pkg/util/hlc"
 	"github.com/cockroachdb/cockroach/pkg/util/log"
@@ -269,6 +269,20 @@ type DB struct {
 
 	CicadaAffiliatedKeys sync.Map
 	InProgressDemotion sync.Map
+
+	BatchChannel chan SubmitTxnWrapper
+}
+
+type CicadaTxnReplyChan chan ExtractTxnWrapper
+
+type SubmitTxnWrapper struct {
+	TxnReq smdbrpc.TxnReq
+	ReplyChan CicadaTxnReplyChan
+}
+
+type ExtractTxnWrapper struct {
+	TxnResp smdbrpc.TxnResp
+	SendErr error
 }
 
 type CicadaAffiliatedKey struct {
@@ -278,7 +292,7 @@ type CicadaAffiliatedKey struct {
 
 type ConnectionObjectWrapper struct {
 	serializer chan bool
-	clientConn execinfrapbgrpc.HotshardGatewayClient
+	clientConn smdbrpc.HotshardGatewayClient
 }
 
 func NewConnectionObjectWrapper(address string) (*ConnectionObjectWrapper, error) {
@@ -288,7 +302,7 @@ func NewConnectionObjectWrapper(address string) (*ConnectionObjectWrapper, error
 		log.Fatalf(context.Background(), "jenndebug rpc failed")
 	}
 	//defer conn.Close()
-	client := execinfrapbgrpc.NewHotshardGatewayClient(conn)
+	client := smdbrpc.NewHotshardGatewayClient(conn)
 
 	connObj := &ConnectionObjectWrapper{
 		serializer: make(chan bool, 1),
@@ -298,7 +312,7 @@ func NewConnectionObjectWrapper(address string) (*ConnectionObjectWrapper, error
 	return connObj, nil
 }
 
-func (connObj *ConnectionObjectWrapper) TryGetClient() (*execinfrapbgrpc.HotshardGatewayClient, bool) {
+func (connObj *ConnectionObjectWrapper) TryGetClient() (*smdbrpc.HotshardGatewayClient, bool) {
 	select {
 	case connObj.serializer <- true:
 		return &connObj.clientConn, true
@@ -311,7 +325,7 @@ func (connObj *ConnectionObjectWrapper) ReturnClient() {
 	_ = <-connObj.serializer
 }
 
-func (db *DB) GetClientPtrAndItsIndex() (*execinfrapbgrpc.HotshardGatewayClient, int) {
+func (db *DB) GetClientPtrAndItsIndex() (*smdbrpc.HotshardGatewayClient, int) {
 	i := rand.Intn(db.numClients)
 	//failed := 0
 	//start := time.Now()
@@ -394,6 +408,7 @@ func NewDBWithContext(
 		crs: CrossRangeTxnWrapperSender{
 			wrapped: factory.NonTransactionalSender(),
 		},
+		BatchChannel: make(chan SubmitTxnWrapper, 1000000),
 	}
 	db.crs.db = db
 	return db

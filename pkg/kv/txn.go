@@ -1117,12 +1117,7 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 		},
 		IsPromotion: &f,
 	}
-	clientPtr, idx := txn.DB().GetClientPtrAndItsIndex()
-	defer txn.DB().ReturnClient(idx)
-	c := *clientPtr
-	cicadaCtx, cicadaCancel := context.WithTimeout(ctx, time.Second)
-	defer cicadaCancel()
-	txnResp, sendErr := c.SendTxn(cicadaCtx, &txnReq)
+	txnResp, sendErr := txn.submitTxnToCicada(ctx, txnReq)
 	if sendErr != nil {
 		log.Errorf(ctx, "jenndebug cicada write couldn't send txnReq %+v\n", sendErr)
 		return false, sendErr
@@ -1178,6 +1173,30 @@ func populateScansWithEmptyResp(brCicada *roachpb.BatchResponse) {
 	}
 }
 
+func (txn *Txn) submitTxnToCicada(_ context.Context,
+	txnReq execinfrapb.TxnReq) (execinfrapb.TxnResp, error){
+
+	// set txnId
+	txnReq.TxnId = make([]byte, uuid.Size)
+	for i, b := range txn.ID() {
+		txnReq.TxnId[i] = b
+	}
+
+	// listen on this reply channel
+	replyChan := make(CicadaTxnReplyChan, 1)
+
+	// submit request for cicada txn
+	submitTxnWrapper := SubmitTxnWrapper{
+		TxnReq:    txnReq,
+		ReplyChan: replyChan,
+	}
+  txn.DB().BatchChannel <- submitTxnWrapper
+
+  // listen for reply
+  extractTxnWrapper := <-replyChan
+  return extractTxnWrapper.TxnResp, extractTxnWrapper.SendErr
+}
+
 func (txn *Txn) readsCicada(ctx context.Context, ops []*execinfrapb.Op,
 	brCicada *roachpb.BatchResponse) (didReadsSucceed bool, err error) {
 
@@ -1193,12 +1212,7 @@ func (txn *Txn) readsCicada(ctx context.Context, ops []*execinfrapb.Op,
 		},
 		IsPromotion: &f,
 	}
-	clientPtr, idx := txn.db.GetClientPtrAndItsIndex()
-	defer txn.db.ReturnClient(idx)
-	c := *clientPtr
-	cicadaCtx, cicadaCancel := context.WithTimeout(ctx, time.Second)
-	defer cicadaCancel()
-	txnResp, sendErr := c.SendTxn(cicadaCtx, &txnReq)
+	txnResp, sendErr := txn.submitTxnToCicada(ctx, txnReq)
 	if sendErr != nil {
 		log.Warningf(ctx, "jenndebug cicada read could not send txnReq %+v\n", sendErr)
 		return false, sendErr

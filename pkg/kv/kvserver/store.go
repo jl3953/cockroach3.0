@@ -1886,6 +1886,7 @@ func (s *Store) Start(ctx context.Context, stopper *stop.Stopper) error {
 		if s.StoreID() == 1 {
 			s.stopper.RunWorker(ctx, s.triggerRebalanceHotkeysAtInterval)
 		}
+		s.stopper.RunWorker(ctx, s.batchTxnsToCicada)
 
 		// Start the scanner. The construction here makes sure that the scanner
 		// only starts after Gossip has connected, and that it does not block Start
@@ -2086,6 +2087,149 @@ type KeyStatWrapper struct {
 	isKeyOnCicada bool
 }
 
+func (s *Store) submitBatchToCicada(ctx context.Context,
+	batchOfCicadaTxns []kv.SubmitTxnWrapper) {
+
+	// sort txns by timestamp
+	sort.Slice(batchOfCicadaTxns, func(i, j int) bool {
+		iTs := hlc.Timestamp{
+			WallTime: *batchOfCicadaTxns[i].TxnReq.Timestamp.Walltime,
+			Logical:  *batchOfCicadaTxns[i].TxnReq.Timestamp.Logicaltime,
+		}
+
+		jTs := hlc.Timestamp{
+			WallTime: *batchOfCicadaTxns[j].TxnReq.Timestamp.Walltime,
+			Logical:  *batchOfCicadaTxns[j].TxnReq.Timestamp.Logicaltime,
+		}
+		return iTs.Less(jTs)
+	})
+
+	// retrieve client connection
+	clientPtr, idx := s.DB().GetClientPtrAndItsIndex()
+	defer s.DB().ReturnClient(idx)
+	c := *clientPtr
+	cicadaCtx, cicadaCancel := context.WithTimeout(ctx, time.Second)
+	defer cicadaCancel()
+
+	// transaction requests to be populated
+	txnReqs := make([]*smdbrpc.TxnReq, len(batchOfCicadaTxns))
+
+	// map out txn ids to reply channels
+	txnIdsToReplyChans := make(map[string]kv.CicadaTxnReplyChan)
+
+	// populate transactions
+	for i, submitTxnWrapper := range batchOfCicadaTxns {
+
+		// populate txn req
+		txnReqs[i] = &submitTxnWrapper.TxnReq
+
+		// populate reply channels
+		txnIdsToReplyChans[string(submitTxnWrapper.TxnReq.
+			TxnId)] = submitTxnWrapper.ReplyChan
+	}
+
+	// send request to Cicada
+	batchSendTxnResp, sendErr := c.BatchSendTxns(cicadaCtx,
+		&smdbrpc.BatchSendTxnsReq{Txns: txnReqs})
+
+	// handle reply
+	if sendErr != nil {
+		// send failed, reply failure to all the txns
+		log.Warningf(ctx, "jenndebug submitBatchToCicada failed to send, "+
+			"sendErr %+v\n", sendErr)
+		for _, replyChan := range txnIdsToReplyChans {
+			replyChan <- kv.ExtractTxnWrapper{
+				SendErr: sendErr,
+			}
+		}
+	} else {
+		//  reply with responses to all the txns
+		for _, txnResp := range batchSendTxnResp.TxnResps {
+			txnId := make([]byte, len(txnResp.TxnId))
+			for i, b := range txnResp.TxnId {
+				if txnResp.IsZero[i] == 't' {
+					txnId[i] = byte(0)
+				} else {
+					txnId[i] = b
+				}
+			}
+			replyChan, replyChanExists := txnIdsToReplyChans[string(
+				txnId)]
+			if !replyChanExists {
+				log.Fatalf(ctx, "jenndebug replyChan doesn't exist\n")
+			}
+			replyChan <- kv.ExtractTxnWrapper{
+				TxnResp: *txnResp,
+				SendErr: nil,
+			}
+		}
+	}
+}
+
+func (s *Store) batchTxnsToCicada(ctx context.Context) {
+
+	batchingInterval := 30 * time.Millisecond
+	batchSize := 25
+	log.Warningf(ctx, "jenndebug Cicada batchingInterval %+v, batchSize %+v\n",
+		batchingInterval, batchSize)
+
+	batchOfCicadaTxns := make([]kv.SubmitTxnWrapper, 0)
+
+	timerChan := time.After(batchingInterval)
+
+	for {
+		select {
+		case <-timerChan:
+
+			// reset timer
+			timerChan = time.After(batchingInterval)
+
+			if len(batchOfCicadaTxns) > 0 {
+				log.Warningf(ctx, "jenndebug timeout fired batchSize=%d\n", len(batchOfCicadaTxns))
+
+				// copy batch of txns to cicada
+				batchOfCicadaTxnsCopy := make([]kv.SubmitTxnWrapper, len(batchOfCicadaTxns))
+				copy(batchOfCicadaTxnsCopy, batchOfCicadaTxns)
+
+				// submit batch of txns to cicada
+				go s.submitBatchToCicada(ctx, batchOfCicadaTxnsCopy)
+
+				// reset batch of cicada txns to nothing
+				batchOfCicadaTxns = make([]kv.SubmitTxnWrapper, 0)
+			} else {
+				//log.Warningf(ctx, "jenndebug timeout fired batchSize=0\n")
+			}
+		case submitTxnWrapper := <-s.DB().BatchChannel:
+
+			// add on to batch
+			batchOfCicadaTxns = append(batchOfCicadaTxns, submitTxnWrapper)
+
+			// if length of batch is set
+			if len(batchOfCicadaTxns) >= batchSize {
+
+				// copy batch of txns to cicada
+				batchOfCicadaTxnsCopy := make([]kv.SubmitTxnWrapper, len(batchOfCicadaTxns))
+				copy(batchOfCicadaTxnsCopy, batchOfCicadaTxns)
+
+				// submit batch of txns to cicada
+				go s.submitBatchToCicada(ctx, batchOfCicadaTxns)
+
+				// reset batch of txns to cicada to nothing
+				batchOfCicadaTxns = make([]kv.SubmitTxnWrapper, 0)
+
+				// reset timer
+				log.Warningf(ctx, "jenndebug timer reset batchSize filled\n")
+				timerChan = time.After(batchingInterval)
+
+			} else {
+				log.Warningf(ctx, "jenndebug len(batchOfCicadaTxns) %d\n", len(batchOfCicadaTxns))
+			}
+		default:
+			// nothing, I guess
+		}
+	}
+}
+
 func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 	// Wait until the workload is **probably** started. This is pretty hacky, but
@@ -2095,8 +2239,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 	log.Warningf(ctx, "jenndebug promotion\n")
 
-	//TODO jenndebug make this an option somehow, or make the function a closure
-	interval := 150 * time.Second
+	interval := 40 * time.Second
 
 	// connect to all CRDB servers
 	//port := 50055
@@ -2110,9 +2253,6 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			if err := s.crdbClientWrappers[i].Init(ctx, listeningAddr, ConvertListeningToThermopylaePort(thermopylaePort)); err != nil {
 				log.Fatalf(ctx, "jenndebug could not connect to %s:%d, %+v\n", listeningAddr, thermopylaePort, err)
 			}
-			//defer func(conn *grpc.ClientConn) {
-			//	_ = conn.Close()
-			//}(s.crdbClientWrappers[i].conn)
 		}
 	}
 
@@ -2230,7 +2370,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				promotionReq := smdbrpc.PromoteKeysReq{
 					Keys: []*smdbrpc.KVVersion{},
 				}
-				for i := 0; i < 6000 && pq.Len() > 0; i++ {
+				for i := 0; i < 1 && pq.Len() > 0; i++ {
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 
@@ -2270,7 +2410,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					qps_from_promoted_keys += float64(keyStatWrapper.qps)
 					num_keys_promoted++
 					promoteInBatchReq.Keys = append(promoteInBatchReq.Keys, &smdbrpc.KVVersion{
-						Key:       keyStatWrapper.key,
+						Key: keyStatWrapper.key,
 					})
 
 					log.Warningf(ctx, "jenndebug promote key %+v, qps %f\n",
@@ -2314,7 +2454,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 					// add key to promotion request
 					promoteInBatchReq.Keys = append(promoteInBatchReq.Keys, &smdbrpc.KVVersion{
-						Key:       keyStatWrapper.key,
+						Key: keyStatWrapper.key,
 					})
 				}
 				// promote keys in parallel
@@ -2328,7 +2468,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				log.Warningf(ctx, "jenndebug reorg demote qps_from_promoted %d, num_keys_promoted %d\n",
 					qpsFromPromotedKeys, numKeysPromoted)
 				go func(qpsInExcess, numKeysInExcess uint64) {
-					walltime, logicaltime = time.Now().UnixNano() + 7000000000, 0
+					walltime, logicaltime = time.Now().UnixNano()+7000000000, 0
 					f := false
 					triggerDemotionByNumsReq := smdbrpc.TriggerDemotionByNumsReq{
 						QpsInExcess:     &qpsInExcess,
@@ -2620,6 +2760,18 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			log.Fatalf(ctx, "promotion updateMaps rpc failed to send, sendErr %+v\n", updateMapsErr)
 		}
 
+	}
+
+	// update this node's promotion map
+	for _, promotedKey := range promotionReqToCicada.Keys {
+		cicadaKey := kv.CicadaAffiliatedKey{
+			Key: promotedKey.Key,
+			PromotionTimestamp: hlc.Timestamp{
+				WallTime: *promotedKey.Timestamp.Walltime,
+				Logical:  *promotedKey.Timestamp.Logicaltime,
+			},
+		}
+		rbServer.store.DB().CicadaAffiliatedKeys.Store(roachpb.Key(promotedKey.Key).String(), cicadaKey)
 	}
 
 	// update this node's promotion map
