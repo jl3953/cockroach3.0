@@ -2086,12 +2086,10 @@ type KeyStatWrapper struct {
 	isKeyOnCicada bool
 }
 
-type CicadaTxnReplyChan chan smdbrpc.TxnResp
-
 func (s *Store) submitBatchToCicada(ctx context.Context,
 	batchOfCicadaTxns []kv.SubmitTxnWrapper) {
 
-	// TODO jenndebug sort txns by timestamp
+	// sort txns by timestamp
 	sort.Slice(batchOfCicadaTxns, func(i, j int) bool {
 		iTs := hlc.Timestamp{
 			WallTime: *batchOfCicadaTxns[i].TxnReq.Timestamp.Walltime,
@@ -2100,7 +2098,7 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 
 		jTs := hlc.Timestamp{
 			WallTime: *batchOfCicadaTxns[j].TxnReq.Timestamp.Walltime,
-			Logical: *batchOfCicadaTxns[j].TxnReq.Timestamp.Logicaltime,
+			Logical:  *batchOfCicadaTxns[j].TxnReq.Timestamp.Logicaltime,
 		}
 		return iTs.Less(jTs)
 	})
@@ -2116,7 +2114,7 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 	txnReqs := make([]*smdbrpc.TxnReq, len(batchOfCicadaTxns))
 
 	// map out txn ids to reply channels
-	txnIdsToReplyChans := make(map[string]CicadaTxnReplyChan)
+	txnIdsToReplyChans := make(map[string]kv.CicadaTxnReplyChan)
 
 	// populate transactions
 	for i, submitTxnWrapper := range batchOfCicadaTxns {
@@ -2136,19 +2134,33 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 	// handle reply
 	if sendErr != nil {
 		// send failed, reply failure to all the txns
-		log.Warningf(ctx, "jenndebug submitBatchToCicada failed to send, " +
+		log.Warningf(ctx, "jenndebug submitBatchToCicada failed to send, "+
 			"sendErr %+v\n", sendErr)
-		f := false
 		for _, replyChan := range txnIdsToReplyChans {
-			replyChan <- smdbrpc.TxnResp{
-				IsCommitted: &f,
+			replyChan <- kv.ExtractTxnWrapper{
+				SendErr: sendErr,
 			}
 		}
 	} else {
 		//  reply with responses to all the txns
 		for _, txnResp := range batchSendTxnResp.TxnResps {
-			replyChan := txnIdsToReplyChans[string(txnResp.TxnId)]
-			replyChan <- *txnResp
+			txnId := make([]byte, len(txnResp.TxnId))
+			for i, b := range txnResp.TxnId {
+				if txnResp.IsZero[i] == 't' {
+					txnId[i] = byte(0)
+				} else {
+					txnId[i] = b
+				}
+			}
+			replyChan, replyChanExists := txnIdsToReplyChans[string(
+				txnId)]
+			if !replyChanExists {
+				log.Fatalf(ctx, "jenndebug replyChan doesn't exist\n")
+			}
+			replyChan <- kv.ExtractTxnWrapper{
+				TxnResp: *txnResp,
+				SendErr: nil,
+			}
 		}
 	}
 }
@@ -2167,18 +2179,49 @@ func (s *Store) batchTxnsToCicada(ctx context.Context) {
 	for {
 		select {
 		case <-timerChan:
+
+			// reset timer
 			timerChan = time.After(batchingInterval)
+
 			if len(batchOfCicadaTxns) > 0 {
 				log.Warningf(ctx, "jenndebug timeout fired batchSize=%d\n", len(batchOfCicadaTxns))
-				go s.submitBatchToCicada(ctx, batchOfCicadaTxns)
+
+				// copy batch of txns to cicada
+				batchOfCicadaTxnsCopy := make([]kv.SubmitTxnWrapper, len(batchOfCicadaTxns))
+				copy(batchOfCicadaTxnsCopy, batchOfCicadaTxns)
+
+				// submit batch of txns to cicada
+				go s.submitBatchToCicada(ctx, batchOfCicadaTxnsCopy)
+
+				// reset batch of cicada txns to nothing
+				batchOfCicadaTxns = make([]kv.SubmitTxnWrapper, 0)
 			} else {
-				log.Warningf(ctx, "jenndebug timeout fired batchSize=0\n")
+				//log.Warningf(ctx, "jenndebug timeout fired batchSize=0\n")
 			}
 		case submitTxnWrapper := <-s.DB().BatchChannel:
+
+			// add on to batch
 			batchOfCicadaTxns = append(batchOfCicadaTxns, submitTxnWrapper)
+
+			// if length of batch is set
 			if len(batchOfCicadaTxns) >= batchSize {
+
+				// copy batch of txns to cicada
+				batchOfCicadaTxnsCopy := make([]kv.SubmitTxnWrapper, len(batchOfCicadaTxns))
+				copy(batchOfCicadaTxnsCopy, batchOfCicadaTxns)
+
+				// submit batch of txns to cicada
 				go s.submitBatchToCicada(ctx, batchOfCicadaTxns)
+
+				// reset batch of txns to cicada to nothing
+				batchOfCicadaTxns = make([]kv.SubmitTxnWrapper, 0)
+
+				// reset timer
+				log.Warningf(ctx, "jenndebug timer reset batchSize filled\n")
 				timerChan = time.After(batchingInterval)
+
+			} else {
+				log.Warningf(ctx, "jenndebug len(batchOfCicadaTxns) %d\n", len(batchOfCicadaTxns))
 			}
 		default:
 			// nothing, I guess
@@ -2196,7 +2239,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	log.Warningf(ctx, "jenndebug promotion\n")
 
 	//TODO jenndebug make this an option somehow, or make the function a closure
-	interval := 150 * time.Second
+	interval := 40 * time.Second
 
 	// connect to all CRDB servers
 	//port := 50055
@@ -2210,9 +2253,6 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			if err := s.crdbClientWrappers[i].Init(ctx, listeningAddr, ConvertListeningToThermopylaePort(thermopylaePort)); err != nil {
 				log.Fatalf(ctx, "jenndebug could not connect to %s:%d, %+v\n", listeningAddr, thermopylaePort, err)
 			}
-			//defer func(conn *grpc.ClientConn) {
-			//	_ = conn.Close()
-			//}(s.crdbClientWrappers[i].conn)
 		}
 	}
 
@@ -2330,7 +2370,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				promotionReq := smdbrpc.PromoteKeysReq{
 					Keys: []*smdbrpc.KVVersion{},
 				}
-				for i := 0; i < 6000 && pq.Len() > 0; i++ {
+				for i := 0; i < 1 && pq.Len() > 0; i++ {
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 

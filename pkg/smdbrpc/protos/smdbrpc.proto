@@ -170,6 +170,7 @@ message TxnResp {
   optional bool is_committed = 1;
   repeated KVPair responses = 2;
   optional bytes txn_id = 3;
+  optional bytes is_zero = 4; // ttfft if zero for txn_id
 }
 
 message CalculateCicadaReq {

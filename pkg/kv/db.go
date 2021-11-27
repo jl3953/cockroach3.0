@@ -272,9 +272,17 @@ type DB struct {
 
 	BatchChannel chan SubmitTxnWrapper
 }
+
+type CicadaTxnReplyChan chan ExtractTxnWrapper
+
 type SubmitTxnWrapper struct {
 	TxnReq smdbrpc.TxnReq
-	ReplyChan chan smdbrpc.TxnResp
+	ReplyChan CicadaTxnReplyChan
+}
+
+type ExtractTxnWrapper struct {
+	TxnResp smdbrpc.TxnResp
+	SendErr error
 }
 
 type CicadaAffiliatedKey struct {
@@ -400,6 +408,7 @@ func NewDBWithContext(
 		crs: CrossRangeTxnWrapperSender{
 			wrapped: factory.NonTransactionalSender(),
 		},
+		BatchChannel: make(chan SubmitTxnWrapper, 1000000),
 	}
 	db.crs.db = db
 	return db
