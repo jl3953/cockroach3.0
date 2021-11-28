@@ -15,7 +15,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
-	"sync"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
@@ -1183,26 +1182,36 @@ func (txn *Txn) submitTxnToCicada(_ context.Context,
 		txnReq.TxnId[i] = b
 	}
 
-	// listen on this reply channel
-	replyChan := make(CicadaTxnReplyChan, 1)
+	// retrieve client connection
+	clientPtr, idx := txn.DB().GetClientPtrAndItsIndex()
+	defer txn.DB().ReturnClient(idx)
+	c := *clientPtr
+	cicadaCtx, cicadaCancel := context.WithTimeout(context.Background(), time.Second)
+	defer cicadaCancel()
+	txnResp, sendErr := c.BatchSendTxns(cicadaCtx,
+		&execinfrapb.BatchSendTxnsReq{Txns: []*execinfrapb.TxnReq{&txnReq}})
+	return *txnResp.TxnResps[0], sendErr
 
-	// submit request for cicada txn
-	submitTxnWrapper := SubmitTxnWrapper{
-		TxnReq:    txnReq,
-		ReplyChan: replyChan,
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		txn.DB().BatchChannel <- submitTxnWrapper
-	}()
-	wg.Wait()
-
-  // listen for reply
-  extractTxnWrapper := <-replyChan
-  return extractTxnWrapper.TxnResp, extractTxnWrapper.SendErr
+	//// listen on this reply channel
+	//replyChan := make(CicadaTxnReplyChan, 1)
+	//
+	//// submit request for cicada txn
+	//submitTxnWrapper := SubmitTxnWrapper{
+	//	TxnReq:    txnReq,
+	//	ReplyChan: replyChan,
+	//}
+	//
+	//var wg sync.WaitGroup
+	//wg.Add(1)
+	//go func() {
+	//	defer wg.Done()
+	//	txn.DB().BatchChannel <- submitTxnWrapper
+	//}()
+	//wg.Wait()
+	//
+  //// listen for reply
+  //extractTxnWrapper := <-replyChan
+  //return extractTxnWrapper.TxnResp, extractTxnWrapper.SendErr
 }
 
 func (txn *Txn) readsCicada(ctx context.Context, ops []*execinfrapb.Op,
