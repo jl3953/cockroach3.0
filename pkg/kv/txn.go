@@ -1190,7 +1190,11 @@ func (txn *Txn) submitTxnToCicada(_ context.Context,
 	defer cicadaCancel()
 	txnResp, sendErr := c.BatchSendTxns(cicadaCtx,
 		&execinfrapb.BatchSendTxnsReq{Txns: []*execinfrapb.TxnReq{&txnReq}})
-	return *txnResp.TxnResps[0], sendErr
+	if len(txnResp.TxnResps) < 1 {
+		return execinfrapb.TxnResp{}, sendErr
+	} else {
+		return *txnResp.TxnResps[0], sendErr
+	}
 
 	//// listen on this reply channel
 	//replyChan := make(CicadaTxnReplyChan, 1)
