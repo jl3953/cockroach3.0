@@ -1190,7 +1190,9 @@ func (txn *Txn) submitTxnToCicada(_ context.Context,
 		TxnReq:    txnReq,
 		ReplyChan: replyChan,
 	}
+	log.Warningf(context.Background(), "jenndebug submitted\n")
   txn.DB().BatchChannel <- submitTxnWrapper
+  log.Warningf(context.Background(), "jenndebug responded\n")
 
   // listen for reply
   extractTxnWrapper := <-replyChan
@@ -1385,7 +1387,8 @@ func (txn *Txn) Send(
 						continue
 					}
 					//log.Warningf(ctx, "jenndebug warmkey %+v promoted to Cicada\n", key)
-					return nil, txn.constructInjectedRetryError(ctx, "jenndebug cicada reads failed to commit")
+					return nil, txn.constructInjectedRetryError(ctx,
+						"jenndebug cicada reads already promoted, need reroute")
 				}
 			}
 		}
