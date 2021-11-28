@@ -1190,7 +1190,9 @@ func (txn *Txn) submitTxnToCicada(_ context.Context,
 	defer cicadaCancel()
 	txnResp, sendErr := c.BatchSendTxns(cicadaCtx,
 		&execinfrapb.BatchSendTxnsReq{Txns: []*execinfrapb.TxnReq{&txnReq}})
-	if len(txnResp.TxnResps) < 1 {
+	if txnResp == nil {
+		return execinfrapb.TxnResp{}, sendErr
+	} else if len(txnResp.TxnResps) < 1 {
 		return execinfrapb.TxnResp{}, sendErr
 	} else {
 		return *txnResp.TxnResps[0], sendErr
