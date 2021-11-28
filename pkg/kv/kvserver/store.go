@@ -2116,6 +2116,9 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 	// map out txn ids to reply channels
 	txnIdsToReplyChans := make(map[string]kv.CicadaTxnReplyChan)
 
+	log.Warningf(ctx, "jenndebug submitting len(batchOfCicadaTxns) %d\n",
+		len(batchOfCicadaTxns))
+
 	// populate transactions
 	for i, submitTxnWrapper := range batchOfCicadaTxns {
 
@@ -2143,6 +2146,10 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 		}
 	} else {
 		//  reply with responses to all the txns
+		if len(batchSendTxnResp.TxnResps) != len(batchOfCicadaTxns) {
+			log.Fatalf(ctx, "jenndebug len(requests) %d != len(responses) %d\n",
+				len(batchOfCicadaTxns), len(batchSendTxnResp.TxnResps))
+		}
 		for _, txnResp := range batchSendTxnResp.TxnResps {
 			txnId := make([]byte, len(txnResp.TxnId))
 			for i, b := range txnResp.TxnId {
@@ -2167,7 +2174,7 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 
 func (s *Store) batchTxnsToCicada(ctx context.Context) {
 
-	batchingInterval := 30 * time.Millisecond
+	batchingInterval := 100 * time.Millisecond
 	batchSize := 25
 	log.Warningf(ctx, "jenndebug Cicada batchingInterval %+v, batchSize %+v\n",
 		batchingInterval, batchSize)
@@ -2196,7 +2203,6 @@ func (s *Store) batchTxnsToCicada(ctx context.Context) {
 				// reset batch of cicada txns to nothing
 				batchOfCicadaTxns = make([]kv.SubmitTxnWrapper, 0)
 			} else {
-				//log.Warningf(ctx, "jenndebug timeout fired batchSize=0\n")
 			}
 		case submitTxnWrapper := <-s.DB().BatchChannel:
 
@@ -2205,23 +2211,23 @@ func (s *Store) batchTxnsToCicada(ctx context.Context) {
 
 			// if length of batch is set
 			if len(batchOfCicadaTxns) >= batchSize {
+				log.Warningf(ctx, "jenndebug batchSize finally filled len("+
+					"batchOfCicadaTxns) %d\n", len(batchOfCicadaTxns))
 
 				// copy batch of txns to cicada
 				batchOfCicadaTxnsCopy := make([]kv.SubmitTxnWrapper, len(batchOfCicadaTxns))
 				copy(batchOfCicadaTxnsCopy, batchOfCicadaTxns)
 
 				// submit batch of txns to cicada
-				go s.submitBatchToCicada(ctx, batchOfCicadaTxns)
+				go s.submitBatchToCicada(ctx, batchOfCicadaTxnsCopy)
 
 				// reset batch of txns to cicada to nothing
 				batchOfCicadaTxns = make([]kv.SubmitTxnWrapper, 0)
 
 				// reset timer
-				log.Warningf(ctx, "jenndebug timer reset batchSize filled\n")
 				timerChan = time.After(batchingInterval)
 
 			} else {
-				log.Warningf(ctx, "jenndebug len(batchOfCicadaTxns) %d\n", len(batchOfCicadaTxns))
 			}
 		default:
 			// nothing, I guess
