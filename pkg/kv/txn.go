@@ -15,6 +15,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
+	"sync"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
@@ -1190,9 +1191,14 @@ func (txn *Txn) submitTxnToCicada(_ context.Context,
 		TxnReq:    txnReq,
 		ReplyChan: replyChan,
 	}
-	log.Warningf(context.Background(), "jenndebug submitted\n")
-  txn.DB().BatchChannel <- submitTxnWrapper
-  log.Warningf(context.Background(), "jenndebug responded\n")
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		txn.DB().BatchChannel <- submitTxnWrapper
+	}()
+	wg.Wait()
 
   // listen for reply
   extractTxnWrapper := <-replyChan
