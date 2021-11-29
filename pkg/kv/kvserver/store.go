@@ -2103,21 +2103,11 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 		return iTs.Less(jTs)
 	})
 
-	// retrieve client connection
-	clientPtr, idx := s.DB().GetClientPtrAndItsIndex()
-	defer s.DB().ReturnClient(idx)
-	c := *clientPtr
-	cicadaCtx, cicadaCancel := context.WithTimeout(ctx, time.Second)
-	defer cicadaCancel()
-
 	// transaction requests to be populated
 	txnReqs := make([]*smdbrpc.TxnReq, len(batchOfCicadaTxns))
 
-	// map out txn ids to reply channels
-	txnIdsToReplyChans := make(map[string]kv.CicadaTxnReplyChan)
-
-	log.Warningf(ctx, "jenndebug submitting len(batchOfCicadaTxns) %d\n",
-		len(batchOfCicadaTxns))
+	// index to to reply channels
+	replyChans := make([]kv.CicadaTxnReplyChan, len(batchOfCicadaTxns))
 
 	// populate transactions
 	for i, submitTxnWrapper := range batchOfCicadaTxns {
@@ -2126,9 +2116,15 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 		txnReqs[i] = &submitTxnWrapper.TxnReq
 
 		// populate reply channels
-		txnIdsToReplyChans[string(submitTxnWrapper.TxnReq.
-			TxnId)] = submitTxnWrapper.ReplyChan
+		replyChans[i] = submitTxnWrapper.ReplyChan
 	}
+
+	// retrieve client connection
+	clientPtr, idx := s.DB().GetClientPtrAndItsIndex()
+	defer s.DB().ReturnClient(idx)
+	c := *clientPtr
+	cicadaCtx, cicadaCancel := context.WithTimeout(ctx, time.Second)
+	defer cicadaCancel()
 
 	// send request to Cicada
 	batchSendTxnResp, sendErr := c.BatchSendTxns(cicadaCtx,
@@ -2139,7 +2135,7 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 		// send failed, reply failure to all the txns
 		log.Warningf(ctx, "jenndebug submitBatchToCicada failed to send, "+
 			"sendErr %+v\n", sendErr)
-		for _, replyChan := range txnIdsToReplyChans {
+		for _, replyChan := range replyChans {
 			replyChan <- kv.ExtractTxnWrapper{
 				SendErr: sendErr,
 			}
@@ -2150,21 +2146,15 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 			log.Fatalf(ctx, "jenndebug len(requests) %d != len(responses) %d\n",
 				len(batchOfCicadaTxns), len(batchSendTxnResp.TxnResps))
 		}
-		for _, txnResp := range batchSendTxnResp.TxnResps {
-			txnId := make([]byte, len(txnResp.TxnId))
-			for i, b := range txnResp.TxnId {
-				if txnResp.IsZero[i] == 't' {
-					txnId[i] = byte(0)
-				} else {
-					txnId[i] = b
-				}
+		for i, txnResp := range batchSendTxnResp.TxnResps {
+
+			// index into reply channels
+			if replyChanExists := i < len(replyChans); !replyChanExists {
+				log.Fatalf(ctx, "jenndebug replyChan index i %d doesn't exist\n", i)
 			}
-			replyChan, replyChanExists := txnIdsToReplyChans[string(
-				txnId)]
-			if !replyChanExists {
-				log.Fatalf(ctx, "jenndebug replyChan doesn't exist\n")
-			}
-			replyChan <- kv.ExtractTxnWrapper{
+
+			// sending back reply
+			replyChans[i] <- kv.ExtractTxnWrapper{
 				TxnResp: *txnResp,
 				SendErr: nil,
 			}

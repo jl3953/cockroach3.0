@@ -163,14 +163,13 @@ message TxnReq {
   optional bool is_promotion = 3;
   optional bool is_test = 4;
   optional bool is_demoted_test_field = 5;
-  optional bytes txn_id = 6;
+  optional int32 txn_id = 6;
 }
 
 message TxnResp {
   optional bool is_committed = 1;
   repeated KVPair responses = 2;
-  optional bytes txn_id = 3;
-  optional bytes is_zero = 4; // ttfft if zero for txn_id
+  optional int32 txn_id = 3;
 }
 
 message CalculateCicadaReq {
