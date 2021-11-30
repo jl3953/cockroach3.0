@@ -2577,6 +2577,8 @@ func (rbServer *rebalanceServer) TestIsKeyInPromotionMap(_ context.Context,
 func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	promoteKeysReq *smdbrpc.PromoteKeysReq) (*smdbrpc.PromoteKeysResp, error) {
 
+	start := time.Now()
+
 	ctx := context.Background()
 
 	// Map keys (string(roachpb.Key)) to their index in promoteKeysReq
@@ -2617,6 +2619,10 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 				//	roachpb.Key(promoteKeysReq.Keys[originalIdx].Key)).GoError())
 			}
 		}
+
+		elapsed := timeutil.Since(start)
+		log.Warningf(ctx, "jenndebug promoted %d keys, elapsed %+v\n",
+			len(wereSuccessfullyPromoted), elapsed)
 	}(txns, respBools)
 
 	// promotion request to Cicada
@@ -2749,11 +2755,11 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 
 	// Update all nodes' promotion maps
 	for wrapperI := range rbServer.store.crdbClientWrappers {
-		wg.Add(1)
-
-		go func(index int) {
-			defer wg.Done()
-			wrapper := rbServer.store.crdbClientWrappers[index]
+		//wg.Add(1)
+		//
+		//go func(index int) {
+		//	defer wg.Done()
+			wrapper := rbServer.store.crdbClientWrappers[wrapperI]
 			crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 			defer crdbCancel()
 
@@ -2776,7 +2782,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			} else {
 				log.Fatalf(ctx, "promotion updateMaps rpc failed to send, sendErr %+v\n", updateMapsErr)
 			}
-		} (wrapperI)
+		//} (wrapperI)
 	}
 
 	// update this node's promotion map
@@ -2790,7 +2796,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		}
 		rbServer.store.DB().CicadaAffiliatedKeys.Store(roachpb.Key(promotedKey.Key).String(), cicadaKey)
 	}
-	wg.Wait()
+	//wg.Wait()
 
 	// respond to the call
 	successResponse := smdbrpc.PromoteKeysResp{
