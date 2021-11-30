@@ -2814,8 +2814,8 @@ func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
 			if keepInMap := khs.recordLockedKey(time.Now()); !keepInMap {
 				repl.keyStats.Delete(key)
 				return true
-			} else if khs.Qps <= 0 {
-				return true
+			//} else if khs.Qps <= 0 {
+			//	return true
 			}
 			//log.Warningf(ctx, "jenndebug khs.key %s, khs.qps %f\n", khs.Key, khs.Qps)
 			item := &Item{
