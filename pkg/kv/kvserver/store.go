@@ -2202,8 +2202,6 @@ func (s *Store) batchTxnsToCicada(ctx context.Context) {
 
 			// if length of batch is set
 			if len(batchOfCicadaTxns) >= batchSize {
-				log.Warningf(ctx, "jenndebug batchSize finally filled len("+
-					"batchOfCicadaTxns) %d\n", len(batchOfCicadaTxns))
 
 				// copy batch of txns to cicada
 				batchOfCicadaTxnsCopy := make([]kv.SubmitTxnWrapper, len(batchOfCicadaTxns))
