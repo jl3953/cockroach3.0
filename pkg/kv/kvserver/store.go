@@ -2397,7 +2397,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				for i := 0; pq.Len() > 0 &&
 					qps_from_promoted_keys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
 					num_keys_promoted < *calculateCicadaResp.
-					NumKeysAvailForPromotion && i < 20000; i++ {
+					NumKeysAvailForPromotion && i < 10000; i++ {
 
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
