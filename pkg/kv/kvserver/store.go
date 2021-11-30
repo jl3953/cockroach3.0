@@ -2233,7 +2233,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 	log.Warningf(ctx, "jenndebug promotion\n")
 
-	interval := 150 * time.Second
+	interval := 30 * time.Second
 
 	// connect to all CRDB servers
 	//port := 50055
@@ -2364,7 +2364,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				promotionReq := smdbrpc.PromoteKeysReq{
 					Keys: []*smdbrpc.KVVersion{},
 				}
-				for i := 0; i < 100 && pq.Len() > 0; i++ {
+				for i := 0; i < 1000 && pq.Len() > 0; i++ {
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 
@@ -2394,9 +2394,10 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				promoteInBatchReq := smdbrpc.PromoteKeysReq{
 					Keys: []*smdbrpc.KVVersion{},
 				}
-				for pq.Len() > 0 &&
+				for i := 0; pq.Len() > 0 &&
 					qps_from_promoted_keys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
-					num_keys_promoted < *calculateCicadaResp.NumKeysAvailForPromotion {
+					num_keys_promoted < *calculateCicadaResp.
+					NumKeysAvailForPromotion && i < 20000; i++ {
 
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
