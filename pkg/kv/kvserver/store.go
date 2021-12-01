@@ -2795,7 +2795,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	//		log.Fatalf(ctx, "promotion updateMaps rpc failed to send, sendErr %+v\n", updateMapsErr)
 	//	}
 	//
-	}
+	//}
 
 	// update this node's promotion map
 	for _, promotedKey := range promotionReqToCicada.Keys {
