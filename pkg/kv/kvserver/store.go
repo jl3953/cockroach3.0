@@ -2365,24 +2365,27 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				promotionReq := smdbrpc.PromoteKeysReq{
 					Keys: []*smdbrpc.KVVersion{},
 				}
-				for i := 0; i < promotionBatch && pq.Len() > 0; i++ {
-					item := heap.Pop(&pq)
-					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
+				for j := 0; j < 1000000 && pq.Len() > 0 ; j += promotionBatch {
+					for i := 0; i < promotionBatch && pq.Len() > 0; i++ {
+						item := heap.Pop(&pq)
+						keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 
-					log.Warningf(ctx, "jenndebug promote key from no keys %+v, qps %f\n",
-						keyStatWrapper.key, keyStatWrapper.qps)
-					promotedKey := smdbrpc.KVVersion{Key: keyStatWrapper.key}
-					promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
+						log.Warningf(ctx, "jenndebug promote key from no keys %+v, qps %f\n",
+							keyStatWrapper.key, keyStatWrapper.qps)
+						promotedKey := smdbrpc.KVVersion{Key: keyStatWrapper.key}
+						promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
 
+					}
+					// promote keys in parallel
+					//go func() {
+						crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+						defer crdbCancel()
+						_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
+					//}()
+					//continue
 				}
-				// promote keys in parallel
-				go func() {
-					crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-					defer crdbCancel()
-					_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
-				}()
-				continue
 			}
+			continue
 
 			// if promotion only
 			if *calculateCicadaResp.QpsAvailForPromotion > 0 &&

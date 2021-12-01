@@ -1553,9 +1553,9 @@ func (khs *KeyHotnessStats) recordLockedKey(now time.Time) bool {
 		khs.LastQPSRollover = now
 		khs.Count = 0
 
-		if elapsedSinceLastQPS > 10*time.Second {
-			return false
-		}
+		//if elapsedSinceLastQPS > 10*time.Second {
+		//	return false
+		//}
 	}
 
 	return true
