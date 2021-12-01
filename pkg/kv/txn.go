@@ -1201,6 +1201,7 @@ func (txn *Txn) submitTxnToCicada(_ context.Context,
 		TxnReq:    txnReq,
 		ReplyChan: replyChan,
 	}
+
 	txn.DB().BatchChannel <- submitTxnWrapper
 
 	// wait for cicada's response

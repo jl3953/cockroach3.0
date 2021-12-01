@@ -2201,8 +2201,6 @@ func (s *Store) batchTxnsToCicada(ctx context.Context) {
 
 			// if length of batch is set
 			if len(batchOfCicadaTxns) >= batchSize {
-				log.Warningf(ctx, "jenndebug batchSize finally filled len("+
-					"batchOfCicadaTxns) %d\n", len(batchOfCicadaTxns))
 
 				// copy batch of txns to cicada
 				batchOfCicadaTxnsCopy := make([]kv.SubmitTxnWrapper, len(batchOfCicadaTxns))
@@ -2236,6 +2234,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 	//TODO jenndebug make this an option somehow, or make the function a closure
 	interval := 40 * time.Second
+	promotionBatch := 5000
 
 	// connect to all CRDB servers
 	//port := 50055
@@ -2263,7 +2262,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 	timerChan := time.After(time.Second)
 
-	for promotions := 0; promotions < 9; promotions++ {
+	for  {
 		select {
 		case <-s.stopper.ShouldStop():
 			return
@@ -2366,7 +2365,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				promotionReq := smdbrpc.PromoteKeysReq{
 					Keys: []*smdbrpc.KVVersion{},
 				}
-				for i := 0; i < 1 && pq.Len() > 0; i++ {
+				for i := 0; i < promotionBatch && pq.Len() > 0; i++ {
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 
@@ -2396,9 +2395,10 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				promoteInBatchReq := smdbrpc.PromoteKeysReq{
 					Keys: []*smdbrpc.KVVersion{},
 				}
-				for pq.Len() > 0 &&
+				for i := 0; pq.Len() > 0 &&
 					qps_from_promoted_keys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
-					num_keys_promoted < *calculateCicadaResp.NumKeysAvailForPromotion {
+					num_keys_promoted < *calculateCicadaResp.
+						NumKeysAvailForPromotion && i < promotionBatch; i++ {
 
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
@@ -2578,6 +2578,8 @@ func (rbServer *rebalanceServer) TestIsKeyInPromotionMap(_ context.Context,
 func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	promoteKeysReq *smdbrpc.PromoteKeysReq) (*smdbrpc.PromoteKeysResp, error) {
 
+	start := time.Now()
+
 	ctx := context.Background()
 
 	// Map keys (string(roachpb.Key)) to their index in promoteKeysReq
@@ -2596,109 +2598,137 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	txns := make([]*kv.Txn, len(promoteKeysReq.Keys))
 
 	// releases all transactions associated with keys
-	defer func(lockKeyTxns []*kv.Txn, wereSuccessfullyPromoted []bool) {
-		for originalIdx, wereSuccessful := range wereSuccessfullyPromoted {
-			if wereSuccessful {
-				if commitErr := lockKeyTxns[originalIdx].Commit(ctx); commitErr == nil {
-					// successfully promoted key, nothing to do
-				} else {
-					log.Errorf(ctx, "promoted key %+v, but didn't commit on CRDB\n",
+	defer func() {
+		var waitGroup sync.WaitGroup
+		for someIndex := range respBools {
+			waitGroup.Add(1)
+			go func(originalIdx int) {
+				defer waitGroup.Done()
+				wereSuccessful := respBools[originalIdx]
+				if wereSuccessful {
+					if commitErr := txns[originalIdx].Commit(ctx); commitErr == nil {
+						// successfully promoted key, nothing to do
+					} else {
+						log.Errorf(ctx, "promoted key %+v, but didn't commit on CRDB\n",
+							roachpb.Key(promoteKeysReq.Keys[originalIdx].Key))
+						txns[originalIdx].CleanupOnError(ctx, roachpb.NewErrorf(
+							"successfully promoted %+v, but didn't commit on CRDB\n",
+							roachpb.Key(promoteKeysReq.Keys[originalIdx].Key)).GoError())
+					}
+					log.Warningf(ctx, "successfully promoted %+v",
 						roachpb.Key(promoteKeysReq.Keys[originalIdx].Key))
-					lockKeyTxns[originalIdx].CleanupOnError(ctx, roachpb.NewErrorf(
-						"successfully promoted %+v, but didn't commit on CRDB\n",
-						roachpb.Key(promoteKeysReq.Keys[originalIdx].Key)).GoError())
+				} else {
+					// cleanup failed promotions
+					log.Errorf(ctx, "failed to promote %+v\n",
+						roachpb.Key(promoteKeysReq.Keys[originalIdx].Key))
+					//lockKeyTxns[originalIdx].CleanupOnError(ctx, roachpb.NewErrorf("failed to promote %+v\n",
+					//	roachpb.Key(promoteKeysReq.Keys[originalIdx].Key)).GoError())
 				}
-				log.Warningf(ctx, "successfully promoted %+v",
-					roachpb.Key(promoteKeysReq.Keys[originalIdx].Key))
-			} else {
-				// cleanup failed promotions
-				log.Errorf(ctx, "failed to promote %+v\n",
-					roachpb.Key(promoteKeysReq.Keys[originalIdx].Key))
-				lockKeyTxns[originalIdx].CleanupOnError(ctx, roachpb.NewErrorf("failed to promote %+v\n",
-					roachpb.Key(promoteKeysReq.Keys[originalIdx].Key)).GoError())
-			}
+			} (someIndex)
 		}
-	}(txns, respBools)
+		waitGroup.Wait()
+		elapsed := timeutil.Since(start)
+		log.Warningf(ctx, "jenndebug promoted %d keys elapsed %+v\n",
+			len(promoteKeysReq.Keys), elapsed)
+	}()
 
 	// promotion request to Cicada
-	promotionReqToCicada := smdbrpc.PromoteKeysToCicadaReq{Keys: []*smdbrpc.Key{}}
+	promotionReqToCicada := smdbrpc.PromoteKeysToCicadaReq{
+		Keys: make([]*smdbrpc.Key, 0),
+	}
+	keysList := make([]smdbrpc.Key, len(promoteKeysReq.Keys))
 
 	// Lock the keys
-	for originalIdx := 0; originalIdx < len(promoteKeysReq.Keys); originalIdx++ {
-		kvVersion := promoteKeysReq.Keys[originalIdx]
-		txn := kv.NewTxn(ctx, rbServer.store.DB(), rbServer.store.nodeDesc.NodeID)
-		txn.SetDebugName("PROMOTION_TXN")
-		txns[originalIdx] = txn
+	var wg sync.WaitGroup
+	for someIndex := 0; someIndex < len(promoteKeysReq.Keys); someIndex++ {
+		wg.Add(1)
+		go func(originalIdx int) {
+			defer wg.Done()
+			log.Warningf(ctx, "jenndebug originalIdx %d\n", originalIdx)
+			kvVersion := promoteKeysReq.Keys[originalIdx]
+			txn := kv.NewTxn(ctx, rbServer.store.DB(), rbServer.store.nodeDesc.NodeID)
+			txn.SetDebugName("PROMOTION_TXN")
+			txns[originalIdx] = txn
 
-		// if, for w/e reason, the key is already there, just return successful
-		k := roachpb.Key(kvVersion.Key).String()
-		if _, valExists := rbServer.store.DB().CicadaAffiliatedKeys.Load(k); valExists {
-			log.Errorf(ctx, "key %s already promoted\n", k)
-			//txn.CleanupOnError(ctx, roachpb.NewErrorf("key %s already promoted\n", k).GoError())
-			respBools[originalIdx] = false
-			continue
-		}
+			// if, for w/e reason, the key is already there, just return successful
+			k := roachpb.Key(kvVersion.Key).String()
+			if _, valExists := rbServer.store.DB().CicadaAffiliatedKeys.Load(k); valExists {
+				log.Errorf(ctx, "key %s already promoted\n", k)
+				txn.CleanupOnError(ctx, roachpb.NewErrorf("key %s already promoted\n", k).GoError())
+				respBools[originalIdx] = false
+				return
+			}
 
-		var keyValue kv.KeyValue
-		var err error
-		for keepLooping := true; keepLooping; {
-			// attempt to lock key
-			if err = txn.Lock(ctx, kvVersion.Key, &keyValue); err == nil {
-				log.Warningf(ctx, "jenndebug promotion successfully locked key %s\n", k)
-				if _, keyAlreadyPromoted := rbServer.store.DB().CicadaAffiliatedKeys.Load(k); !keyAlreadyPromoted {
-					// if key is locked, and has not been promoted yet, add it to list of keys to be promoted
-					table, idx, keyCols := kv.ExtractKey(k)
-					sentToCicadaKey := smdbrpc.Key{
-						Table:   &table,
-						Index:   &idx,
-						KeyCols: keyCols,
-						Key:     keyValue.Key,
-						Timestamp: &smdbrpc.HLCTimestamp{
-							Walltime:    &keyValue.Value.Timestamp.WallTime,
-							Logicaltime: &keyValue.Value.Timestamp.Logical,
-						},
-						Value: keyValue.Value.RawBytes,
+			var keyValue kv.KeyValue
+			var err error
+			for keepLooping := true; keepLooping; {
+				// attempt to lock key
+				if err = txn.Lock(ctx, kvVersion.Key, &keyValue); err == nil {
+					log.Warningf(ctx, "jenndebug promotion successfully locked key %s\n", k)
+					if _, keyAlreadyPromoted := rbServer.store.DB().CicadaAffiliatedKeys.Load(k); !keyAlreadyPromoted {
+						// if key is locked, and has not been promoted yet, add it to list of keys to be promoted
+						table, idx, keyCols := kv.ExtractKey(k)
+						keysList[originalIdx] = smdbrpc.Key{
+							Table:   &table,
+							Index:   &idx,
+							KeyCols: keyCols,
+							Key:     keyValue.Key,
+							Timestamp: &smdbrpc.HLCTimestamp{
+								Walltime:    &keyValue.Value.Timestamp.WallTime,
+								Logicaltime: &keyValue.Value.Timestamp.Logical,
+							},
+							Value: keyValue.Value.RawBytes,
+						}
+					} else {
+						// if key has been promoted between now and being locked, release it
+						txn.CleanupOnError(ctx, roachpb.NewErrorf("already promoted key %s\n", k).GoError())
+						log.Errorf(ctx, "promotion key %s locking succeeded, but already promoted\n", k)
+						respBools[originalIdx] = false
 					}
-					promotionReqToCicada.Keys = append(promotionReqToCicada.Keys, &sentToCicadaKey)
+					break
 				} else {
-					// if key has been promoted between now and being locked, release it
-					//txn.CleanupOnError(ctx, roachpb.NewErrorf("already promoted key %s\n", k).GoError())
-					log.Errorf(ctx, "promotion key %s locking succeeded, but already promoted\n", k)
-					respBools[originalIdx] = false
-				}
-				break
-			} else {
-				switch cause := errors.UnwrapAll(err); causeType := cause.(type) {
-				case *roachpb.TransactionRetryWithProtoRefreshError:
-					// if error is retryable, retry txn and keep trying to lock
-					log.Warningf(ctx, "promotion locking key %s retryable err %+v, try locking again\n",
-						k, err)
-					txn.PrepareForRetry(ctx, err)
-				case *roachpb.UnhandledRetryableError:
-					// if error is not retryable, then unlock the key and mark it unsuccessful
-					log.Errorf(ctx, "promotion locking key %s encountered unhandledRetryableErr err %+v\n", k, err)
-					//txn.CleanupOnError(ctx, err)
-					respBools[originalIdx] = false
-					keepLooping = false
-				default:
-					// if error is unknown, then unlock the key and mark it unsuccessful
-					log.Errorf(ctx, "promotion locking key %+v failed, unknown causeType %+v\n",
-						roachpb.Key(kvVersion.Key), causeType)
-					//txn.CleanupOnError(ctx, err)
-					respBools[originalIdx] = false
-					keepLooping = false
+					switch cause := errors.UnwrapAll(err); causeType := cause.(type) {
+					case *roachpb.TransactionRetryWithProtoRefreshError:
+						// if error is retryable, retry txn and keep trying to lock
+						log.Warningf(ctx, "promotion locking key %s retryable err %+v, try locking again\n",
+							k, err)
+						txn.PrepareForRetry(ctx, err)
+					case *roachpb.UnhandledRetryableError:
+						// if error is not retryable, then unlock the key and mark it unsuccessful
+						log.Errorf(ctx, "promotion locking key %s encountered unhandledRetryableErr err %+v\n", k, err)
+						txn.CleanupOnError(ctx, err)
+						respBools[originalIdx] = false
+						keepLooping = false
+					default:
+						// if error is unknown, then unlock the key and mark it unsuccessful
+						log.Errorf(ctx, "promotion locking key %+v failed, unknown causeType %+v\n",
+							roachpb.Key(kvVersion.Key), causeType)
+						txn.CleanupOnError(ctx, err)
+						respBools[originalIdx] = false
+						keepLooping = false
+					}
 				}
 			}
+		}(someIndex)
+	}
+	wg.Wait()
+
+	for originalIdx, wasLocked := range respBools {
+		if wasLocked {
+			promotionReqToCicada.Keys = append(promotionReqToCicada.Keys,
+				&keysList[originalIdx])
 		}
 	}
+	log.Warningf(ctx, "jenndebug promotionReqLen %d\n",
+		len(promotionReqToCicada.Keys))
 
 	// send over successful keys to Cicada
 	clientPtr, index := rbServer.store.DB().GetClientPtrAndItsIndex()
 	defer rbServer.store.DB().ReturnClient(index)
 	c := *clientPtr
 
-	//// request to update all maps in CRDB
-	//updateMapReq := smdbrpc.PromoteKeysReq{Keys: []*smdbrpc.KVVersion{}}
+	// request to update all maps in CRDB
+	updateMapReq := smdbrpc.PromoteKeysReq{Keys: []*smdbrpc.KVVersion{}}
 
 	// updating successful and non-successful keys
 	if promotionRespFromCicada, sendErr := c.PromoteKeysToCicada(ctx, &promotionReqToCicada); sendErr == nil {
@@ -2706,15 +2736,18 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			originalIdx := mapKeyToIdx[roachpb.Key(promotionReqToCicada.Keys[i].Key).String()]
 
 			if isSuccessfullyPromoted {
-				//// add to keys whose maps need to be promoted
-				//updateKeyInMaps := smdbrpc.KVVersion{
-				//	Key:       promotionReqToCicada.Keys[i].Key,
-				//	Value:     promotionReqToCicada.Keys[i].Value,
-				//	Timestamp: promotionReqToCicada.Keys[i].Timestamp,
-				//}
-				//updateMapReq.Keys = append(updateMapReq.Keys, &updateKeyInMaps)
+				// add to keys whose maps need to be promoted
+				updateKeyInMaps := smdbrpc.KVVersion{
+					Key:       promotionReqToCicada.Keys[i].Key,
+					Value:     promotionReqToCicada.Keys[i].Value,
+					Timestamp: promotionReqToCicada.Keys[i].Timestamp,
+				}
+				updateMapReq.Keys = append(updateMapReq.Keys, &updateKeyInMaps)
 			} else {
 				// not successfully promoted on cicada
+				txns[originalIdx].CleanupOnError(ctx,
+					roachpb.NewErrorf("Promotion failed %+v, cicada aborted promotion",
+						roachpb.Key(promotionReqToCicada.Keys[i].Key)).GoError())
 				respBools[originalIdx] = false
 			}
 		}
@@ -2726,6 +2759,9 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			WereSuccessfullyMigrated: make([]*smdbrpc.KeyMigrationResp, len(promoteKeysReq.Keys)),
 		}
 		for originalIdx := 0; originalIdx < len(respBools); originalIdx++ {
+			txns[originalIdx].CleanupOnError(ctx,
+				roachpb.NewErrorf("promotion to cicada failed to send, sendErr %+v",
+					sendErr).GoError())
 			respBools[originalIdx] = false
 			failureResp.WereSuccessfullyMigrated[originalIdx] = &smdbrpc.KeyMigrationResp{
 				IsSuccessfullyMigrated: &respBools[originalIdx],
@@ -2734,19 +2770,22 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		return &failureResp, nil
 	}
 
-	//// Update all nodes' promotion maps
+	// Update all nodes' promotion maps
 	//for _, wrapper := range rbServer.store.crdbClientWrappers {
 	//	crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 	//	defer crdbCancel()
-	//
+
 	//	if updateMapsResp, updateMapsErr := wrapper.client.UpdatePromotionMap(crdbCtx, &updateMapReq); updateMapsErr == nil {
 	//		for i, mapUpdated := range updateMapsResp.WereSuccessfullyMigrated {
 	//			if *mapUpdated.IsSuccessfullyMigrated {
-	//
+
 	//			} else {
 	//				// did not successfully update map of key
 	//				roachKey := roachpb.Key(updateMapReq.Keys[i].Key)
 	//				originalIdx := mapKeyToIdx[roachKey.String()]
+	//				txns[originalIdx].CleanupOnError(ctx,
+	//					roachpb.NewErrorf("promotion key %s failed to update map on CRDB node"+
+	//						" %+v", roachKey.String(), wrapper.address).GoError())
 	//				respBools[originalIdx] = false
 	//				log.Fatalf(ctx, "promotion key %s map failed to update on CRDB node %+v",
 	//					roachKey.String(), wrapper.address)
@@ -2756,7 +2795,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	//		log.Fatalf(ctx, "promotion updateMaps rpc failed to send, sendErr %+v\n", updateMapsErr)
 	//	}
 	//
-	//}
+	}
 
 	// update this node's promotion map
 	for _, promotedKey := range promotionReqToCicada.Keys {
@@ -2795,8 +2834,8 @@ func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
 			if keepInMap := khs.recordLockedKey(time.Now()); !keepInMap {
 				repl.keyStats.Delete(key)
 				return true
-			} else if khs.Qps <= 0 {
-				return true
+				//} else if khs.Qps <= 0 {
+				//	return true
 			}
 			//log.Warningf(ctx, "jenndebug khs.key %s, khs.qps %f\n", khs.Key, khs.Qps)
 			item := &Item{
