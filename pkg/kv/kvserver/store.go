@@ -2334,17 +2334,20 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			var err error
 			crdbResponses := make([]*smdbrpc.CRDBKeyStatsResponse, len(s.crdbClientWrappers))
 			for i, wrapper := range s.crdbClientWrappers {
-				crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-				log.Warningf(ctx, "jenndebug contacting wrapper %s:%d\n",
+				log.Warningf(ctx, "jenndebug wrapper %s:%d\n",
 					wrapper.address, wrapper.port)
+				crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+				log.Warningf(ctx, "jenndebug pre contacting\n")
 				crdbResponses[i], err = wrapper.client.RequestCRDBKeyStats(crdbCtx, &req)
-				log.Warningf(ctx, "jenndebug done contacting wrapper %s:%d\n",
+				log.Warningf(ctx, "jenndebug post contacting wrapper %s:%d\n",
 					wrapper.address, wrapper.port)
 				crdbCancel()
 				log.Warningf(ctx, "jenndebug crdbCanceled\n")
 				if err != nil {
 					log.Fatalf(ctx, "jenndebug query to CRDB key stats failed %+v, wrapper %+v:%+v\n",
 						err, wrapper.address, wrapper.port)
+				} else {
+					log.Warningf(ctx, "jenndebug everything ok\n")
 				}
 			}
 
