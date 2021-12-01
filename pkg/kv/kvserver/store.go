@@ -2254,7 +2254,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 	// connect to Cicada
 	var cicadaWrapper ConnWrapper
-	if err := cicadaWrapper.Init(ctx, "localhost", 50051); err != nil {
+	if err := cicadaWrapper.Init(ctx, "node-11", 50051); err != nil {
 		log.Fatalf(ctx, "jenndebug could not connect to cicada %+v\n", err)
 	}
 	defer func(conn *grpc.ClientConn) {
