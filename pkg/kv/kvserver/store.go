@@ -2223,6 +2223,14 @@ func (s *Store) batchTxnsToCicada(ctx context.Context) {
 	}
 }
 
+func (s *Store) promotionHelper(ctx context.Context,
+	promotionReq smdbrpc.PromoteKeysReq) {
+	crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+	defer crdbCancel()
+	_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx,
+		&promotionReq)
+}
+
 func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 	// Wait until the workload is **probably** started. This is pretty hacky, but
@@ -2370,45 +2378,42 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					Keys: []*smdbrpc.KVVersion{},
 				}
 
-				for j := 0; j < initialPromotionBatch && pq.Len() > 0; j += promotionBatch {
-					for i := 0; i < promotionBatch && pq.Len() > 0; i++ {
-						item := heap.Pop(&pq)
-						keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
+				for i := 0; i < initialPromotionBatch && pq.Len() > 0; i++ {
+					item := heap.Pop(&pq)
+					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 
-						log.Warningf(ctx, "jenndebug promote key from no keys %+v, qps %f\n",
-							keyStatWrapper.key, keyStatWrapper.qps)
-						promotedKey := smdbrpc.KVVersion{Key: keyStatWrapper.key}
-						promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
+					log.Warningf(ctx, "jenndebug promote key from no keys %+v, qps %f\n",
+						keyStatWrapper.key, keyStatWrapper.qps)
+					promotedKey := smdbrpc.KVVersion{Key: keyStatWrapper.key}
+					promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
 
+					if len(promotionReq.Keys) >= promotionBatch {
+						s.promotionHelper(ctx, promotionReq)
+						promotionReq.Keys = make([]*smdbrpc.KVVersion, 0)
 					}
-
-					// wait for promotion to finish
-					crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-					defer crdbCancel()
-					_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
 				}
+				s.promotionHelper(ctx, promotionReq)
 			} else if *calculateCicadaResp.QpsAvailForPromotion > 0 &&
 				*calculateCicadaResp.NumKeysAvailForPromotion > 0 {
 
 				// if promotion only
 
-				var qps_from_promoted_keys float64 = 0
-				var num_keys_promoted uint64 = 0
+				var qpsFromPromotedKeys float64 = 0
+				var numKeysPromoted uint64 = 0
 				log.Warningf(ctx, "jenndebug promotion only resp.qpsAvail %d, resp.numKeys %d\n",
 					*calculateCicadaResp.QpsAvailForPromotion, *calculateCicadaResp.NumKeysAvailForPromotion)
 				promoteInBatchReq := smdbrpc.PromoteKeysReq{
 					Keys: []*smdbrpc.KVVersion{},
 				}
-				keysSoFar := 0
 				for pq.Len() > 0 &&
-					qps_from_promoted_keys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
-					num_keys_promoted < *calculateCicadaResp.NumKeysAvailForPromotion {
+					qpsFromPromotedKeys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
+					numKeysPromoted < *calculateCicadaResp.NumKeysAvailForPromotion {
 
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 
-					qps_from_promoted_keys += float64(keyStatWrapper.qps)
-					num_keys_promoted++
+					qpsFromPromotedKeys += float64(keyStatWrapper.qps)
+					numKeysPromoted++
 					promoteInBatchReq.Keys = append(promoteInBatchReq.Keys, &smdbrpc.KVVersion{
 						Key: keyStatWrapper.key,
 					})
@@ -2416,29 +2421,15 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					log.Warningf(ctx, "jenndebug promote key %+v, qps %f\n",
 						keyStatWrapper.key, keyStatWrapper.qps)
 
-					keysSoFar++
-					if keysSoFar >= promotionBatch {
-						keysSoFar = 0
-						// TODO	jenndebug is this even right
-						go func(promotionReq smdbrpc.PromoteKeysReq) {
-							crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-							defer crdbCancel()
-							_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
-						}(promoteInBatchReq)
+					if len(promoteInBatchReq.Keys) >= promotionBatch {
+						s.promotionHelper(ctx, promoteInBatchReq)
 						promoteInBatchReq.Keys = make([]*smdbrpc.KVVersion, 0)
 					}
 				}
-				// promote keys in parallel
-				go func(promotionReq smdbrpc.PromoteKeysReq) {
-					crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-					defer crdbCancel()
-					_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx,
-						&promotionReq)
-				}(promoteInBatchReq)
+				s.promotionHelper(ctx, promoteInBatchReq)
 				log.Warningf(ctx, "jenndebug pq.len() %d, qps_from_promoted_keys %+v, num_keys_promoted %+v\n",
-					len(pq), qps_from_promoted_keys, num_keys_promoted)
+					len(pq), qpsFromPromotedKeys, numKeysPromoted)
 				continue
-
 			} else {
 
 				// reorg hotkeys
