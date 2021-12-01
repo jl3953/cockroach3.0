@@ -2758,30 +2758,34 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	}
 
 	// Update all nodes' promotion maps
-	for _, wrapper := range rbServer.store.crdbClientWrappers {
-		crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-		defer crdbCancel()
+	for wrapperI := range rbServer.store.crdbClientWrappers {
+		wg.Add(1)
+		go func(someIndex int) {
+			defer wg.Done()
+			wrapper := rbServer.store.crdbClientWrappers[wrapperI]
+			crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+			defer crdbCancel()
 
-		if updateMapsResp, updateMapsErr := wrapper.client.UpdatePromotionMap(crdbCtx, &updateMapReq); updateMapsErr == nil {
-			for i, mapUpdated := range updateMapsResp.WereSuccessfullyMigrated {
-				if *mapUpdated.IsSuccessfullyMigrated {
+			if updateMapsResp, updateMapsErr := wrapper.client.UpdatePromotionMap(crdbCtx, &updateMapReq); updateMapsErr == nil {
+				for i, mapUpdated := range updateMapsResp.WereSuccessfullyMigrated {
+					if *mapUpdated.IsSuccessfullyMigrated {
 
-				} else {
-					// did not successfully update map of key
-					roachKey := roachpb.Key(updateMapReq.Keys[i].Key)
-					originalIdx := mapKeyToIdx[roachKey.String()]
-					txns[originalIdx].CleanupOnError(ctx,
-						roachpb.NewErrorf("promotion key %s failed to update map on CRDB node"+
-							" %+v", roachKey.String(), wrapper.address).GoError())
-					respBools[originalIdx] = false
-					log.Fatalf(ctx, "promotion key %s map failed to update on CRDB node %+v",
-						roachKey.String(), wrapper.address)
+					} else {
+						// did not successfully update map of key
+						roachKey := roachpb.Key(updateMapReq.Keys[i].Key)
+						originalIdx := mapKeyToIdx[roachKey.String()]
+						txns[originalIdx].CleanupOnError(ctx,
+							roachpb.NewErrorf("promotion key %s failed to update map on CRDB node"+
+								" %+v", roachKey.String(), wrapper.address).GoError())
+						respBools[originalIdx] = false
+						log.Fatalf(ctx, "promotion key %s map failed to update on CRDB node %+v",
+							roachKey.String(), wrapper.address)
+					}
 				}
+			} else {
+				log.Fatalf(ctx, "promotion updateMaps rpc failed to send, sendErr %+v\n", updateMapsErr)
 			}
-		} else {
-			log.Fatalf(ctx, "promotion updateMaps rpc failed to send, sendErr %+v\n", updateMapsErr)
-		}
-
+		}(wrapperI)
 	}
 
 	// update this node's promotion map
@@ -2795,6 +2799,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		}
 		rbServer.store.DB().CicadaAffiliatedKeys.Store(roachpb.Key(promotedKey.Key).String(), cicadaKey)
 	}
+	wg.Wait()
 
 	// update this node's promotion map
 	for _, promotedKey := range promotionReqToCicada.Keys {
