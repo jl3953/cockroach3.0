@@ -2233,7 +2233,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 	log.Warningf(ctx, "jenndebug promotion\n")
 
-	interval := 30 * time.Second
+	interval := 10 * time.Second
 
 	// connect to all CRDB servers
 	//port := 50055
@@ -2619,7 +2619,9 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 				//	roachpb.Key(promoteKeysReq.Keys[originalIdx].Key)).GoError())
 			}
 		}
-
+		elapsed := timeutil.Since(start)
+		log.Warningf(ctx, "jenndebug promoted %d keys elapsed %+v\n",
+			len(promoteKeysReq.Keys), elapsed)
 	}(txns, respBools)
 
 	// promotion request to Cicada
@@ -2820,9 +2822,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			IsSuccessfullyMigrated: &promoted,
 		}
 	}
-	elapsed := timeutil.Since(start)
-	log.Warningf(ctx, "jenndebug promoted %d keys elapsed %+v\n",
-		len(promoteKeysReq.Keys), elapsed)
+
 	return &successResponse, nil
 }
 
