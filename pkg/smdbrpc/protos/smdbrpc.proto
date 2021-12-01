@@ -69,7 +69,7 @@ service HotshardGateway {
   rpc UpdateInProgressDemotionMap (UpdateInProgressDemotionMapReq) returns (UpdateInProgressDemotionMapResp) {}
   rpc DeleteFromInProgressDemotionMap (DeleteFromInProgressDemotionMapReq) returns (DeleteFromInProgressDemotionMapResp) {}
 
-  rpc RequestCRDBKeyStats(KeyStatsRequest) returns (CRDBKeyStatsResponse) {}
+  rpc RequestCRDBKeyStats(KeyStatsRequest) returns (stream KeyStat) {}
   rpc SendTxn(TxnReq) returns (TxnResp) {}
   rpc TriggerDemotionByNums (TriggerDemotionByNumsReq) returns (TriggerDemotionByNumsResp) {}
   rpc TriggerDemotion (TriggerDemotionRequest) returns (TriggerDemotionReply) {}

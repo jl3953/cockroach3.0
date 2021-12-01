@@ -17,6 +17,8 @@ import (
 	"fmt"
 	smdbrpc "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
 	"google.golang.org/grpc"
+	"io"
+
 	//"io"
 	"math"
 	"net"
@@ -2331,14 +2333,13 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			t := true
 			req := smdbrpc.KeyStatsRequest{Placeholder: &t}
 			// TODO jenndebug you can parallelize this
-			var err error
-			crdbResponses := make([]*smdbrpc.CRDBKeyStatsResponse, len(s.crdbClientWrappers))
+			crdbKeys := make([][]*smdbrpc.KeyStat, len(s.crdbClientWrappers))
 			for i, wrapper := range s.crdbClientWrappers {
 				log.Warningf(ctx, "jenndebug wrapper %s:%d\n",
 					wrapper.address, wrapper.port)
 				crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 				log.Warningf(ctx, "jenndebug pre contacting\n")
-				crdbResponses[i], err = wrapper.client.RequestCRDBKeyStats(crdbCtx, &req)
+				stream, err := wrapper.client.RequestCRDBKeyStats(crdbCtx, &req)
 				log.Warningf(ctx, "jenndebug post contacting wrapper %s:%d\n",
 					wrapper.address, wrapper.port)
 				crdbCancel()
@@ -2349,6 +2350,11 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				} else {
 					log.Warningf(ctx, "jenndebug everything ok\n")
 				}
+
+				for keyStatPtr, streamErr := stream.Recv(); streamErr != io.
+					EOF; keyStatPtr, streamErr = stream.Recv(){
+					crdbKeys[i] = append(crdbKeys[i], keyStatPtr)
+				}
 			}
 
 			log.Warningf(ctx, "jenndebug got past CRDB request stats\n")
@@ -2357,8 +2363,8 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			// TODO jenndebug parallelize this
 			pq := make(PriorityQueue, 0)
 			heap.Init(&pq)
-			for _, resp := range crdbResponses {
-				for _, keyStat := range resp.Keystats {
+			for _, keyStats := range crdbKeys {
+				for _, keyStat := range keyStats {
 					item := &Item{
 						value: KeyStatWrapper{
 							key:           keyStat.Key,
@@ -2842,8 +2848,9 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	return &successResponse, nil
 }
 
-func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
-	_ *smdbrpc.KeyStatsRequest) (*smdbrpc.CRDBKeyStatsResponse, error) {
+func (rbServer *rebalanceServer) RequestCRDBKeyStats(_ *smdbrpc.
+	KeyStatsRequest, stream smdbrpc.
+	HotshardGateway_RequestCRDBKeyStatsServer) error {
 
 	pq := make(PriorityQueue, 0)
 	heap.Init(&pq)
@@ -2867,11 +2874,8 @@ func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
 		})
 		return true
 	})
-	//log.Warningf(ctx, "jenndebug pq.Len() %d\n", pq.Len())
+	log.Warningf(context.Background(), "jenndebug pq.Len() %d\n", pq.Len())
 
-	response := smdbrpc.CRDBKeyStatsResponse{
-		Keystats: make([]*smdbrpc.KeyStat, 0),
-	}
 	for pq.Len() > 0 {
 		item := heap.Pop(&pq).(*Item)
 		khs := item.value.(KeyHotnessStats)
@@ -2881,11 +2885,16 @@ func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
 			Qps:      &khs.Qps,
 			WriteQps: &zero,
 		}
-		response.Keystats = append(response.Keystats, &keyStat)
+		if err := stream.Send(&keyStat); err != nil {
+			log.Fatalf(context.Background(),
+				"jenndebug RequestCRDB failed to send stream err %+v\n", err)
+			return err
+		}
+		//response.Keystats = append(response.Keystats, &keyStat)
 	}
 
 	//log.Warningf(ctx, "jenndebug len(response.keystats) %d\n", len(response.Keystats))
-	return &response, nil
+	return nil
 }
 
 func (rbServer *rebalanceServer) RequestCicadaStats(ctx context.Context,
