@@ -2338,7 +2338,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				log.Warningf(ctx, "jenndebug in loop for wrapper %s:%d\n",
 					wrapper.address, wrapper.port)
 
-				crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+				crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Hour)
 
 				log.Warningf(ctx, "jenndebug pre contacting\n")
 				stream, err := wrapper.client.RequestCRDBKeyStats(crdbCtx, &req)
