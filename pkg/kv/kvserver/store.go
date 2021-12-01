@@ -2620,7 +2620,9 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	}(txns, respBools)
 
 	// promotion request to Cicada
-	promotionReqToCicada := smdbrpc.PromoteKeysToCicadaReq{Keys: []*smdbrpc.Key{}}
+	promotionReqToCicada := smdbrpc.PromoteKeysToCicadaReq{
+		Keys: make([]*smdbrpc.Key, len(promoteKeysReq.Keys)),
+	}
 
 	// Lock the keys
 	var wg sync.WaitGroup
