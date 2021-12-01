@@ -2182,7 +2182,6 @@ func (s *Store) batchTxnsToCicada(ctx context.Context) {
 			timerChan = time.After(batchingInterval)
 
 			if len(batchOfCicadaTxns) > 0 {
-				log.Warningf(ctx, "jenndebug timeout fired batchSize=%d\n", len(batchOfCicadaTxns))
 
 				// copy batch of txns to cicada
 				batchOfCicadaTxnsCopy := make([]kv.SubmitTxnWrapper, len(batchOfCicadaTxns))
