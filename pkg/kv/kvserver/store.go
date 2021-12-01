@@ -2809,18 +2809,6 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		rbServer.store.DB().CicadaAffiliatedKeys.Store(roachpb.Key(promotedKey.Key).String(), cicadaKey)
 	}
 
-	// update this node's promotion map
-	for _, promotedKey := range promotionReqToCicada.Keys {
-		cicadaKey := kv.CicadaAffiliatedKey{
-			Key: promotedKey.Key,
-			PromotionTimestamp: hlc.Timestamp{
-				WallTime: *promotedKey.Timestamp.Walltime,
-				Logical:  *promotedKey.Timestamp.Logicaltime,
-			},
-		}
-		rbServer.store.DB().CicadaAffiliatedKeys.Store(roachpb.Key(promotedKey.Key).String(), cicadaKey)
-	}
-
 	// respond to the call
 	successResponse := smdbrpc.PromoteKeysResp{
 		WereSuccessfullyMigrated: make([]*smdbrpc.KeyMigrationResp, len(promoteKeysReq.Keys)),
