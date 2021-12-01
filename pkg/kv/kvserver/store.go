@@ -2335,15 +2335,16 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			// TODO jenndebug you can parallelize this
 			crdbKeys := make([][]*smdbrpc.KeyStat, len(s.crdbClientWrappers))
 			for i, wrapper := range s.crdbClientWrappers {
-				log.Warningf(ctx, "jenndebug wrapper %s:%d\n",
+				log.Warningf(ctx, "jenndebug in loop for wrapper %s:%d\n",
 					wrapper.address, wrapper.port)
+
 				crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+
 				log.Warningf(ctx, "jenndebug pre contacting\n")
 				stream, err := wrapper.client.RequestCRDBKeyStats(crdbCtx, &req)
 				log.Warningf(ctx, "jenndebug post contacting wrapper %s:%d\n",
 					wrapper.address, wrapper.port)
-				crdbCancel()
-				log.Warningf(ctx, "jenndebug crdbCanceled\n")
+
 				if err != nil {
 					log.Fatalf(ctx, "jenndebug query to CRDB key stats failed %+v, wrapper %+v:%+v\n",
 						err, wrapper.address, wrapper.port)
@@ -2355,9 +2356,15 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					EOF; keyStatPtr, streamErr = stream.Recv(){
 					crdbKeys[i] = append(crdbKeys[i], keyStatPtr)
 				}
+
+				log.Warningf(ctx, "jenndebug done with stream, received %d keys\n",
+					len(crdbKeys[i]))
+				crdbCancel()
+				log.Warningf(ctx, "jenndebug crdbCanceled\n")
 			}
 
 			log.Warningf(ctx, "jenndebug got past CRDB request stats\n")
+
 
 			// Sort the keys from CRDB, now that you'll need them sorted
 			// TODO jenndebug parallelize this
