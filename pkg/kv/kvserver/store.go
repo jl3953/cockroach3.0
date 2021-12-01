@@ -2228,11 +2228,11 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	// Wait until the workload is **probably** started. This is pretty hacky, but
 	// it'll probably get me correct results, and I couldn't care any less after that
 	// jenndebug
-	time.Sleep(20 * time.Second)
+	time.Sleep(300 * time.Second)
 
 	log.Warningf(ctx, "jenndebug promotion\n")
 
-	interval := 600 * time.Second
+	interval := 2 * time.Second
 
 	promotionBatch := 5000
 
@@ -2248,12 +2248,6 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			if err := s.crdbClientWrappers[i].Init(ctx, listeningAddr, ConvertListeningToThermopylaePort(thermopylaePort)); err != nil {
 				log.Fatalf(ctx, "jenndebug could not connect to %s:%d, %+v\n", listeningAddr, thermopylaePort, err)
 			}
-		}
-	} else if len(s.crdbClientWrappers) == 0 {
-		s.crdbClientWrappers = make([]ConnWrapper, 1)
-		if err := s.crdbClientWrappers[0].Init(ctx, "localhost",
-			50055); err != nil {
-			log.Fatalf(ctx, "jenndebug could not connect to self %+v\n", err)
 		}
 	}
 
@@ -2371,27 +2365,24 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				promotionReq := smdbrpc.PromoteKeysReq{
 					Keys: []*smdbrpc.KVVersion{},
 				}
-				for j := 0; j < 1000000 && pq.Len() > 0 ; j += promotionBatch {
-					for i := 0; i < promotionBatch && pq.Len() > 0; i++ {
-						item := heap.Pop(&pq)
-						keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
+				for i := 0; i < promotionBatch && pq.Len() > 0; i++ {
+					item := heap.Pop(&pq)
+					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 
-						log.Warningf(ctx, "jenndebug promote key from no keys %+v, qps %f\n",
-							keyStatWrapper.key, keyStatWrapper.qps)
-						promotedKey := smdbrpc.KVVersion{Key: keyStatWrapper.key}
-						promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
+					log.Warningf(ctx, "jenndebug promote key from no keys %+v, qps %f\n",
+						keyStatWrapper.key, keyStatWrapper.qps)
+					promotedKey := smdbrpc.KVVersion{Key: keyStatWrapper.key}
+					promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
 
-					}
-					// promote keys in parallel
-					//go func() {
-						crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-						defer crdbCancel()
-						_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
-					//}()
-					//continue
 				}
+				// promote keys in parallel
+				go func() {
+					crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+					defer crdbCancel()
+					_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
+				}()
+				continue
 			}
-			continue
 
 			// if promotion only
 			if *calculateCicadaResp.QpsAvailForPromotion > 0 &&
