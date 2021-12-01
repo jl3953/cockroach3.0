@@ -2235,6 +2235,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	//TODO jenndebug make this an option somehow, or make the function a closure
 	interval := 40 * time.Second
 	promotionBatch := 5000
+	initialPromotionBatch := 1000000
 
 	// connect to all CRDB servers
 	//port := 50055
@@ -2262,7 +2263,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 	timerChan := time.After(time.Second)
 
-	for  {
+	for {
 		select {
 		case <-s.stopper.ShouldStop():
 			return
@@ -2362,31 +2363,34 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			}
 
 			if !*calculateCicadaResp.KeysExist {
+
+				// first promotion
+
 				promotionReq := smdbrpc.PromoteKeysReq{
 					Keys: []*smdbrpc.KVVersion{},
 				}
-				for i := 0; i < promotionBatch && pq.Len() > 0; i++ {
-					item := heap.Pop(&pq)
-					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 
-					log.Warningf(ctx, "jenndebug promote key from no keys %+v, qps %f\n",
-						keyStatWrapper.key, keyStatWrapper.qps)
-					promotedKey := smdbrpc.KVVersion{Key: keyStatWrapper.key}
-					promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
+				for j := 0; j < initialPromotionBatch && pq.Len() > 0; j += promotionBatch {
+					for i := 0; i < promotionBatch && pq.Len() > 0; i++ {
+						item := heap.Pop(&pq)
+						keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 
-				}
-				// promote keys in parallel
-				go func() {
+						log.Warningf(ctx, "jenndebug promote key from no keys %+v, qps %f\n",
+							keyStatWrapper.key, keyStatWrapper.qps)
+						promotedKey := smdbrpc.KVVersion{Key: keyStatWrapper.key}
+						promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
+
+					}
+
+					// wait for promotion to finish
 					crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 					defer crdbCancel()
 					_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
-				}()
-				continue
-			}
-
-			// if promotion only
-			if *calculateCicadaResp.QpsAvailForPromotion > 0 &&
+				}
+			} else if *calculateCicadaResp.QpsAvailForPromotion > 0 &&
 				*calculateCicadaResp.NumKeysAvailForPromotion > 0 {
+
+				// if promotion only
 
 				var qps_from_promoted_keys float64 = 0
 				var num_keys_promoted uint64 = 0
@@ -2395,10 +2399,10 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				promoteInBatchReq := smdbrpc.PromoteKeysReq{
 					Keys: []*smdbrpc.KVVersion{},
 				}
-				for i := 0; pq.Len() > 0 &&
+				keysSoFar := 0
+				for pq.Len() > 0 &&
 					qps_from_promoted_keys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
-					num_keys_promoted < *calculateCicadaResp.
-						NumKeysAvailForPromotion && i < promotionBatch; i++ {
+					num_keys_promoted < *calculateCicadaResp.NumKeysAvailForPromotion {
 
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
@@ -2411,13 +2415,26 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 					log.Warningf(ctx, "jenndebug promote key %+v, qps %f\n",
 						keyStatWrapper.key, keyStatWrapper.qps)
+
+					keysSoFar++
+					if keysSoFar >= promotionBatch {
+						keysSoFar = 0
+						// TODO	jenndebug is this even right
+						go func(promotionReq smdbrpc.PromoteKeysReq) {
+							crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+							defer crdbCancel()
+							_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
+						}(promoteInBatchReq)
+						promoteInBatchReq.Keys = make([]*smdbrpc.KVVersion, 0)
+					}
 				}
 				// promote keys in parallel
-				go func() {
+				go func(promotionReq smdbrpc.PromoteKeysReq) {
 					crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 					defer crdbCancel()
-					_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promoteInBatchReq)
-				}()
+					_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx,
+						&promotionReq)
+				}(promoteInBatchReq)
 				log.Warningf(ctx, "jenndebug pq.len() %d, qps_from_promoted_keys %+v, num_keys_promoted %+v\n",
 					len(pq), qps_from_promoted_keys, num_keys_promoted)
 				continue
@@ -2624,7 +2641,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 					//lockKeyTxns[originalIdx].CleanupOnError(ctx, roachpb.NewErrorf("failed to promote %+v\n",
 					//	roachpb.Key(promoteKeysReq.Keys[originalIdx].Key)).GoError())
 				}
-			} (someIndex)
+			}(someIndex)
 		}
 		waitGroup.Wait()
 		elapsed := timeutil.Since(start)
