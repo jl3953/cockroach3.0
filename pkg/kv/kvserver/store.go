@@ -2621,8 +2621,9 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 
 	// promotion request to Cicada
 	promotionReqToCicada := smdbrpc.PromoteKeysToCicadaReq{
-		Keys: make([]*smdbrpc.Key, len(promoteKeysReq.Keys)),
+		Keys: make([]*smdbrpc.Key, 0),
 	}
+	keysList := make([]smdbrpc.Key, len(promoteKeysReq.Keys))
 
 	// Lock the keys
 	var wg sync.WaitGroup
@@ -2654,7 +2655,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 					if _, keyAlreadyPromoted := rbServer.store.DB().CicadaAffiliatedKeys.Load(k); !keyAlreadyPromoted {
 						// if key is locked, and has not been promoted yet, add it to list of keys to be promoted
 						table, idx, keyCols := kv.ExtractKey(k)
-						sentToCicadaKey := smdbrpc.Key{
+						keysList[originalIdx] = smdbrpc.Key{
 							Table:   &table,
 							Index:   &idx,
 							KeyCols: keyCols,
@@ -2665,7 +2666,6 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 							},
 							Value: keyValue.Value.RawBytes,
 						}
-						promotionReqToCicada.Keys = append(promotionReqToCicada.Keys, &sentToCicadaKey)
 					} else {
 						// if key has been promoted between now and being locked, release it
 						txn.CleanupOnError(ctx, roachpb.NewErrorf("already promoted key %s\n", k).GoError())
@@ -2699,6 +2699,13 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		}(someIndex)
 	}
 	wg.Wait()
+
+	for originalIdx, wasLocked := range respBools {
+		if wasLocked {
+			promotionReqToCicada.Keys = append(promotionReqToCicada.Keys,
+				&keysList[originalIdx])
+		}
+	}
 	log.Warningf(ctx, "jenndebug promotionReqLen %d\n",
 		len(promotionReqToCicada.Keys))
 
