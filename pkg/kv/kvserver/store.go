@@ -2597,32 +2597,35 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	txns := make([]*kv.Txn, len(promoteKeysReq.Keys))
 
 	// releases all transactions associated with keys
-	defer func(lockKeyTxns []*kv.Txn, wereSuccessfullyPromoted []bool) {
-		for originalIdx, wereSuccessful := range wereSuccessfullyPromoted {
-			if wereSuccessful {
-				if commitErr := lockKeyTxns[originalIdx].Commit(ctx); commitErr == nil {
-					// successfully promoted key, nothing to do
-				} else {
-					log.Errorf(ctx, "promoted key %+v, but didn't commit on CRDB\n",
+	defer func() {
+		for someIndex := range respBools {
+			go func(originalIdx int) {
+				wereSuccessful := respBools[originalIdx]
+				if wereSuccessful {
+					if commitErr := txns[originalIdx].Commit(ctx); commitErr == nil {
+						// successfully promoted key, nothing to do
+					} else {
+						log.Errorf(ctx, "promoted key %+v, but didn't commit on CRDB\n",
+							roachpb.Key(promoteKeysReq.Keys[originalIdx].Key))
+						txns[originalIdx].CleanupOnError(ctx, roachpb.NewErrorf(
+							"successfully promoted %+v, but didn't commit on CRDB\n",
+							roachpb.Key(promoteKeysReq.Keys[originalIdx].Key)).GoError())
+					}
+					log.Warningf(ctx, "successfully promoted %+v",
 						roachpb.Key(promoteKeysReq.Keys[originalIdx].Key))
-					lockKeyTxns[originalIdx].CleanupOnError(ctx, roachpb.NewErrorf(
-						"successfully promoted %+v, but didn't commit on CRDB\n",
-						roachpb.Key(promoteKeysReq.Keys[originalIdx].Key)).GoError())
+				} else {
+					// cleanup failed promotions
+					log.Errorf(ctx, "failed to promote %+v\n",
+						roachpb.Key(promoteKeysReq.Keys[originalIdx].Key))
+					//lockKeyTxns[originalIdx].CleanupOnError(ctx, roachpb.NewErrorf("failed to promote %+v\n",
+					//	roachpb.Key(promoteKeysReq.Keys[originalIdx].Key)).GoError())
 				}
-				log.Warningf(ctx, "successfully promoted %+v",
-					roachpb.Key(promoteKeysReq.Keys[originalIdx].Key))
-			} else {
-				// cleanup failed promotions
-				log.Errorf(ctx, "failed to promote %+v\n",
-					roachpb.Key(promoteKeysReq.Keys[originalIdx].Key))
-				//lockKeyTxns[originalIdx].CleanupOnError(ctx, roachpb.NewErrorf("failed to promote %+v\n",
-				//	roachpb.Key(promoteKeysReq.Keys[originalIdx].Key)).GoError())
-			}
+			} (someIndex)
 		}
 		elapsed := timeutil.Since(start)
 		log.Warningf(ctx, "jenndebug promoted %d keys elapsed %+v\n",
 			len(promoteKeysReq.Keys), elapsed)
-	}(txns, respBools)
+	}()
 
 	// promotion request to Cicada
 	promotionReqToCicada := smdbrpc.PromoteKeysToCicadaReq{
