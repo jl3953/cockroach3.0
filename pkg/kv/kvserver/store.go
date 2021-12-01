@@ -2249,6 +2249,12 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				log.Fatalf(ctx, "jenndebug could not connect to %s:%d, %+v\n", listeningAddr, thermopylaePort, err)
 			}
 		}
+	} else if len(s.crdbClientWrappers) == 0 {
+		s.crdbClientWrappers = make([]ConnWrapper, 1)
+		if err := s.crdbClientWrappers[0].Init(ctx, "localhost",
+			50055); err != nil {
+			log.Fatalf(ctx, "jenndebug could not connect to self %+v\n", err)
+		}
 	}
 
 	// connect to Cicada
