@@ -2696,6 +2696,9 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			}
 		}(someIndex)
 	}
+	wg.Wait()
+	log.Warningf(ctx, "jenndebug promotionReqLen %d\n",
+		len(promotionReqToCicada.Keys))
 
 	// send over successful keys to Cicada
 	clientPtr, index := rbServer.store.DB().GetClientPtrAndItsIndex()
