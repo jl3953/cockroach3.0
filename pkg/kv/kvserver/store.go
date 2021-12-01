@@ -2260,15 +2260,6 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 		}
 	}
 
-	// connect to Cicada
-	var cicadaWrapper ConnWrapper
-	if err := cicadaWrapper.Init(ctx, "node-11", 50051); err != nil {
-		log.Fatalf(ctx, "jenndebug could not connect to cicada %+v\n", err)
-	}
-	defer func(conn *grpc.ClientConn) {
-		_ = conn.Close()
-	}(cicadaWrapper.conn)
-
 	timerChan := time.After(time.Second)
 
 	for {
@@ -2277,6 +2268,9 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			return
 
 		case <-timerChan:
+			// connect to Cicada
+			cicadaClientPtr, cicadaIdx := s.DB().GetClientPtrAndItsIndex()
+			cicadaClient := *cicadaClientPtr
 
 			// reset timer
 			timerChan = time.After(interval)
@@ -2302,9 +2296,12 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				},
 			}
 			//_, calculateCicadaErr := cicadaWrapper.client.CalculateCicadaStats(cicadaCtx, &calculateCicadaReq)
-			calculateCicadaResp, calculateCicadaErr := cicadaWrapper.client.CalculateCicadaStats(cicadaCtx, &calculateCicadaReq)
+			calculateCicadaResp, calculateCicadaErr := cicadaClient.
+				CalculateCicadaStats(cicadaCtx, &calculateCicadaReq)
+			s.DB().ReturnClient(cicadaIdx)
 			if calculateCicadaErr != nil {
 				log.Errorf(ctx, "jenndebug calculateCicadaStats err %+v\n", calculateCicadaErr)
+				// connect to Cicada
 				continue
 			}
 
@@ -2339,12 +2336,14 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			for i, wrapper := range s.crdbClientWrappers {
 				crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 				crdbResponses[i], err = wrapper.client.RequestCRDBKeyStats(crdbCtx, &req)
+				crdbCancel()
 				if err != nil {
 					log.Fatalf(ctx, "jenndebug query to CRDB key stats failed %+v, wrapper %+v:%+v\n",
 						err, wrapper.address, wrapper.port)
 				}
-				defer crdbCancel()
 			}
+
+			log.Warningf(ctx, "jenndebug got past CRDB request stats\n")
 
 			// Sort the keys from CRDB, now that you'll need them sorted
 			// TODO jenndebug parallelize this
@@ -2483,7 +2482,12 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 						},
 						IsTest: &f,
 					}
-					if _, demotionErr := cicadaWrapper.client.TriggerDemotionByNums(ctx, &triggerDemotionByNumsReq); demotionErr != nil {
+					cicadaLocalClientPtr, cicadaLocalIdx := s.DB().
+						GetClientPtrAndItsIndex()
+					defer s.DB().ReturnClient(cicadaLocalIdx)
+					cicadaLocalClient := *cicadaLocalClientPtr
+					if _, demotionErr := cicadaLocalClient.TriggerDemotionByNums(ctx,
+						&triggerDemotionByNumsReq); demotionErr != nil {
 						log.Fatalf(ctx, "jenndebug demotionByNums err %+v\n", demotionErr)
 					}
 				}(uint64(qpsFromPromotedKeys), uint64(numKeysPromoted))
