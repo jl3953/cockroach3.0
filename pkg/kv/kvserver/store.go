@@ -2233,7 +2233,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 	log.Warningf(ctx, "jenndebug promotion\n")
 
-	interval := 5 * time.Second
+	interval := 150 * time.Second
 
 	promotionBatch := 5000
 
