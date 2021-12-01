@@ -2263,7 +2263,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 	timerChan := time.After(time.Second)
 
-	for promotions := 0; promotions < 9; promotions++ {
+	for  {
 		select {
 		case <-s.stopper.ShouldStop():
 			return
