@@ -2598,8 +2598,11 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 
 	// releases all transactions associated with keys
 	defer func() {
+		var waitGroup sync.WaitGroup
 		for someIndex := range respBools {
+			waitGroup.Add(1)
 			go func(originalIdx int) {
+				defer waitGroup.Done()
 				wereSuccessful := respBools[originalIdx]
 				if wereSuccessful {
 					if commitErr := txns[originalIdx].Commit(ctx); commitErr == nil {
@@ -2622,6 +2625,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 				}
 			} (someIndex)
 		}
+		waitGroup.Wait()
 		elapsed := timeutil.Since(start)
 		log.Warningf(ctx, "jenndebug promoted %d keys elapsed %+v\n",
 			len(promoteKeysReq.Keys), elapsed)
