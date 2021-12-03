@@ -2245,7 +2245,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	//TODO jenndebug make this an option somehow, or make the function a closure
 	interval := 10 * time.Second
 	promotionBatch := 5000
-	initialPromotionBatch := 5000
+	initialPromotionBatch := 5
 
 	// connect to all CRDB servers
 	//port := 50055
@@ -2401,6 +2401,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
 
 					if len(promotionReq.Keys) >= promotionBatch {
+						log.Warningf(ctx, "jenndebug do we get here?")
 						s.promotionHelper(ctx, promotionReq)
 						promotionReq.Keys = make([]*smdbrpc.KVVersion, 0)
 					}
@@ -2692,7 +2693,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			for keepLooping := true; keepLooping; {
 				// attempt to lock key
 				if err = txn.Lock(ctx, kvVersion.Key, &keyValue); err == nil {
-					//log.Warningf(ctx, "jenndebug promotion successfully locked key %s\n", k)
+					log.Warningf(ctx, "jenndebug promotion successfully locked key %s\n", k)
 					if _, keyAlreadyPromoted := rbServer.store.DB().CicadaAffiliatedKeys.Load(k); !keyAlreadyPromoted {
 						// if key is locked, and has not been promoted yet, add it to list of keys to be promoted
 						table, idx, keyCols := kv.ExtractKey(k)

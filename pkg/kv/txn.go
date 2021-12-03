@@ -15,6 +15,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	execinfrapb "github.com/cockroachdb/cockroach/pkg/smdbrpc/protos"
+	"github.com/cockroachdb/cockroach/pkg/util/timeutil"
 	"sync"
 	"time"
 
@@ -955,14 +956,19 @@ func (txn *Txn) DemotionLock(ctx context.Context, key roachpb.Key, value []byte)
 
 func (txn *Txn) Lock(ctx context.Context, key roachpb.Key, keyValue *KeyValue) error {
 
+	prior := time.Now()
 	var err error
 
 	// read txn's value
+	log.Warningf(ctx, "jenndebug promotion attempting to Get(...) key %s\n", key)
 	*keyValue, err = txn.Get(ctx, key)
 	if err != nil {
-		//log.Warningf(ctx, "jenndebug cannot lock key %+v, Get(...) failed %+v\n", key, err)
+		log.Warningf(ctx, "jenndebug cannot lock key %+v, Get(...) failed %+v\n", key, err)
 		return err
 	}
+	log.Warningf(ctx, "jenndebug promotion Get(...) key %s succeeded, " +
+		"spent %+v\n", key, timeutil.Since(prior))
+	prior = time.Now()
 
 	// key doesn't exist, don't promote it
 	if keyValue.Value == nil {
@@ -970,12 +976,17 @@ func (txn *Txn) Lock(ctx context.Context, key roachpb.Key, keyValue *KeyValue) e
 		return &roachpb.UnhandledRetryableError{}
 	}
 
+	log.Warningf(ctx, "jenndebug promotion attempting to Put(...) key %s, " +
+		"spent %+v\n", key, timeutil.Since(prior))
+	prior = time.Now()
 	// key exists, lock it
 	err = txn.Put(ctx, key, []byte("PROMOTION_IN_PROGRESS"))
 	if err != nil {
 		log.Warningf(ctx, "jenndebug cannot lock key %+v, Put(...) failed %+v\n", key, err)
 		return err
 	}
+	log.Warningf(ctx, "jenndebug promotion Put(...) key %s succeeded, " +
+		"spent %+v\n", key, timeutil.Since(prior))
 
 	// key is locked
 	return nil
