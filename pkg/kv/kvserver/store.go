@@ -2765,14 +2765,20 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	}
 	if timedOut := waitTimeout(&wg, 500*time.Millisecond); timedOut {
 		log.Errorf(ctx, "jenndebug promotion timed out")
-		for originalIdx, validTxn := range respBools {
-			if validTxn {
-				respBools[originalIdx] = false
-				txns[originalIdx].CleanupOnError(ctx,
-					roachpb.NewErrorf("promotion timed out").GoError())
+
+		// populate failure resp to client
+		failureResp := smdbrpc.PromoteKeysResp{
+			WereSuccessfullyMigrated: make([]*smdbrpc.KeyMigrationResp, len(promoteKeysReq.Keys)),
+		}
+		for originalIdx := 0; originalIdx < len(respBools); originalIdx++ {
+			txns[originalIdx].CleanupOnError(ctx,
+				roachpb.NewErrorf("promotion timed out").GoError())
+			respBools[originalIdx] = false
+			failureResp.WereSuccessfullyMigrated[originalIdx] = &smdbrpc.KeyMigrationResp{
+				IsSuccessfullyMigrated: &respBools[originalIdx],
 			}
 		}
-		return nil, nil
+		return &failureResp, roachpb.NewErrorf("promotion timed out").GoError()
 	}
 
 	for originalIdx, wasLocked := range respBools {
