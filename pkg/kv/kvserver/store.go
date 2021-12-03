@@ -2243,7 +2243,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	log.Warningf(ctx, "jenndebug promotion\n")
 
 	//TODO jenndebug make this an option somehow, or make the function a closure
-	interval := 150 * time.Second
+	interval := 10 * time.Second
 	promotionBatch := 5000
 	initialPromotionBatch := 20000
 
@@ -2421,9 +2421,9 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				promoteInBatchReq := smdbrpc.PromoteKeysReq{
 					Keys: []*smdbrpc.KVVersion{},
 				}
-				for pq.Len() > 0 &&
+				for i := 0; i < initialPromotionBatch && pq.Len() > 0 &&
 					qpsFromPromotedKeys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
-					numKeysPromoted < *calculateCicadaResp.NumKeysAvailForPromotion {
+					numKeysPromoted < *calculateCicadaResp.NumKeysAvailForPromotion; i++ {
 
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
