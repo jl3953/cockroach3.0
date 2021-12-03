@@ -2345,7 +2345,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				}
 
 				for keyStatPtr, streamErr := stream.Recv(); streamErr != io.
-					EOF; keyStatPtr, streamErr = stream.Recv(){
+					EOF; keyStatPtr, streamErr = stream.Recv() {
 					crdbKeys[i] = append(crdbKeys[i], keyStatPtr)
 				}
 				log.Warningf(ctx, "jenndebug elapsed for CRDB keys %+v\n",
@@ -2357,7 +2357,6 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			}
 
 			log.Warningf(ctx, "jenndebug got past CRDB request stats\n")
-
 
 			// Sort the keys from CRDB, now that you'll need them sorted
 			// TODO jenndebug parallelize this
@@ -2402,7 +2401,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
 
 					if len(promotionReq.Keys) >= promotionBatch {
-						promoteInBatchReqCopy := smdbrpc.PromoteKeysReq {
+						promoteInBatchReqCopy := smdbrpc.PromoteKeysReq{
 							Keys: make([]*smdbrpc.KVVersion, len(promotionReq.Keys)),
 						}
 						copy(promoteInBatchReqCopy.Keys, promotionReq.Keys)
@@ -2445,7 +2444,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					//	keyStatWrapper.key, keyStatWrapper.qps)
 
 					if len(promoteInBatchReq.Keys) >= promotionBatch {
-						promoteInBatchReqCopy := smdbrpc.PromoteKeysReq {
+						promoteInBatchReqCopy := smdbrpc.PromoteKeysReq{
 							Keys: make([]*smdbrpc.KVVersion, len(promoteInBatchReq.Keys)),
 						}
 						copy(promoteInBatchReqCopy.Keys, promoteInBatchReq.Keys)
@@ -2614,6 +2613,20 @@ func (rbServer *rebalanceServer) TestIsKeyInPromotionMap(_ context.Context,
 	return &resp, nil
 }
 
+func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		return false // completed normally
+	case <-time.After(timeout):
+		return true
+	}
+}
+
 // PromoteKeys Promote only a single key
 func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	promoteKeysReq *smdbrpc.PromoteKeysReq) (*smdbrpc.PromoteKeysResp, error) {
@@ -2750,7 +2763,17 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			}
 		}(someIndex)
 	}
-	wg.Wait()
+	if timedOut := waitTimeout(&wg, 500*time.Millisecond); timedOut {
+		log.Errorf(ctx, "jenndebug promotion timed out")
+		for originalIdx, validTxn := range respBools {
+			if validTxn {
+				respBools[originalIdx] = false
+				txns[originalIdx].CleanupOnError(ctx,
+					roachpb.NewErrorf("promotion timed out").GoError())
+			}
+		}
+		return nil, nil
+	}
 
 	for originalIdx, wasLocked := range respBools {
 		if wasLocked {
