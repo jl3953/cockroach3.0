@@ -2243,9 +2243,9 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	log.Warningf(ctx, "jenndebug promotion\n")
 
 	//TODO jenndebug make this an option somehow, or make the function a closure
-	interval := 150 * time.Second
+	interval := 5 * time.Second
 	promotionBatch := 1000
-	initialPromotionBatch := 20000
+	initialPromotionBatch := 4000
 
 	// connect to all CRDB servers
 	//port := 50055
@@ -2408,11 +2408,11 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 						copy(promoteInBatchReqCopy.Keys, promotionReq.Keys)
 						go s.promotionHelper(ctx, promoteInBatchReqCopy)
 						promotionReq.Keys = make([]*smdbrpc.KVVersion, 0)
-						time.Sleep(2 * time.Second)
+						//time.Sleep(2 * time.Second)
 					}
 				}
 				log.Warningf(ctx, "jenndebug fuck\n")
-				go s.promotionHelper(ctx, promotionReq)
+				//go s.promotionHelper(ctx, promotionReq)
 				time.Sleep(2 * time.Second)
 				log.Warningf(ctx, "jenndebug first promotion elapsed %+v\n",
 					timeutil.Since(start))
