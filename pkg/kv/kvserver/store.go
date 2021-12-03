@@ -2413,7 +2413,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				}
 				log.Warningf(ctx, "jenndebug fuck\n")
 				//go s.promotionHelper(ctx, promotionReq)
-				time.Sleep(2 * time.Second)
+				//time.Sleep(2 * time.Second)
 				log.Warningf(ctx, "jenndebug first promotion elapsed %+v\n",
 					timeutil.Since(start))
 			} else if *calculateCicadaResp.QpsAvailForPromotion > 0 &&
@@ -2453,7 +2453,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 						promoteInBatchReq.Keys = make([]*smdbrpc.KVVersion, 0)
 					}
 				}
-				go s.promotionHelper(ctx, promoteInBatchReq)
+				//go s.promotionHelper(ctx, promoteInBatchReq)
 				log.Warningf(ctx, "jenndebug pq.len() %d, qps_from_promoted_keys %+v, num_keys_promoted %+v\n",
 					len(pq), qpsFromPromotedKeys, numKeysPromoted)
 				continue
