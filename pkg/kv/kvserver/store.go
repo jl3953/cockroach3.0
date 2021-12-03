@@ -2655,8 +2655,8 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 							"successfully promoted %+v, but didn't commit on CRDB\n",
 							roachpb.Key(promoteKeysReq.Keys[originalIdx].Key)).GoError())
 					}
-					//log.Warningf(ctx, "successfully promoted %+v",
-					//	roachpb.Key(promoteKeysReq.Keys[originalIdx].Key))
+					log.Warningf(ctx, "successfully promoted %+v",
+						roachpb.Key(promoteKeysReq.Keys[originalIdx].Key))
 				} else {
 					// cleanup failed promotions
 					log.Errorf(ctx, "failed to promote %+v\n",
