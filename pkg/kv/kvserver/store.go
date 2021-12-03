@@ -2243,7 +2243,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	//TODO jenndebug make this an option somehow, or make the function a closure
 	interval := 40 * time.Second
 	promotionBatch := 1000
-	initialPromotionBatch := 1000
+	initialPromotionBatch := 4000
 
 	// connect to all CRDB servers
 	//port := 50055
@@ -2391,7 +2391,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 						promotionReq.Keys = make([]*smdbrpc.KVVersion, 0)
 					}
 				}
-				s.promotionHelper(ctx, promotionReq)
+				//s.promotionHelper(ctx, promotionReq)
 			} else if *calculateCicadaResp.QpsAvailForPromotion > 0 &&
 				*calculateCicadaResp.NumKeysAvailForPromotion > 0 {
 
