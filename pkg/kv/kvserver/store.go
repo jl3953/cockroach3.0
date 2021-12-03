@@ -2395,8 +2395,8 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 
-					log.Warningf(ctx, "jenndebug promote key from no keys %+v, qps %f\n",
-						keyStatWrapper.key, keyStatWrapper.qps)
+					//log.Warningf(ctx, "jenndebug promote key from no keys %+v, qps %f\n",
+					//	keyStatWrapper.key, keyStatWrapper.qps)
 					promotedKey := smdbrpc.KVVersion{Key: keyStatWrapper.key}
 					promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
 
@@ -2434,8 +2434,8 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 						Key: keyStatWrapper.key,
 					})
 
-					log.Warningf(ctx, "jenndebug promote key %+v, qps %f\n",
-						keyStatWrapper.key, keyStatWrapper.qps)
+					//log.Warningf(ctx, "jenndebug promote key %+v, qps %f\n",
+					//	keyStatWrapper.key, keyStatWrapper.qps)
 
 					if len(promoteInBatchReq.Keys) >= promotionBatch {
 						s.promotionHelper(ctx, promoteInBatchReq)
@@ -2644,8 +2644,8 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 							"successfully promoted %+v, but didn't commit on CRDB\n",
 							roachpb.Key(promoteKeysReq.Keys[originalIdx].Key)).GoError())
 					}
-					log.Warningf(ctx, "successfully promoted %+v",
-						roachpb.Key(promoteKeysReq.Keys[originalIdx].Key))
+					//log.Warningf(ctx, "successfully promoted %+v",
+					//	roachpb.Key(promoteKeysReq.Keys[originalIdx].Key))
 				} else {
 					// cleanup failed promotions
 					log.Errorf(ctx, "failed to promote %+v\n",
@@ -2692,7 +2692,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			for keepLooping := true; keepLooping; {
 				// attempt to lock key
 				if err = txn.Lock(ctx, kvVersion.Key, &keyValue); err == nil {
-					log.Warningf(ctx, "jenndebug promotion successfully locked key %s\n", k)
+					//log.Warningf(ctx, "jenndebug promotion successfully locked key %s\n", k)
 					if _, keyAlreadyPromoted := rbServer.store.DB().CicadaAffiliatedKeys.Load(k); !keyAlreadyPromoted {
 						// if key is locked, and has not been promoted yet, add it to list of keys to be promoted
 						table, idx, keyCols := kv.ExtractKey(k)
