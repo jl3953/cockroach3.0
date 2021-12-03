@@ -2261,6 +2261,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			}
 		}
 	}
+	time.Sleep(2 * time.Second)
 
 	timerChan := time.After(time.Second)
 
