@@ -2405,6 +2405,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 						promotionReq.Keys = make([]*smdbrpc.KVVersion, 0)
 					}
 				}
+				log.Warningf(ctx, "jenndebug fuck\n")
 				s.promotionHelper(ctx, promotionReq)
 				log.Warningf(ctx, "jenndebug first promotion elapsed %+v\n",
 					timeutil.Since(start))
