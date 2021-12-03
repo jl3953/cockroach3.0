@@ -2244,8 +2244,8 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 	//TODO jenndebug make this an option somehow, or make the function a closure
 	interval := 20 * time.Second
-	promotionBatch := 1000
-	initialPromotionBatch := 20000
+	promotionBatch := 500
+	initialPromotionBatch := 10000
 
 	// connect to all CRDB servers
 	//port := 50055
