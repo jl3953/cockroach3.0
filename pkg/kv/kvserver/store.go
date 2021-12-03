@@ -2669,7 +2669,6 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		wg.Add(1)
 		go func(originalIdx int) {
 			defer wg.Done()
-			log.Warningf(ctx, "jenndebug originalIdx %d\n", originalIdx)
 			kvVersion := promoteKeysReq.Keys[originalIdx]
 			txn := kv.NewTxn(ctx, rbServer.store.DB(), rbServer.store.nodeDesc.NodeID)
 			txn.SetDebugName("PROMOTION_TXN")
