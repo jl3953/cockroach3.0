@@ -2763,7 +2763,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			}
 		}(someIndex)
 	}
-	if timedOut := waitTimeout(&wg, 500*time.Millisecond); timedOut {
+	if timedOut := waitTimeout(&wg, 10*time.Second); timedOut {
 		log.Errorf(ctx, "jenndebug promotion timed out")
 
 		// populate failure resp to client
