@@ -2243,8 +2243,8 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	log.Warningf(ctx, "jenndebug promotion\n")
 
 	//TODO jenndebug make this an option somehow, or make the function a closure
-	interval := 10 * time.Second
-	promotionBatch := 1000
+	interval := 150 * time.Second
+	promotionBatch := 5000
 	initialPromotionBatch := 20000
 
 	// connect to all CRDB servers
@@ -2402,13 +2402,18 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
 
 					if len(promotionReq.Keys) >= promotionBatch {
-						log.Warningf(ctx, "jenndebug do we get here?")
-						s.promotionHelper(ctx, promotionReq)
+						promoteInBatchReqCopy := smdbrpc.PromoteKeysReq {
+							Keys: make([]*smdbrpc.KVVersion, len(promotionReq.Keys)),
+						}
+						copy(promoteInBatchReqCopy.Keys, promotionReq.Keys)
+						go s.promotionHelper(ctx, promoteInBatchReqCopy)
 						promotionReq.Keys = make([]*smdbrpc.KVVersion, 0)
+						time.Sleep(2 * time.Second)
 					}
 				}
 				log.Warningf(ctx, "jenndebug fuck\n")
-				s.promotionHelper(ctx, promotionReq)
+				go s.promotionHelper(ctx, promotionReq)
+				time.Sleep(2 * time.Second)
 				log.Warningf(ctx, "jenndebug first promotion elapsed %+v\n",
 					timeutil.Since(start))
 			} else if *calculateCicadaResp.QpsAvailForPromotion > 0 &&
@@ -2440,11 +2445,15 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					//	keyStatWrapper.key, keyStatWrapper.qps)
 
 					if len(promoteInBatchReq.Keys) >= promotionBatch {
-						s.promotionHelper(ctx, promoteInBatchReq)
+						promoteInBatchReqCopy := smdbrpc.PromoteKeysReq {
+							Keys: make([]*smdbrpc.KVVersion, len(promoteInBatchReq.Keys)),
+						}
+						copy(promoteInBatchReqCopy.Keys, promoteInBatchReq.Keys)
+						go s.promotionHelper(ctx, promoteInBatchReqCopy)
 						promoteInBatchReq.Keys = make([]*smdbrpc.KVVersion, 0)
 					}
 				}
-				s.promotionHelper(ctx, promoteInBatchReq)
+				go s.promotionHelper(ctx, promoteInBatchReq)
 				log.Warningf(ctx, "jenndebug pq.len() %d, qps_from_promoted_keys %+v, num_keys_promoted %+v\n",
 					len(pq), qpsFromPromotedKeys, numKeysPromoted)
 				continue
