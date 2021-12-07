@@ -1882,9 +1882,9 @@ func (s *Store) Start(ctx context.Context, stopper *stop.Stopper) error {
 
 		s.stopper.RunWorker(ctx, s.startRebalanceHotkeysServer)
 		// only the first store triggers the promotion
-		if s.StoreID() == 1 {
-			s.stopper.RunWorker(ctx, s.triggerRebalanceHotkeysAtInterval)
-		}
+		//if s.StoreID() == 1 {
+		//	s.stopper.RunWorker(ctx, s.triggerRebalanceHotkeysAtInterval)
+		//}
 		s.stopper.RunWorker(ctx, s.batchTxnsToCicada)
 
 		// Start the scanner. The construction here makes sure that the scanner
@@ -2109,14 +2109,17 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 	// index to to reply channels
 	replyChans := make([]kv.CicadaTxnReplyChan, len(batchOfCicadaTxns))
 
+	txnIds := make([]int32, len(batchOfCicadaTxns))
 	// populate transactions
-	for i, submitTxnWrapper := range batchOfCicadaTxns {
+	for i := 0; i < len(batchOfCicadaTxns); i++ {
 
 		// populate txn req
-		txnReqs[i] = &submitTxnWrapper.TxnReq
+		txnReqs[i] = &batchOfCicadaTxns[i].TxnReq
+		txnIds[i] = int32(i)
+		txnReqs[i].TxnId = &txnIds[i]
 
 		// populate reply channels
-		replyChans[i] = submitTxnWrapper.ReplyChan
+		replyChans[i] = batchOfCicadaTxns[i].ReplyChan
 	}
 
 	// retrieve client connection
@@ -2151,10 +2154,12 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 			// index into reply channels
 			if replyChanExists := i < len(replyChans); !replyChanExists {
 				log.Fatalf(ctx, "jenndebug replyChan index i %d doesn't exist\n", i)
+			} else if txnResp.TxnId == nil {
+				log.Fatalf(ctx, "jenndebug txnId not set in txnResp\n")
 			}
 
 			// sending back reply
-			replyChans[i] <- kv.ExtractTxnWrapper{
+			replyChans[*txnResp.TxnId] <- kv.ExtractTxnWrapper{
 				TxnResp: *txnResp,
 				SendErr: nil,
 			}
@@ -2181,7 +2186,7 @@ func (s *Store) batchTxnsToCicada(ctx context.Context) {
 			timerChan = time.After(batchingInterval)
 
 			if len(batchOfCicadaTxns) > 0 {
-				log.Warningf(ctx, "jenndebug timeout fired batchSize=%d\n", len(batchOfCicadaTxns))
+				//log.Warningf(ctx, "jenndebug timeout fired batchSize=%d\n", len(batchOfCicadaTxns))
 
 				// copy batch of txns to cicada
 				batchOfCicadaTxnsCopy := make([]kv.SubmitTxnWrapper, len(batchOfCicadaTxns))
