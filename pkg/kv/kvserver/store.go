@@ -2159,11 +2159,13 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 			}
 
 			// sending back reply
+			log.Warningf(ctx, "jenndebug returned txnId %d\n", *txnResp.TxnId)
 			replyChans[*txnResp.TxnId] <- kv.ExtractTxnWrapper{
 				TxnResp: *txnResp,
 				SendErr: nil,
 			}
 		}
+		log.Warningf(ctx, "======\n")
 	}
 }
 
