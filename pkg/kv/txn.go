@@ -1243,8 +1243,6 @@ func (txn *Txn) readsCicada(ctx context.Context, ops []*execinfrapb.Op,
 
 	// populate responses from Cicada
 	for i, kvPair := range txnResp.Responses {
-		var val roachpb.Value
-		val.SetBytes(kvPair.Value)
 		brCicada.Responses[i].Value = &roachpb.ResponseUnion_Scan{
 			Scan: &roachpb.ScanResponse{
 				BatchResponses: reconstructValue(kvPair.Key, kvPair.Value,
