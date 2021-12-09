@@ -807,7 +807,8 @@ func NewStore(
 	}
 	listeningHost, listeningPort, _ := net.SplitHostPort(listeningAddr)
 	intPort, _ := strconv.Atoi(listeningPort)
-	crdbServers := []string{listeningAddr}
+	// crdbServers := []string{listeningAddr}
+	crdbServers := []string{}
 	crdbServers = append(crdbServers, joinList...)
 	s := &Store{
 		cfg:           cfg,
@@ -2186,7 +2187,6 @@ func (s *Store) batchTxnsToCicada(ctx context.Context) {
 			timerChan = time.After(batchingInterval)
 
 			if len(batchOfCicadaTxns) > 0 {
-				//log.Warningf(ctx, "jenndebug timeout fired batchSize=%d\n", len(batchOfCicadaTxns))
 
 				// copy batch of txns to cicada
 				batchOfCicadaTxnsCopy := make([]kv.SubmitTxnWrapper, len(batchOfCicadaTxns))
@@ -2228,6 +2228,14 @@ func (s *Store) batchTxnsToCicada(ctx context.Context) {
 	}
 }
 
+func (s *Store) promotionHelper(ctx context.Context,
+	promotionReq smdbrpc.PromoteKeysReq) {
+	crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+	defer crdbCancel()
+	_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx,
+		&promotionReq)
+}
+
 func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 
 	// Wait until the workload is **probably** started. This is pretty hacky, but
@@ -2257,15 +2265,6 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 		}
 	}
 
-	// connect to Cicada
-	var cicadaWrapper ConnWrapper
-	if err := cicadaWrapper.Init(ctx, "localhost", 50051); err != nil {
-		log.Fatalf(ctx, "jenndebug could not connect to cicada %+v\n", err)
-	}
-	defer func(conn *grpc.ClientConn) {
-		_ = conn.Close()
-	}(cicadaWrapper.conn)
-
 	timerChan := time.After(time.Second)
 
 	for {
@@ -2274,6 +2273,9 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			return
 
 		case <-timerChan:
+			// connect to Cicada
+			cicadaClientPtr, cicadaIdx := s.DB().GetClientPtrAndItsIndex()
+			cicadaClient := *cicadaClientPtr
 
 			// reset timer
 			timerChan = time.After(interval)
@@ -2281,8 +2283,8 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			// query for stats from Cicada
 			cicadaCtx, cicadaCancel := context.WithTimeout(ctx, 3*time.Second)
 			defer cicadaCancel()
-			cpuTarget, cpuCeiling, cpuFloor := 0.7, 1.0, 0.6
-			memTarget, memCeiling, memFloor := 0.7, 1.0, 0.6
+			cpuTarget, cpuCeiling, cpuFloor := 0.7, 0.8, 0.6
+			memTarget, memCeiling, memFloor := 0.7, 0.8, 0.6
 			percentileN := 0.25
 			walltime, logicaltime := time.Now().UnixNano(), int32(0)
 			calculateCicadaReq := smdbrpc.CalculateCicadaReq{
@@ -2299,9 +2301,12 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				},
 			}
 			//_, calculateCicadaErr := cicadaWrapper.client.CalculateCicadaStats(cicadaCtx, &calculateCicadaReq)
-			calculateCicadaResp, calculateCicadaErr := cicadaWrapper.client.CalculateCicadaStats(cicadaCtx, &calculateCicadaReq)
+			calculateCicadaResp, calculateCicadaErr := cicadaClient.
+				CalculateCicadaStats(cicadaCtx, &calculateCicadaReq)
+			s.DB().ReturnClient(cicadaIdx)
 			if calculateCicadaErr != nil {
 				log.Errorf(ctx, "jenndebug calculateCicadaStats err %+v\n", calculateCicadaErr)
+				// connect to Cicada
 				continue
 			}
 
@@ -2336,11 +2341,11 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			for i, wrapper := range s.crdbClientWrappers {
 				crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 				crdbResponses[i], err = wrapper.client.RequestCRDBKeyStats(crdbCtx, &req)
+				crdbCancel()
 				if err != nil {
 					log.Fatalf(ctx, "jenndebug query to CRDB key stats failed %+v, wrapper %+v:%+v\n",
 						err, wrapper.address, wrapper.port)
 				}
-				defer crdbCancel()
 			}
 
 			// Sort the keys from CRDB, now that you'll need them sorted
@@ -2375,30 +2380,29 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					Keys: []*smdbrpc.KVVersion{},
 				}
 
-				for j := 0; j < initialPromotionBatch && pq.Len() > 0; j += promotionBatch {
-					for i := 0; i < promotionBatch && pq.Len() > 0; i++ {
-						item := heap.Pop(&pq)
-						keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
+				for i := 0; i < initialPromotionBatch && pq.Len() > 0; i++ {
+					item := heap.Pop(&pq)
+					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 
 						log.Warningf(ctx, "jenndebug promote key from no keys %+v, qps %f\n",
 							keyStatWrapper.key, keyStatWrapper.qps)
 						promotedKey := smdbrpc.KVVersion{Key: keyStatWrapper.key}
 						promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
 
-					}
 
-					// wait for promotion to finish
-					crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-					defer crdbCancel()
-					_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
+					if len(promotionReq.Keys) >= promotionBatch {
+						s.promotionHelper(ctx, promotionReq)
+						promotionReq.Keys = make([]*smdbrpc.KVVersion, 0)
+					}
 				}
+				//s.promotionHelper(ctx, promotionReq)
 			} else if *calculateCicadaResp.QpsAvailForPromotion > 0 &&
 				*calculateCicadaResp.NumKeysAvailForPromotion > 0 {
 
 				// if promotion only
 
-				var qps_from_promoted_keys float64 = 0
-				var num_keys_promoted uint64 = 0
+				var qpsFromPromotedKeys float64 = 0
+				var numKeysPromoted uint64 = 0
 				log.Warningf(ctx, "jenndebug promotion only resp.qpsAvail %d, resp.numKeys %d\n",
 					*calculateCicadaResp.QpsAvailForPromotion, *calculateCicadaResp.NumKeysAvailForPromotion)
 				promoteInBatchReq := smdbrpc.PromoteKeysReq{
@@ -2406,14 +2410,14 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				}
 				keysSoFar := 0
 				for pq.Len() > 0 &&
-					qps_from_promoted_keys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
-					num_keys_promoted < *calculateCicadaResp.NumKeysAvailForPromotion {
+					qpsFromPromotedKeys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
+					numKeysPromoted < *calculateCicadaResp.NumKeysAvailForPromotion {
 
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 
-					qps_from_promoted_keys += float64(keyStatWrapper.qps)
-					num_keys_promoted++
+					qpsFromPromotedKeys += float64(keyStatWrapper.qps)
+					numKeysPromoted++
 					promoteInBatchReq.Keys = append(promoteInBatchReq.Keys, &smdbrpc.KVVersion{
 						Key: keyStatWrapper.key,
 					})
@@ -2421,29 +2425,14 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					log.Warningf(ctx, "jenndebug promote key %+v, qps %f\n",
 						keyStatWrapper.key, keyStatWrapper.qps)
 
-					keysSoFar++
-					if keysSoFar >= promotionBatch {
-						keysSoFar = 0
-						// TODO	jenndebug is this even right
-						go func(promotionReq smdbrpc.PromoteKeysReq) {
-							crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-							defer crdbCancel()
-							_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promotionReq)
-						}(promoteInBatchReq)
+					if len(promoteInBatchReq.Keys) >= promotionBatch {
+						s.promotionHelper(ctx, promoteInBatchReq)
 						promoteInBatchReq.Keys = make([]*smdbrpc.KVVersion, 0)
 					}
 				}
-				// promote keys in parallel
-				go func(promotionReq smdbrpc.PromoteKeysReq) {
-					crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-					defer crdbCancel()
-					_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx,
-						&promotionReq)
-				}(promoteInBatchReq)
 				log.Warningf(ctx, "jenndebug pq.len() %d, qps_from_promoted_keys %+v, num_keys_promoted %+v\n",
-					len(pq), qps_from_promoted_keys, num_keys_promoted)
+					len(pq), qpsFromPromotedKeys, numKeysPromoted)
 				continue
-
 			} else {
 
 				// reorg hotkeys
@@ -2497,7 +2486,12 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 						},
 						IsTest: &f,
 					}
-					if _, demotionErr := cicadaWrapper.client.TriggerDemotionByNums(ctx, &triggerDemotionByNumsReq); demotionErr != nil {
+					cicadaLocalClientPtr, cicadaLocalIdx := s.DB().
+						GetClientPtrAndItsIndex()
+					defer s.DB().ReturnClient(cicadaLocalIdx)
+					cicadaLocalClient := *cicadaLocalClientPtr
+					if _, demotionErr := cicadaLocalClient.TriggerDemotionByNums(ctx,
+						&triggerDemotionByNumsReq); demotionErr != nil {
 						log.Fatalf(ctx, "jenndebug demotionByNums err %+v\n", demotionErr)
 					}
 				}(uint64(qpsFromPromotedKeys), uint64(numKeysPromoted))
@@ -2818,7 +2812,6 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	//	}
 	//
 	//}
-
 	// update this node's promotion map
 	for _, promotedKey := range promotionReqToCicada.Keys {
 		cicadaKey := kv.CicadaAffiliatedKey{
@@ -2970,7 +2963,7 @@ func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
 }
 
 func ConvertListeningToThermopylaePort(listeningPort int) int {
-	return listeningPort + 23798
+	return 50055
 }
 
 func (s *Store) startRebalanceHotkeysServer(ctx context.Context) {
