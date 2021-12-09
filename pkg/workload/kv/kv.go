@@ -17,7 +17,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/cockroachdb/cockroach-go/crdb"
-	"github.com/cockroachdb/cockroach/pkg/util/log"
 	"github.com/jackc/pgx"
 	"hash"
 	"math"
@@ -440,7 +439,7 @@ func (o *kvOp) run(ctx context.Context) error {
 				empty = false
 			}
 			if empty {
-				log.Warningf(ctx, "jenndebug empty key %d\n", argsInt[0])
+				//log.Warningf(ctx, "jenndebug empty key %d\n", argsInt[0])
 				atomic.AddInt64(o.numEmptyResults, 1)
 			}
 			if rowErr := rows.Err(); rowErr != nil {
@@ -457,7 +456,7 @@ func (o *kvOp) run(ctx context.Context) error {
 			o.hists.Get(`read`).Record(elapsed)
 		}
 		if err != nil {
-			fmt.Printf("jenndebug read %+v, err %+v\n", argsInt[0], err)
+			//fmt.Printf("jenndebug read %+v, err %+v\n", argsInt[0], err)
 		}
 		return nil
 	}
