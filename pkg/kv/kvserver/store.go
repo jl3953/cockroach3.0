@@ -2410,12 +2410,15 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
 
 					if len(promotionReq.Keys) >= promotionBatch {
+						log.Warningf(ctx, "jenndebug trying to promote %d\n",
+							promotionBatch)
 						promoted, _ := s.promotionHelper(ctx, promotionReq)
 						numKeysPromoted += promoted
 						promotionReq.Keys = make([]*smdbrpc.KVVersion, 0)
 					}
 				}
 				if len(promotionReq.Keys) > 0 {
+					log.Warningf(ctx, "jenndebug trying to promote %d\n", promotionReq.Keys)
 					promoted, _ := s.promotionHelper(ctx, promotionReq)
 					numKeysPromoted += promoted
 				}
