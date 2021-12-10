@@ -2230,7 +2230,7 @@ func (s *Store) batchTxnsToCicada(ctx context.Context) {
 
 func (s *Store) promotionHelper(ctx context.Context,
 	promotionReq smdbrpc.PromoteKeysReq) (numKeysSuccessful int, err error) {
-	crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+	crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Hour)
 	defer crdbCancel()
 	resp, err := s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx,
 		&promotionReq)
