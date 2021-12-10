@@ -960,7 +960,7 @@ func (txn *Txn) Lock(ctx context.Context, key roachpb.Key, keyValue *KeyValue) e
 	// read txn's value
 	*keyValue, err = txn.Get(ctx, key)
 	if err != nil {
-		//log.Warningf(ctx, "jenndebug cannot lock key %+v, Get(...) failed %+v\n", key, err)
+		log.Warningf(ctx, "jenndebug cannot lock key %+v, Get(...) failed %+v\n", key, err)
 		return err
 	}
 
@@ -978,21 +978,19 @@ func (txn *Txn) Lock(ctx context.Context, key roachpb.Key, keyValue *KeyValue) e
 		doneChan <- true
 	}()
 
-	timeout := 5 * time.Second
-	timerChan := time.After(timeout)
+	timeout := 250 * time.Millisecond
 
 	select {
-	case <-timerChan:
+	case <-time.After(timeout):
 		log.Warningf(ctx, "jenndebug timed out locking key %s after %+v\n", timeout)
 		return &roachpb.UnhandledRetryableError{}
-	case <-doneChan:
-		// jenndebug nothing
-	}
 
-	//err = txn.Put(ctx, key, []byte("PROMOTION_IN_PROGRESS"))
-	if err != nil {
-		log.Warningf(ctx, "jenndebug cannot lock key %+v, Put(...) failed %+v\n", key, err)
-		return err
+	case <-doneChan:
+		if err != nil {
+			log.Warningf(ctx, "jenndebug cannot lock key %+v, " +
+				"Put(...) failed %+v\n", key, err)
+			return err
+		}
 	}
 
 	// key is locked
