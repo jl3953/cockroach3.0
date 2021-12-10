@@ -2170,7 +2170,7 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 
 func (s *Store) batchTxnsToCicada(ctx context.Context) {
 
-	batchingInterval := 100 * time.Millisecond
+	batchingInterval := 30 * time.Millisecond
 	batchSize := 25
 	log.Warningf(ctx, "jenndebug Cicada batchingInterval %+v, batchSize %+v\n",
 		batchingInterval, batchSize)
@@ -2241,7 +2241,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	// Wait until the workload is **probably** started. This is pretty hacky, but
 	// it'll probably get me correct results, and I couldn't care any less after that
 	// jenndebug
-	time.Sleep(60 * time.Second)
+	time.Sleep(20 * time.Second)
 
 	log.Warningf(ctx, "jenndebug promotion\n")
 
@@ -2389,11 +2389,10 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 
-						//log.Warningf(ctx, "jenndebug promote key from no keys %+v, qps %f\n",
-						//	keyStatWrapper.key, keyStatWrapper.qps)
-						promotedKey := smdbrpc.KVVersion{Key: keyStatWrapper.key}
-						promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
-
+					//log.Warningf(ctx, "jenndebug promote key from no keys %+v, qps %f\n",
+					//	keyStatWrapper.key, keyStatWrapper.qps)
+					promotedKey := smdbrpc.KVVersion{Key: keyStatWrapper.key}
+					promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
 
 					if len(promotionReq.Keys) >= promotionBatch {
 						s.promotionHelper(ctx, promotionReq)
@@ -2862,8 +2861,8 @@ func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
 			if keepInMap := khs.recordLockedKey(time.Now()); !keepInMap {
 				repl.keyStats.Delete(key)
 				return true
-				} else if khs.Qps <= 0 {
-					return true
+			//} else if khs.Qps <= 0 {
+			//	return true
 			}
 			//log.Warningf(ctx, "jenndebug khs.key %s, khs.qps %f\n", khs.Key, khs.Qps)
 			item := &Item{
