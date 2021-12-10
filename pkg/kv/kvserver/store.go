@@ -807,8 +807,8 @@ func NewStore(
 	}
 	listeningHost, listeningPort, _ := net.SplitHostPort(listeningAddr)
 	intPort, _ := strconv.Atoi(listeningPort)
-	// crdbServers := []string{listeningAddr}
-	crdbServers := []string{}
+	crdbServers := []string{listeningAddr}
+	//crdbServers := []string{}
 	crdbServers = append(crdbServers, joinList...)
 	s := &Store{
 		cfg:           cfg,
@@ -1883,9 +1883,9 @@ func (s *Store) Start(ctx context.Context, stopper *stop.Stopper) error {
 
 		s.stopper.RunWorker(ctx, s.startRebalanceHotkeysServer)
 		// only the first store triggers the promotion
-		//if s.StoreID() == 1 {
-		//	s.stopper.RunWorker(ctx, s.triggerRebalanceHotkeysAtInterval)
-		//}
+		if s.StoreID() == 1 {
+			s.stopper.RunWorker(ctx, s.triggerRebalanceHotkeysAtInterval)
+		}
 		s.stopper.RunWorker(ctx, s.batchTxnsToCicada)
 
 		// Start the scanner. The construction here makes sure that the scanner
@@ -2241,12 +2241,12 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 	// Wait until the workload is **probably** started. This is pretty hacky, but
 	// it'll probably get me correct results, and I couldn't care any less after that
 	// jenndebug
-	time.Sleep(20 * time.Second)
+	time.Sleep(60 * time.Second)
 
 	log.Warningf(ctx, "jenndebug promotion\n")
 
 	//TODO jenndebug make this an option somehow, or make the function a closure
-	interval := 40 * time.Second
+	interval := 3 * time.Second
 	promotionBatch := 5000
 	initialPromotionBatch := 1000000
 
@@ -2278,7 +2278,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			cicadaClient := *cicadaClientPtr
 
 			// reset timer
-			timerChan = time.After(interval)
+			//timerChan = time.After(interval)
 
 			// query for stats from Cicada
 			cicadaCtx, cicadaCancel := context.WithTimeout(ctx, 3*time.Second)
@@ -2307,6 +2307,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			if calculateCicadaErr != nil {
 				log.Errorf(ctx, "jenndebug calculateCicadaStats err %+v\n", calculateCicadaErr)
 				// connect to Cicada
+				timerChan = time.After(interval)
 				continue
 			}
 
@@ -2326,9 +2327,10 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				log.Warningf(ctx, "jenndebug cicadaResp.KeysExist %t\n", *keysExist)
 			}
 
-			// if demotion only, this method is done, just keep going
+			//if demotion only, this method is done, just keep going
 			if *calculateCicadaResp.DemotionOnly {
 				log.Warningf(ctx, "jenndebug demotion only")
+				timerChan = time.After(interval)
 				continue
 			}
 
@@ -2339,7 +2341,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			var err error
 			crdbResponses := make([]*smdbrpc.CRDBKeyStatsResponse, len(s.crdbClientWrappers))
 			for i, wrapper := range s.crdbClientWrappers {
-				crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+				crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Hour)
 				crdbResponses[i], err = wrapper.client.RequestCRDBKeyStats(crdbCtx, &req)
 				crdbCancel()
 				if err != nil {
@@ -2369,6 +2371,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 			// if there are no keys in CRDB, continue
 			if len(pq) <= 0 {
 				log.Warningf(ctx, "jenndebug len(pq) %d, no keys in CRDB to promote\n", len(pq))
+				timerChan = time.After(interval)
 				continue
 			}
 
@@ -2384,8 +2387,8 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 
-						log.Warningf(ctx, "jenndebug promote key from no keys %+v, qps %f\n",
-							keyStatWrapper.key, keyStatWrapper.qps)
+						//log.Warningf(ctx, "jenndebug promote key from no keys %+v, qps %f\n",
+						//	keyStatWrapper.key, keyStatWrapper.qps)
 						promotedKey := smdbrpc.KVVersion{Key: keyStatWrapper.key}
 						promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
 
@@ -2396,6 +2399,9 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					}
 				}
 				//s.promotionHelper(ctx, promotionReq)
+				log.Warningf(ctx, "jenndebug promoted some number of keys\n")
+				timerChan = time.After(interval)
+				continue
 			} else if *calculateCicadaResp.QpsAvailForPromotion > 0 &&
 				*calculateCicadaResp.NumKeysAvailForPromotion > 0 {
 
@@ -2408,7 +2414,6 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				promoteInBatchReq := smdbrpc.PromoteKeysReq{
 					Keys: []*smdbrpc.KVVersion{},
 				}
-				keysSoFar := 0
 				for pq.Len() > 0 &&
 					qpsFromPromotedKeys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
 					numKeysPromoted < *calculateCicadaResp.NumKeysAvailForPromotion {
@@ -2422,8 +2427,8 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 						Key: keyStatWrapper.key,
 					})
 
-					log.Warningf(ctx, "jenndebug promote key %+v, qps %f\n",
-						keyStatWrapper.key, keyStatWrapper.qps)
+					//log.Warningf(ctx, "jenndebug promote key %+v, qps %f\n",
+					//	keyStatWrapper.key, keyStatWrapper.qps)
 
 					if len(promoteInBatchReq.Keys) >= promotionBatch {
 						s.promotionHelper(ctx, promoteInBatchReq)
@@ -2432,6 +2437,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				}
 				log.Warningf(ctx, "jenndebug pq.len() %d, qps_from_promoted_keys %+v, num_keys_promoted %+v\n",
 					len(pq), qpsFromPromotedKeys, numKeysPromoted)
+				timerChan = time.After(interval)
 				continue
 			} else {
 
@@ -2463,13 +2469,12 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					promoteInBatchReq.Keys = append(promoteInBatchReq.Keys, &smdbrpc.KVVersion{
 						Key: keyStatWrapper.key,
 					})
+
+					if len(promoteInBatchReq.Keys) >= promotionBatch {
+						s.promotionHelper(ctx, promoteInBatchReq)
+						promoteInBatchReq.Keys = make([]*smdbrpc.KVVersion, 0)
+					}
 				}
-				// promote keys in parallel
-				go func() {
-					crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-					defer crdbCancel()
-					_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx, &promoteInBatchReq)
-				}()
 
 				// demote as many keys or qps as you promoted
 				log.Warningf(ctx, "jenndebug reorg demote qps_from_promoted %d, num_keys_promoted %d\n",
@@ -2495,6 +2500,8 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 						log.Fatalf(ctx, "jenndebug demotionByNums err %+v\n", demotionErr)
 					}
 				}(uint64(qpsFromPromotedKeys), uint64(numKeysPromoted))
+				log.Warningf(ctx, "jennebug why the hell are you here ah well\n")
+				timerChan = time.After(interval)
 				continue
 			}
 		}
@@ -2624,6 +2631,8 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 				if wereSuccessful {
 					if commitErr := txns[originalIdx].Commit(ctx); commitErr == nil {
 						// successfully promoted key, nothing to do
+						log.Warningf(ctx, "successfully promoted %+v",
+							roachpb.Key(promoteKeysReq.Keys[originalIdx].Key))
 					} else {
 						log.Errorf(ctx, "promoted key %+v, but didn't commit on CRDB\n",
 							roachpb.Key(promoteKeysReq.Keys[originalIdx].Key))
@@ -2631,8 +2640,6 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 							"successfully promoted %+v, but didn't commit on CRDB\n",
 							roachpb.Key(promoteKeysReq.Keys[originalIdx].Key)).GoError())
 					}
-					log.Warningf(ctx, "successfully promoted %+v",
-						roachpb.Key(promoteKeysReq.Keys[originalIdx].Key))
 				} else {
 					// cleanup failed promotions
 					log.Errorf(ctx, "failed to promote %+v\n",
@@ -2660,7 +2667,6 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		wg.Add(1)
 		go func(originalIdx int) {
 			defer wg.Done()
-			log.Warningf(ctx, "jenndebug originalIdx %d\n", originalIdx)
 			kvVersion := promoteKeysReq.Keys[originalIdx]
 			txn := kv.NewTxn(ctx, rbServer.store.DB(), rbServer.store.nodeDesc.NodeID)
 			txn.SetDebugName("PROMOTION_TXN")
@@ -2849,8 +2855,8 @@ func (rbServer *rebalanceServer) RequestCRDBKeyStats(ctx context.Context,
 			if keepInMap := khs.recordLockedKey(time.Now()); !keepInMap {
 				repl.keyStats.Delete(key)
 				return true
-				//} else if khs.Qps <= 0 {
-				//	return true
+				} else if khs.Qps <= 0 {
+					return true
 			}
 			//log.Warningf(ctx, "jenndebug khs.key %s, khs.qps %f\n", khs.Key, khs.Qps)
 			item := &Item{
