@@ -2400,7 +2400,9 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 						promotionReq.Keys = make([]*smdbrpc.KVVersion, 0)
 					}
 				}
-				//s.promotionHelper(ctx, promotionReq)
+				if len(promotionReq.Keys) > 0 {
+					s.promotionHelper(ctx, promotionReq)
+				}
 				log.Warningf(ctx, "jenndebug promoted some number of keys\n")
 				timerChan = time.After(interval)
 				continue
@@ -2436,6 +2438,9 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 						s.promotionHelper(ctx, promoteInBatchReq)
 						promoteInBatchReq.Keys = make([]*smdbrpc.KVVersion, 0)
 					}
+				}
+				if len(promoteInBatchReq.Keys) > 0 {
+					s.promotionHelper(ctx, promoteInBatchReq)
 				}
 				log.Warningf(ctx, "jenndebug pq.len() %d, qps_from_promoted_keys %+v, num_keys_promoted %+v\n",
 					len(pq), qpsFromPromotedKeys, numKeysPromoted)
