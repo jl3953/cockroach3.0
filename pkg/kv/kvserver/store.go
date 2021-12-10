@@ -2239,7 +2239,7 @@ func (s *Store) promotionHelper(ctx context.Context,
 		return 0, err
 	}
 
-	for i, keyMigrationResp := range resp.WereSuccessfullyMigrated {
+	for _, keyMigrationResp := range resp.WereSuccessfullyMigrated {
 		if *keyMigrationResp.IsSuccessfullyMigrated	{
 			numKeysSuccessful++
 		}
@@ -2387,6 +2387,8 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				log.Warningf(ctx, "jenndebug len(pq) %d, no keys in CRDB to promote\n", len(pq))
 				timerChan = time.After(interval)
 				continue
+			} else {
+				log.Warningf(ctx, "jenndebug len(pq) %d\n", pq.Len())
 			}
 
 			if !*calculateCicadaResp.KeysExist {
