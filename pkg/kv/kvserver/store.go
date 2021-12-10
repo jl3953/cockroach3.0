@@ -2400,12 +2400,19 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				}
 
 				numKeysPromoted := 0
+				duplicateMap := make(map[string]bool)
 				for i := 0; i < initialPromotionBatch && pq.Len() > 0; i++ {
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 
 					//log.Warningf(ctx, "jenndebug promote key from no keys %+v, qps %f\n",
 					//	keyStatWrapper.key, keyStatWrapper.qps)
+					if _, existsAlready := duplicateMap[string(keyStatWrapper.
+						key)]; existsAlready {
+						continue
+					} else {
+						duplicateMap[string(keyStatWrapper.key)] = true
+					}
 					promotedKey := smdbrpc.KVVersion{Key: keyStatWrapper.key}
 					promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
 
