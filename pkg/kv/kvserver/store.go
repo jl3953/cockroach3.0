@@ -2229,11 +2229,23 @@ func (s *Store) batchTxnsToCicada(ctx context.Context) {
 }
 
 func (s *Store) promotionHelper(ctx context.Context,
-	promotionReq smdbrpc.PromoteKeysReq) {
+	promotionReq smdbrpc.PromoteKeysReq) (numKeysSuccessful int, err error) {
 	crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 	defer crdbCancel()
-	_, _ = s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx,
+	resp, err := s.crdbClientWrappers[0].client.PromoteKeys(crdbCtx,
 		&promotionReq)
+	if err != nil {
+		log.Errorf(ctx, "jenndebug promotion rpc call failed %+v\n", err)
+		return 0, err
+	}
+
+	for i, keyMigrationResp := range resp.WereSuccessfullyMigrated {
+		if *keyMigrationResp.IsSuccessfullyMigrated	{
+			numKeysSuccessful++
+		}
+	}
+
+	return numKeysSuccessful, err
 }
 
 func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
@@ -2385,6 +2397,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					Keys: []*smdbrpc.KVVersion{},
 				}
 
+				numKeysPromoted := 0
 				for i := 0; i < initialPromotionBatch && pq.Len() > 0; i++ {
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
@@ -2395,14 +2408,16 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					promotionReq.Keys = append(promotionReq.Keys, &promotedKey)
 
 					if len(promotionReq.Keys) >= promotionBatch {
-						s.promotionHelper(ctx, promotionReq)
+						promoted, _ := s.promotionHelper(ctx, promotionReq)
+						numKeysPromoted += promoted
 						promotionReq.Keys = make([]*smdbrpc.KVVersion, 0)
 					}
 				}
 				if len(promotionReq.Keys) > 0 {
-					s.promotionHelper(ctx, promotionReq)
+					promoted, _ := s.promotionHelper(ctx, promotionReq)
+					numKeysPromoted += promoted
 				}
-				log.Warningf(ctx, "jenndebug promoted some number of keys\n")
+				log.Warningf(ctx, "jenndebug promoted %d keys\n", numKeysPromoted)
 				timerChan = time.After(interval)
 				continue
 			} else if *calculateCicadaResp.QpsAvailForPromotion > 0 &&
