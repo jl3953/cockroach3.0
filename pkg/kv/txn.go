@@ -970,8 +970,26 @@ func (txn *Txn) Lock(ctx context.Context, key roachpb.Key, keyValue *KeyValue) e
 		return &roachpb.UnhandledRetryableError{}
 	}
 
-	// key exists, lock it
-	err = txn.Put(ctx, key, []byte("PROMOTION_IN_PROGRESS"))
+
+	doneChan := make(chan bool, 1)
+	go func() {
+		// key exists, lock it
+		err = txn.Put(ctx, key, []byte("PROMOTION_IN_PROGRESS"))
+		doneChan <- true
+	}()
+
+	timeout := 5 * time.Second
+	timerChan := time.After(timeout)
+
+	select {
+	case <-timerChan:
+		log.Warningf(ctx, "jenndebug timed out locking key %s after %+v\n", timeout)
+		return &roachpb.UnhandledRetryableError{}
+	case <-doneChan:
+		// jenndebug nothing
+	}
+
+	//err = txn.Put(ctx, key, []byte("PROMOTION_IN_PROGRESS"))
 	if err != nil {
 		log.Warningf(ctx, "jenndebug cannot lock key %+v, Put(...) failed %+v\n", key, err)
 		return err
@@ -1175,7 +1193,7 @@ func populateScansWithEmptyResp(brCicada *roachpb.BatchResponse) {
 }
 
 func (txn *Txn) submitTxnToCicada(_ context.Context,
-	txnReq execinfrapb.TxnReq) (execinfrapb.TxnResp, error){
+	txnReq execinfrapb.TxnReq) (execinfrapb.TxnResp, error) {
 
 	//// retrieve client connection
 	//clientPtr, idx := txn.DB().GetClientPtrAndItsIndex()
@@ -1215,7 +1233,7 @@ func (txn *Txn) submitTxnToCicada(_ context.Context,
 	}()
 	wg.Wait()
 
-  return extractTxnWrapper.TxnResp, extractTxnWrapper.SendErr
+	return extractTxnWrapper.TxnResp, extractTxnWrapper.SendErr
 }
 
 func (txn *Txn) readsCicada(ctx context.Context, ops []*execinfrapb.Op,
