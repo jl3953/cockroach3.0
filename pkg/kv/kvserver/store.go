@@ -2445,6 +2445,7 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 				promoteInBatchReq := smdbrpc.PromoteKeysReq{
 					Keys: []*smdbrpc.KVVersion{},
 				}
+				duplicateMap := make(map[string]bool)
 				for pq.Len() > 0 &&
 					qpsFromPromotedKeys < float64(*calculateCicadaResp.QpsAvailForPromotion) &&
 					numKeysPromoted < *calculateCicadaResp.NumKeysAvailForPromotion {
@@ -2452,6 +2453,12 @@ func (s *Store) triggerRebalanceHotkeysAtInterval(ctx context.Context) {
 					item := heap.Pop(&pq)
 					keyStatWrapper := item.(*Item).value.(KeyStatWrapper)
 
+					if _, alreadyExists := duplicateMap[string(keyStatWrapper.
+						key)]; alreadyExists {
+						continue
+					} else {
+						duplicateMap[string(keyStatWrapper.key)] = true
+					}
 					qpsFromPromotedKeys += float64(keyStatWrapper.qps)
 					numKeysPromoted++
 					promoteInBatchReq.Keys = append(promoteInBatchReq.Keys, &smdbrpc.KVVersion{

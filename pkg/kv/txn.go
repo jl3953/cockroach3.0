@@ -956,20 +956,29 @@ func (txn *Txn) DemotionLock(ctx context.Context, key roachpb.Key, value []byte)
 func (txn *Txn) Lock(ctx context.Context, key roachpb.Key, keyValue *KeyValue) error {
 
 	var err error
+	timeout := 125 * time.Millisecond
 
-	// read txn's value
-	*keyValue, err = txn.Get(ctx, key)
-	if err != nil {
-		log.Warningf(ctx, "jenndebug cannot lock key %+v, Get(...) failed %+v\n", key, err)
-		return err
+	readChan := make(chan bool, 1)
+	go func() {
+		// read txn's value
+		*keyValue, err = txn.Get(ctx, key)
+		readChan <- true
+	}()
+	select {
+	case <-time.After(timeout):
+		log.Errorf(ctx, "jenndebug timed out on reading %s after %+v\n", key,
+			timeout)
+	case <-readChan:
+		if err != nil {
+			log.Errorf(ctx, "jenndebug cannot lock key %s, "+
+				"Get(...) failed %+v\n", key, err)
+			return err
+		} else if keyValue.Value == nil {
+			// key doesn't exist, don't promote it
+			log.Warningf(ctx, "jenndebug cannot lock key %+v, does not exist\n", key)
+			return &roachpb.UnhandledRetryableError{}
+		}
 	}
-
-	// key doesn't exist, don't promote it
-	if keyValue.Value == nil {
-		log.Warningf(ctx, "jenndebug cannot lock key %+v, does not exist\n", key)
-		return &roachpb.UnhandledRetryableError{}
-	}
-
 
 	doneChan := make(chan bool, 1)
 	go func() {
@@ -977,17 +986,15 @@ func (txn *Txn) Lock(ctx context.Context, key roachpb.Key, keyValue *KeyValue) e
 		err = txn.Put(ctx, key, []byte("PROMOTION_IN_PROGRESS"))
 		doneChan <- true
 	}()
-
-	timeout := 250 * time.Millisecond
-
 	select {
 	case <-time.After(timeout):
-		log.Warningf(ctx, "jenndebug timed out locking key %s after %+v\n", timeout)
+		log.Warningf(ctx, "jenndebug timed out locking key %s after %+v\n",
+			key, timeout)
 		return &roachpb.UnhandledRetryableError{}
 
 	case <-doneChan:
 		if err != nil {
-			log.Warningf(ctx, "jenndebug cannot lock key %+v, " +
+			log.Warningf(ctx, "jenndebug cannot lock key %+v, "+
 				"Put(...) failed %+v\n", key, err)
 			return err
 		}
