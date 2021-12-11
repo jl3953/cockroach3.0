@@ -968,6 +968,7 @@ func (txn *Txn) Lock(ctx context.Context, key roachpb.Key, keyValue *KeyValue) e
 	case <-time.After(timeout):
 		log.Errorf(ctx, "jenndebug timed out on reading %s after %+v\n", key,
 			timeout)
+		return &roachpb.UnhandledRetryableError{}
 	case <-readChan:
 		if err != nil {
 			log.Errorf(ctx, "jenndebug cannot lock key %s, "+
