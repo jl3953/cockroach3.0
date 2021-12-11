@@ -956,7 +956,7 @@ func (txn *Txn) DemotionLock(ctx context.Context, key roachpb.Key, value []byte)
 func (txn *Txn) Lock(ctx context.Context, key roachpb.Key, keyValue *KeyValue) error {
 
 	var err error
-	timeout := 125 * time.Millisecond
+	timeout := 1 * time.Second
 
 	readChan := make(chan bool, 1)
 	go func() {
