@@ -1883,9 +1883,9 @@ func (s *Store) Start(ctx context.Context, stopper *stop.Stopper) error {
 
 		s.stopper.RunWorker(ctx, s.startRebalanceHotkeysServer)
 		// only the first store triggers the promotion
-		if s.StoreID() == 1 {
-			s.stopper.RunWorker(ctx, s.triggerRebalanceHotkeysAtInterval)
-		}
+		//if s.StoreID() == 1 {
+		//	s.stopper.RunWorker(ctx, s.triggerRebalanceHotkeysAtInterval)
+		//}
 		s.stopper.RunWorker(ctx, s.batchTxnsToCicada)
 
 		// Start the scanner. The construction here makes sure that the scanner
