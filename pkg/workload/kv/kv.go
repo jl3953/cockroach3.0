@@ -383,7 +383,7 @@ func correctTxnParams(batchSize int, generateKey generateKeyFunc, greatestHotKey
 	argsInt := make([]int64, batchSize)
 	duplicates := make(map[int64]bool)
 	for i := 0; i < batchSize; i++ {
-		key := generateKey() + 100000
+		key := generateKey() + 500000
 		for duplicates[key] {
 			key = generateKey()
 		}
