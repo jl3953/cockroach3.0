@@ -385,7 +385,7 @@ func correctTxnParams(batchSize int, generateKey generateKeyFunc, greatestHotKey
 	for i := 0; i < batchSize; i++ {
 		key := generateKey()
 		for duplicates[key] {
-			key = generateKey() + 5000000
+			key = generateKey()
 		}
 		duplicates[key] = true
 		argsInt[i] = key
