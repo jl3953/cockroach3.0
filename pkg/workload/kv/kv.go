@@ -401,6 +401,7 @@ func correctTxnParams(batchSize int, generateKey generateKeyFunc, greatestHotKey
 	//}
 	//sort.Sort(byInt(argsInt))
 
+	log.Warningf(context.Background(), "%+v\n", argsInt)
 	return argsInt
 }
 
