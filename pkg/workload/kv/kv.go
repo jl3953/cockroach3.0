@@ -13,6 +13,7 @@ package kv
 import (
 	"context"
 	"crypto/sha1"
+	"crypto/sha256"
 	gosql "database/sql"
 	"encoding/binary"
 	"fmt"
@@ -378,17 +379,42 @@ func (s byInt) Less(i, j int) bool {
 
 type generateKeyFunc func() int64
 
-func correctTxnParams(batchSize int, generateKey generateKeyFunc, greatestHotKey int64) []int64 {
+func randomizeHash(key int64, keyspace int64) int64 {
+	byteKey := make([]byte, 8)
+	binary.BigEndian.PutUint64(byteKey, uint64(key))
+	hashed32Bytes := sha256.Sum256(byteKey)
+	hashed := make([]byte, 32)
+	for i, b := range hashed32Bytes {
+		hashed[i] = b
+	}
+	hashedUint64 := binary.BigEndian.Uint64(hashed)
+	hashedModulo := hashedUint64 % uint64(keyspace + 1)
+	return int64(hashedModulo)
+}
+
+func jenkyFixedBytes(key int64, keyspace int64) int64 {
+	var constant int64 = 256
+	for keyspace > constant {
+		constant *= 256
+	}
+
+	return key + constant
+}
+
+func correctTxnParams(batchSize int, generateKey generateKeyFunc,
+	keyspace int64) []int64 {
 
 	// sort the keys first
 	argsInt := make([]int64, batchSize)
 	duplicates := make(map[int64]bool)
 	for i := 0; i < batchSize; i++ {
-		key := generateKey() + 16777216
+		key := generateKey()
 		for duplicates[key] {
-			key = generateKey() + 16777216
+			key = generateKey()
 		}
 		duplicates[key] = true
+		key = randomizeHash(key, keyspace)
+		//key = jenkyFixedBytes(key, keyspace)
 		argsInt[i] = key
 	}
 	sort.Sort(byInt(argsInt))
@@ -414,7 +440,7 @@ func (o *kvOp) run(ctx context.Context) error {
 	statementProbability := o.g.rand().Intn(100) // Determines what statement is executed.
 	if statementProbability < o.config.readPercent {
 
-		argsInt := correctTxnParams(o.config.batchSize, o.g.readKey, o.config.maxHotkey)
+		argsInt := correctTxnParams(o.config.batchSize, o.g.readKey, o.config.keyspace)
 
 		/* if argsInt[0] <= o.config.hotkey { //jenndebug hot
 			o.hists.Get(`read`).Record(0 * time.Millisecond)
@@ -473,7 +499,7 @@ func (o *kvOp) run(ctx context.Context) error {
 	}
 	const argCount = 2
 
-	argsInt := correctTxnParams(o.config.batchSize, o.g.writeKey, o.config.maxHotkey)
+	argsInt := correctTxnParams(o.config.batchSize, o.g.writeKey, o.config.keyspace)
 	args := make([]interface{}, argCount*o.config.batchSize)
 	for i := 0; i < o.config.batchSize; i++ {
 		j := i * argCount
