@@ -17,7 +17,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/cockroachdb/cockroach-go/crdb"
-	"github.com/cockroachdb/cockroach/pkg/util/log"
 	"github.com/jackc/pgx"
 	"hash"
 	"math"
@@ -384,7 +383,7 @@ func correctTxnParams(batchSize int, generateKey generateKeyFunc, greatestHotKey
 	argsInt := make([]int64, batchSize)
 	duplicates := make(map[int64]bool)
 	for i := 0; i < batchSize; i++ {
-		key := generateKey()
+		key := generateKey() + 1000000
 		for duplicates[key] {
 			key = generateKey()
 		}
@@ -401,7 +400,6 @@ func correctTxnParams(batchSize int, generateKey generateKeyFunc, greatestHotKey
 	//}
 	//sort.Sort(byInt(argsInt))
 
-	log.Warningf(context.Background(), "%+v\n", argsInt)
 	return argsInt
 }
 
