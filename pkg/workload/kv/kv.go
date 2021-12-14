@@ -17,6 +17,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/cockroachdb/cockroach-go/crdb"
+	"github.com/cockroachdb/cockroach/pkg/util/log"
 	"github.com/jackc/pgx"
 	"hash"
 	"math"
@@ -400,6 +401,7 @@ func correctTxnParams(batchSize int, generateKey generateKeyFunc, greatestHotKey
 	//}
 	//sort.Sort(byInt(argsInt))
 
+	log.Warningf(context.Background(), "%+v\n", argsInt)
 	return argsInt
 }
 
