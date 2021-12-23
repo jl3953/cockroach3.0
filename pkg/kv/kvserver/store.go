@@ -807,9 +807,9 @@ func NewStore(
 	}
 	listeningHost, listeningPort, _ := net.SplitHostPort(listeningAddr)
 	intPort, _ := strconv.Atoi(listeningPort)
-	crdbServers := []string{listeningAddr}
-	//crdbServers := []string{}
-	//crdbServers = append(crdbServers, joinList...)
+	//crdbServers := []string{listeningAddr}
+	var crdbServers []string
+	crdbServers = append(crdbServers, joinList...)
 	s := &Store{
 		cfg:           cfg,
 		db:            cfg.DB, // TODO(tschottdorf): remove redundancy.
@@ -2833,31 +2833,31 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		return &failureResp, nil
 	}
 
-	//// Update all nodes' promotion maps
-	//for _, wrapper := range rbServer.store.crdbClientWrappers {
-	//	crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-	//	defer crdbCancel()
-	//
-	//	if updateMapsResp, updateMapsErr := wrapper.client.UpdatePromotionMap(crdbCtx, &updateMapReq); updateMapsErr == nil {
-	//		for i, mapUpdated := range updateMapsResp.WereSuccessfullyMigrated {
-	//			if *mapUpdated.IsSuccessfullyMigrated {
-	//
-	//			} else {
-	//				// did not successfully update map of key
-	//				roachKey := roachpb.Key(updateMapReq.Keys[i].Key)
-	//				originalIdx := mapKeyToIdx[roachKey.String()]
-	//				txns[originalIdx].CleanupOnError(ctx,
-	//					roachpb.NewErrorf("promotion key %s failed to update map on CRDB node"+
-	//						" %+v", roachKey.String(), wrapper.address).GoError())
-	//				respBools[originalIdx] = false
-	//				log.Fatalf(ctx, "promotion key %s map failed to update on CRDB node %+v",
-	//					roachKey.String(), wrapper.address)
-	//			}
-	//		}
-	//	} else {
-	//		log.Fatalf(ctx, "promotion updateMaps rpc failed to send, sendErr %+v\n", updateMapsErr)
-	//	}
-	//}
+	// Update all nodes' promotion maps
+	for _, wrapper := range rbServer.store.crdbClientWrappers {
+		crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+		defer crdbCancel()
+
+		if updateMapsResp, updateMapsErr := wrapper.client.UpdatePromotionMap(crdbCtx, &updateMapReq); updateMapsErr == nil {
+			for i, mapUpdated := range updateMapsResp.WereSuccessfullyMigrated {
+				if *mapUpdated.IsSuccessfullyMigrated {
+
+				} else {
+					// did not successfully update map of key
+					roachKey := roachpb.Key(updateMapReq.Keys[i].Key)
+					originalIdx := mapKeyToIdx[roachKey.String()]
+					txns[originalIdx].CleanupOnError(ctx,
+						roachpb.NewErrorf("promotion key %s failed to update map on CRDB node"+
+							" %+v", roachKey.String(), wrapper.address).GoError())
+					respBools[originalIdx] = false
+					log.Fatalf(ctx, "promotion key %s map failed to update on CRDB node %+v",
+						roachKey.String(), wrapper.address)
+				}
+			}
+		} else {
+			log.Fatalf(ctx, "promotion updateMaps rpc failed to send, sendErr %+v\n", updateMapsErr)
+		}
+	}
 	// update this node's promotion map
 	for _, promotedKey := range promotionReqToCicada.Keys {
 		cicadaKey := kv.CicadaAffiliatedKey{
