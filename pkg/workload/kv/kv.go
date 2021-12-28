@@ -400,6 +400,8 @@ func jenkyFixedBytes(key int64, keyspace int64) int64 {
 		constant *= 256
 	}
 
+	constant = int64(math.Pow(256, 5))
+
 	return key + constant
 }
 
