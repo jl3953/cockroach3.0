@@ -341,7 +341,7 @@ func (w *kv) Ops(
 			op.g = newSequentialGenerator(seq)
 		} else if w.zipfian {
 			//op.g = newZipfianGenerator(seq, w.skewS, w.zipfVerbose, w.useOriginal, w.keyspace)
-			op.g = NewRejectionInversionGenerator(w.keyspace, w.skewS)
+			op.g = NewRejectionInversionGenerator(seq, w.keyspace, w.skewS)
 		} else {
 			op.g = newHashGenerator(seq)
 		}
@@ -612,7 +612,7 @@ func (g *RejectionInversionGenerator) helper2(x float64) float64 {
 	}
 }
 
-func NewRejectionInversionGenerator(numElements int64,
+func NewRejectionInversionGenerator(seq *sequence, numElements int64,
 	exponent float64) *RejectionInversionGenerator {
 	if numElements <= 0 {
 		log.Fatalf(context.Background(), "number of elements is not positive")
@@ -623,7 +623,7 @@ func NewRejectionInversionGenerator(numElements int64,
 	}
 
 	g := RejectionInversionGenerator{
-		//seq: seq,
+		seq: seq,
 		numElements: numElements,
 		exponent_:   exponent,
 		random:      rand.New(rand.NewSource(uint64(time.Now().UnixNano()))),
