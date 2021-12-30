@@ -417,7 +417,7 @@ func correctTxnParams(batchSize int, generateKey generateKeyFunc,
 			key = generateKey()
 		}
 		duplicates[key] = true
-		key = randomizeHash(key, keyspace)
+		//key = randomizeHash(key, keyspace)
 		key = jenkyFixedBytes(key, keyspace)
 		argsInt[i] = key
 	}
