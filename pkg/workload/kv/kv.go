@@ -418,7 +418,7 @@ func correctTxnParams(batchSize int, generateKey generateKeyFunc,
 		}
 		duplicates[key] = true
 		//key = randomizeHash(key, keyspace)
-		key = jenkyFixedBytes(key, keyspace)
+		//key = jenkyFixedBytes(key, keyspace)
 		argsInt[i] = key
 	}
 	sort.Sort(byInt(argsInt))
