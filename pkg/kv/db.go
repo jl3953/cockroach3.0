@@ -868,10 +868,16 @@ func (db *DB) IsKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) (Cicad
 		if cicadaKey.PromotionTimestamp.Less(ts) {
 			return cicadaKey, true
 		}
-		//log.Warningf(context.Background(), "jenndebug wrong key %+v, promotion timestamp %+v, timestamp %+v\n",
-		//	mapStr, cicadaKey.PromotionTimestamp, ts)
+
+		if mapStr == "/Table/53/1/1099511627776/0" {
+			log.Warningf(context.Background(), "jenndebug wrong key %+v, promotion timestamp %+v, timestamp %+v\n",
+				mapStr, cicadaKey.PromotionTimestamp, ts)
+		}
 	}
-	//log.Warningf(context.Background(), "jenndebug not in Cicada key %+v\n", mapStr)
+
+	if mapStr == "/Table/53/1/1099511627776/0" {
+		log.Warningf(context.Background(), "jenndebug not in Cicada key %+v\n", mapStr)
+	}
 	return CicadaAffiliatedKey{}, false
 }
 
