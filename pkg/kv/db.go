@@ -268,7 +268,7 @@ type DB struct {
 	numClients    int
 
 	CicadaAffiliatedKeys sync.Map
-	InProgressDemotion sync.Map
+	InProgressDemotion   sync.Map
 
 	BatchChannel chan SubmitTxnWrapper
 }
@@ -276,7 +276,7 @@ type DB struct {
 type CicadaTxnReplyChan chan ExtractTxnWrapper
 
 type SubmitTxnWrapper struct {
-	TxnReq smdbrpc.TxnReq
+	TxnReq    smdbrpc.TxnReq
 	ReplyChan CicadaTxnReplyChan
 }
 
@@ -837,7 +837,6 @@ func (db *DB) send(
 //	return strings.Join(components, "/")
 //}
 
-
 func ConvertToWriteKey(key roachpb.Key) roachpb.Key {
 
 	isReadKey := len(strings.Split(key.String(), "/")) == 5
@@ -875,9 +874,9 @@ func (db *DB) IsKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) (Cicad
 		}
 	}
 
-	if mapStr == "/Table/53/1/1099511627776/0" {
-		log.Warningf(context.Background(), "jenndebug not in Cicada key %+v\n", mapStr)
-	}
+	//if mapStr == "/Table/53/1/1099511627776/0" {
+	log.Warningf(context.Background(), "jenndebug not in Cicada key %+v\n", mapStr)
+	//}
 	return CicadaAffiliatedKey{}, false
 }
 
