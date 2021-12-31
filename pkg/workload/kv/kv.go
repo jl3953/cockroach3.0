@@ -417,7 +417,6 @@ func correctTxnParams(batchSize int, generateKey generateKeyFunc,
 			key = generateKey()
 		}
 		duplicates[key] = true
-		log.Warningf(context.Background(), "key %d\n", key)
 		//key = randomizeHash(key, keyspace)
 		key = jenkyFixedBytes(key, keyspace)
 		argsInt[i] = key
