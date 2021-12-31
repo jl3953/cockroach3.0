@@ -3000,7 +3000,6 @@ func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
 				Logical:  *kvVersion.Timestamp.Logicaltime,
 			},
 		}
-		log.Warningf(context.Background(), "jenndebug promoted %s\n", key.String())
 		rbServer.store.DB().CicadaAffiliatedKeys.Store(key.String(), cicadaAffiliatedKey)
 		resp.WereSuccessfullyMigrated[i] = &smdbrpc.KeyMigrationResp{
 			IsSuccessfullyMigrated: &t,
