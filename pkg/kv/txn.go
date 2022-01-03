@@ -1372,7 +1372,6 @@ func (txn *Txn) Send(
 		if key := req.GetInner().Header().Key; IsUserKey(key.String()) {
 			if cicadaAffiliatedKey, isPromoted := txn.DB().IsKeyInCicadaAtTimestamp(
 				key, txn.ProvisionalCommitTimestamp()); isPromoted && !txn.IsDemotion() {
-				log.Warningf(ctx, "jenndebug i'm here\n")
 				// remove from default CRDB path
 				if putReq := req.GetPut(); putReq != nil {
 					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]

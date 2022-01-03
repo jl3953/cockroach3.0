@@ -2131,7 +2131,6 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 	defer cicadaCancel()
 
 	// send request to Cicada
-	log.Warningf(ctx, "jenndebug we made it\n")
 	batchSendTxnResp, sendErr := c.BatchSendTxns(cicadaCtx,
 		&smdbrpc.BatchSendTxnsReq{Txns: txnReqs})
 
