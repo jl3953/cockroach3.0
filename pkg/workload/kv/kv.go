@@ -87,6 +87,8 @@ type kv struct {
 	useOriginal                          bool
 	maxHotkey                            int64
 	keyspace                             int64
+	hash_randomize_keyspace              bool
+	enable_fixed_sized_encoding        bool
 }
 
 func init() {
@@ -150,6 +152,11 @@ var kvMeta = workload.Meta{
 		g.flags.BoolVar(&g.useOriginal, `useOriginal`, true, `whether or not to use original fake zipfian generator.`)
 		g.flags.Int64Var(&g.maxHotkey, `hotkey`, -1, `the largest hot key on the hot shard.`)
 		g.flags.Int64Var(&g.keyspace, `keyspace`, 1000000, `key range starting from 0`)
+		g.flags.BoolVar(&g.hash_randomize_keyspace, `hash_randomize_keyspace`,
+			true, `apply hash to keyspace, so hotkeys are not contiguous`)
+		g.flags.BoolVar(&g.enable_fixed_sized_encoding,
+			`enable_fixed_sized_encoding`, true,
+			`whether to allow keyspaces to be variable sized`)
 		g.connFlags = workload.NewConnFlags(&g.flags)
 		return g
 	},
@@ -406,7 +413,8 @@ func jenkyFixedBytes(key int64, keyspace int64) int64 {
 }
 
 func correctTxnParams(batchSize int, generateKey generateKeyFunc,
-	keyspace int64) []int64 {
+	keyspace int64, hash_randomize_keyspace bool,
+	enable_fixed_sized_encoding bool) []int64 {
 
 	// sort the keys first
 	argsInt := make([]int64, batchSize)
@@ -417,8 +425,14 @@ func correctTxnParams(batchSize int, generateKey generateKeyFunc,
 			key = generateKey()
 		}
 		duplicates[key] = true
-		key = randomizeHash(key, keyspace)
-		key = jenkyFixedBytes(key, keyspace)
+		if hash_randomize_keyspace {
+			key = randomizeHash(key, keyspace)
+		}
+
+		if enable_fixed_sized_encoding {
+			key = jenkyFixedBytes(key, keyspace)
+		}
+
 		argsInt[i] = key
 	}
 	sort.Sort(byInt(argsInt))
@@ -444,7 +458,9 @@ func (o *kvOp) run(ctx context.Context) error {
 	statementProbability := o.g.rand().Intn(100) // Determines what statement is executed.
 	if statementProbability < o.config.readPercent {
 
-		argsInt := correctTxnParams(o.config.batchSize, o.g.readKey, o.config.keyspace)
+		argsInt := correctTxnParams(o.config.batchSize, o.g.readKey,
+			o.config.keyspace, o.config.hash_randomize_keyspace,
+			o.config.enable_fixed_sized_encoding)
 
 		/* if argsInt[0] <= o.config.hotkey { //jenndebug hot
 			o.hists.Get(`read`).Record(0 * time.Millisecond)
@@ -503,7 +519,9 @@ func (o *kvOp) run(ctx context.Context) error {
 	}
 	const argCount = 2
 
-	argsInt := correctTxnParams(o.config.batchSize, o.g.writeKey, o.config.keyspace)
+	argsInt := correctTxnParams(o.config.batchSize, o.g.writeKey,
+		o.config.keyspace, o.config.hash_randomize_keyspace,
+		o.config.enable_fixed_sized_encoding)
 	args := make([]interface{}, argCount*o.config.batchSize)
 	for i := 0; i < o.config.batchSize; i++ {
 		j := i * argCount
@@ -587,7 +605,7 @@ var F14 = 1.0 / 4
 
 type RejectionInversionGenerator struct {
 	seq                  *sequence
-	numElements          int64  // number of elements
+	numElements          int64   // number of elements
 	exponent_            float64 // exponent parameter of the distribution
 	hIntegralX1          float64 // hIntegral(1.5) - 1.
 	hIntegralNumElements float64 // hIntegral(numElements + 0.5)
@@ -623,7 +641,7 @@ func NewRejectionInversionGenerator(seq *sequence, numElements int64,
 	}
 
 	g := RejectionInversionGenerator{
-		seq: seq,
+		seq:         seq,
 		numElements: numElements,
 		exponent_:   exponent,
 		random:      rand.New(rand.NewSource(uint64(time.Now().UnixNano()))),
