@@ -807,6 +807,7 @@ func NewStore(
 	}
 	listeningHost, listeningPort, _ := net.SplitHostPort(listeningAddr)
 	intPort, _ := strconv.Atoi(listeningPort)
+	// TODO jenndebug implementDemotion
 	//crdbServers := []string{listeningAddr}
 	var crdbServers []string
 	crdbServers = append(crdbServers, joinList...)
@@ -2629,7 +2630,10 @@ func (rbServer *rebalanceServer) TestIsKeyInPromotionMap(_ context.Context,
 		}
 		if cicadaAffiliatedKey.PromotionTimestamp.Less(reqPromotionTs) {
 			t := true
-			resp := smdbrpc.TestPromotionKeyResp{IsKeyIn: &t}
+			resp := smdbrpc.TestPromotionKeyResp{
+				IsKeyIn: &t,
+				CicadaKeyCols: cicadaAffiliatedKey.CicadaKeyCols,
+			}
 			return &resp, nil
 		}
 	}
@@ -2837,6 +2841,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		return &failureResp, nil
 	}
 
+	// TODO jenndebug implementDemotion
 	// Update all nodes' promotion maps
 	for _, wrapper := range rbServer.store.crdbClientWrappers {
 		crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
