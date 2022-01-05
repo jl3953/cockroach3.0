@@ -807,8 +807,9 @@ func NewStore(
 	}
 	listeningHost, listeningPort, _ := net.SplitHostPort(listeningAddr)
 	intPort, _ := strconv.Atoi(listeningPort)
+	// TODO jenndebug implementDemotion
 	crdbServers := []string{listeningAddr}
-	//crdbServers := []string{}
+	//var crdbServers []string
 	//crdbServers = append(crdbServers, joinList...)
 	s := &Store{
 		cfg:           cfg,
@@ -2171,7 +2172,7 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 func (s *Store) batchTxnsToCicada(ctx context.Context) {
 
 	batchingInterval := 30 * time.Millisecond
-	batchSize := 25
+	batchSize := 1
 	log.Warningf(ctx, "jenndebug Cicada batchingInterval %+v, batchSize %+v\n",
 		batchingInterval, batchSize)
 
@@ -2608,6 +2609,7 @@ func (rbServer *rebalanceServer) TestAddKeyToPromotionMap(_ context.Context,
 			WallTime: *testPromotionKeyReq.PromotionTimestamp.Walltime,
 			Logical:  *testPromotionKeyReq.PromotionTimestamp.Logicaltime,
 		},
+		CicadaKeyCols: testPromotionKeyReq.CicadaKeyCols,
 	}
 	rbServer.store.DB().CicadaAffiliatedKeys.Store(keyStr, cicadaAffiliatedKey)
 
@@ -2628,7 +2630,10 @@ func (rbServer *rebalanceServer) TestIsKeyInPromotionMap(_ context.Context,
 		}
 		if cicadaAffiliatedKey.PromotionTimestamp.Less(reqPromotionTs) {
 			t := true
-			resp := smdbrpc.TestPromotionKeyResp{IsKeyIn: &t}
+			resp := smdbrpc.TestPromotionKeyResp{
+				IsKeyIn: &t,
+				CicadaKeyCols: cicadaAffiliatedKey.CicadaKeyCols,
+			}
 			return &resp, nil
 		}
 	}
@@ -2641,6 +2646,8 @@ func (rbServer *rebalanceServer) TestIsKeyInPromotionMap(_ context.Context,
 // PromoteKeys Promote only a single key
 func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	promoteKeysReq *smdbrpc.PromoteKeysReq) (*smdbrpc.PromoteKeysResp, error) {
+
+	// TODO: jenndebug ADD CICADA_KEY_COLS TO THE PROMOTIONS
 
 	start := time.Now()
 
@@ -2730,17 +2737,18 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 					log.Warningf(ctx, "jenndebug promotion successfully locked key %s\n", k)
 					if _, keyAlreadyPromoted := rbServer.store.DB().CicadaAffiliatedKeys.Load(k); !keyAlreadyPromoted {
 						// if key is locked, and has not been promoted yet, add it to list of keys to be promoted
-						table, idx, keyCols := kv.ExtractKey(k)
+						table, idx, crdbKeyCols := kv.ExtractKey(k)
 						keysList[originalIdx] = smdbrpc.Key{
 							Table:   &table,
 							Index:   &idx,
-							KeyCols: keyCols,
+							CicadaKeyCols: kvVersion.CicadaKeyCols,
 							Key:     keyValue.Key,
 							Timestamp: &smdbrpc.HLCTimestamp{
 								Walltime:    &keyValue.Value.Timestamp.WallTime,
 								Logicaltime: &keyValue.Value.Timestamp.Logical,
 							},
 							Value: keyValue.Value.RawBytes,
+							CrdbKeyCols: crdbKeyCols,
 						}
 					} else {
 						// if key has been promoted between now and being locked, release it
@@ -2833,6 +2841,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 		return &failureResp, nil
 	}
 
+	// TODO jenndebug implementDemotion
 	//// Update all nodes' promotion maps
 	//for _, wrapper := range rbServer.store.crdbClientWrappers {
 	//	crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
@@ -2992,12 +3001,14 @@ func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
 
 	for i, kvVersion := range req.Keys {
 		key := roachpb.Key(kvVersion.Key)
+		log.Warningf(context.Background(), "jenndebug promoted key %+v\n", key)
 		cicadaAffiliatedKey := kv.CicadaAffiliatedKey{
 			Key: key,
 			PromotionTimestamp: hlc.Timestamp{
 				WallTime: *kvVersion.Timestamp.Walltime,
 				Logical:  *kvVersion.Timestamp.Logicaltime,
 			},
+			CicadaKeyCols: kvVersion.CicadaKeyCols,
 		}
 		rbServer.store.DB().CicadaAffiliatedKeys.Store(key.String(), cicadaAffiliatedKey)
 		resp.WereSuccessfullyMigrated[i] = &smdbrpc.KeyMigrationResp{
