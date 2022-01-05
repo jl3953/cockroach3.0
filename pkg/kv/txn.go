@@ -1118,14 +1118,23 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 		writeKey := txn.writeHotkeys[j]
 		val := txn.writeHotkeys[j+1]
 		put := execinfrapb.Cmd_PUT
-		table, index, keyCols := ExtractKey(roachpb.Key(writeKey).String())
+		table, index, crdbKeyCols := ExtractKey(roachpb.Key(writeKey).String())
+
+		mapKeyStr := roachpb.Key(writeKey).String()
+		cicadaAffiliatedKeyInterface, isInPromotionMap := txn.db.
+			CicadaAffiliatedKeys.Load(mapKeyStr)
+		if !isInPromotionMap {
+			log.Fatalf(ctx, "jenndebug why is this key not %s\n", mapKeyStr)
+		}
+		cicadaAffiliatedKey := cicadaAffiliatedKeyInterface.(CicadaAffiliatedKey)
 		op := execinfrapb.Op{
 			Cmd:     &put,
 			Table:   &table,
 			Index:   &index,
-			KeyCols: keyCols,
+			CicadaKeyCols: cicadaAffiliatedKey.CicadaKeyCols,
 			Key:     writeKey,
 			Value:   val,
+			CrdbKeyCols: crdbKeyCols,
 		}
 		writeOps = append(writeOps, &op)
 	}
@@ -1167,13 +1176,14 @@ func (txn *Txn) constructInjectedRetryError(ctx context.Context, errMsg string) 
 
 func constructCicadaReadOp(cicadaAffiliatedKey CicadaAffiliatedKey) execinfrapb.Op {
 	get := execinfrapb.Cmd_GET
-	table, index, keyCols := ExtractKey(cicadaAffiliatedKey.Key.String())
+	table, index, crdbKeyCols := ExtractKey(cicadaAffiliatedKey.Key.String())
 	op := execinfrapb.Op{
 		Cmd:     &get,
 		Table:   &table,
 		Index:   &index,
-		KeyCols: keyCols,
+		CicadaKeyCols: cicadaAffiliatedKey.CicadaKeyCols,
 		Key:     cicadaAffiliatedKey.Key,
+		CrdbKeyCols: crdbKeyCols,
 	}
 	return op
 }

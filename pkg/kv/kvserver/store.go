@@ -2608,6 +2608,7 @@ func (rbServer *rebalanceServer) TestAddKeyToPromotionMap(_ context.Context,
 			WallTime: *testPromotionKeyReq.PromotionTimestamp.Walltime,
 			Logical:  *testPromotionKeyReq.PromotionTimestamp.Logicaltime,
 		},
+		CicadaKeyCols: testPromotionKeyReq.CicadaKeyCols,
 	}
 	rbServer.store.DB().CicadaAffiliatedKeys.Store(keyStr, cicadaAffiliatedKey)
 
@@ -2641,6 +2642,8 @@ func (rbServer *rebalanceServer) TestIsKeyInPromotionMap(_ context.Context,
 // PromoteKeys Promote only a single key
 func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	promoteKeysReq *smdbrpc.PromoteKeysReq) (*smdbrpc.PromoteKeysResp, error) {
+
+	// TODO: jenndebug ADD CICADA_KEY_COLS TO THE PROMOTIONS
 
 	start := time.Now()
 
@@ -2730,17 +2733,18 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 					log.Warningf(ctx, "jenndebug promotion successfully locked key %s\n", k)
 					if _, keyAlreadyPromoted := rbServer.store.DB().CicadaAffiliatedKeys.Load(k); !keyAlreadyPromoted {
 						// if key is locked, and has not been promoted yet, add it to list of keys to be promoted
-						table, idx, keyCols := kv.ExtractKey(k)
+						table, idx, crdbKeyCols := kv.ExtractKey(k)
 						keysList[originalIdx] = smdbrpc.Key{
 							Table:   &table,
 							Index:   &idx,
-							KeyCols: keyCols,
+							CicadaKeyCols: kvVersion.CicadaKeyCols,
 							Key:     keyValue.Key,
 							Timestamp: &smdbrpc.HLCTimestamp{
 								Walltime:    &keyValue.Value.Timestamp.WallTime,
 								Logicaltime: &keyValue.Value.Timestamp.Logical,
 							},
 							Value: keyValue.Value.RawBytes,
+							CrdbKeyCols: crdbKeyCols,
 						}
 					} else {
 						// if key has been promoted between now and being locked, release it
@@ -2999,6 +3003,7 @@ func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
 				WallTime: *kvVersion.Timestamp.Walltime,
 				Logical:  *kvVersion.Timestamp.Logicaltime,
 			},
+			CicadaKeyCols: kvVersion.CicadaKeyCols,
 		}
 		rbServer.store.DB().CicadaAffiliatedKeys.Store(key.String(), cicadaAffiliatedKey)
 		resp.WereSuccessfullyMigrated[i] = &smdbrpc.KeyMigrationResp{

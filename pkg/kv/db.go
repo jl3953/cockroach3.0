@@ -288,6 +288,7 @@ type ExtractTxnWrapper struct {
 type CicadaAffiliatedKey struct {
 	Key                roachpb.Key
 	PromotionTimestamp hlc.Timestamp
+	CicadaKeyCols      []int64
 }
 
 type ConnectionObjectWrapper struct {
@@ -892,12 +893,12 @@ func ExtractKey(key string) (int64, int64, []int64) {
 	//log.Warningf(context.Background(), "jenndebug components %+v\n", components)
 	table, _ := strconv.Atoi(components[2])
 	index, _ := strconv.Atoi(components[3])
-	keyCols := make([]int64, 0)
+	crdbKeyCols := make([]int64, 0)
 	for _, keyCol := range components[4 : len(components)-1] {
 		col, _ := strconv.Atoi(keyCol)
-		keyCols = append(keyCols, int64(col))
+		crdbKeyCols = append(crdbKeyCols, int64(col))
 	}
-	return int64(table), int64(index), keyCols
+	return int64(table), int64(index), crdbKeyCols
 }
 
 // sendUsingSender uses the specified sender to send the batch request.

@@ -101,8 +101,9 @@ message CRDBTxnResp {
 }
 
 message TestPromotionKeyReq {
-  optional bytes key = 1;
-  optional HLCTimestamp promotionTimestamp = 2;
+  required bytes key = 1;
+  required HLCTimestamp promotionTimestamp = 2;
+  repeated int64 cicada_key_cols = 3;
 }
 
 message TestPromotionKeyResp {
@@ -142,19 +143,21 @@ enum Cmd {
 message Key {
   optional int64 table = 1;
   optional int64 index = 2;
-  repeated int64 key_cols = 3;
+  repeated int64 cicada_key_cols = 3;
   optional bytes key = 4;
   optional HLCTimestamp timestamp = 5;
   optional bytes value = 6;
+  repeated int64 crdb_key_cols = 7;
 }
 
 message Op {
   optional Cmd cmd = 1;
   optional int64 table = 2;
   optional int64 index = 3;
-  repeated int64 key_cols = 4;
+  repeated int64 cicada_key_cols = 4;
   optional bytes key = 5;
   optional bytes value = 6;
+  repeated int64 crdb_key_cols = 7;
 }
 
 message TxnReq {
@@ -221,6 +224,7 @@ message KVVersion {
   optional bytes value = 2;
   optional HLCTimestamp timestamp = 3;
   optional uint64 hotness = 4;
+  repeated int64 cicada_key_cols = 5;
 }
 
 message KeyMigrationReq {
