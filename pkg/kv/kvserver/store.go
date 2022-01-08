@@ -3001,7 +3001,7 @@ func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
 
 	for i, kvVersion := range req.Keys {
 		key := roachpb.Key(kvVersion.Key)
-		log.Warningf(context.Background(), "jenndebug promoted key %+v\n", key)
+		//log.Warningf(context.Background(), "jenndebug promoted key %+v\n", key)
 		cicadaAffiliatedKey := kv.CicadaAffiliatedKey{
 			Key: key,
 			PromotionTimestamp: hlc.Timestamp{
