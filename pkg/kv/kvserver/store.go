@@ -1882,12 +1882,12 @@ func (s *Store) Start(ctx context.Context, stopper *stop.Stopper) error {
 		// running.
 		s.startGossip()
 
-		s.stopper.RunWorker(ctx, s.startRebalanceHotkeysServer)
+		//s.stopper.RunWorker(ctx, s.startRebalanceHotkeysServer)
 		// only the first store triggers the promotion
 		//if s.StoreID() == 1 {
 		//	s.stopper.RunWorker(ctx, s.triggerRebalanceHotkeysAtInterval)
 		//}
-		s.stopper.RunWorker(ctx, s.batchTxnsToCicada)
+		//s.stopper.RunWorker(ctx, s.batchTxnsToCicada)
 
 		// Start the scanner. The construction here makes sure that the scanner
 		// only starts after Gossip has connected, and that it does not block Start
