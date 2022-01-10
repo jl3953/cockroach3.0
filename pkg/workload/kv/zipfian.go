@@ -21,7 +21,8 @@ package kv
 
 import (
 	"math"
-	"math/rand"
+
+	"golang.org/x/exp/rand"
 )
 
 // A zipf generates Zipf distributed variates.
@@ -70,6 +71,10 @@ func newZipf(s float64, v float64, imax uint64) *zipf {
 	z.hx0minusHxm = z.h(0.5) - math.Exp(math.Log(z.v)*(-z.q)) - z.hxm
 	z.s = 1 - z.hinv(z.h(1.5)-math.Exp(-z.q*math.Log(z.v+1.0)))
 	return z
+}
+
+func (z *zipf) Uint64Jenn(random *rand.Rand) uint64 {
+	return z.Uint64(random)
 }
 
 // Uint64 returns a value drawn from the Zipf distribution described

@@ -13,21 +13,28 @@ package kv
 import (
 	"context"
 	"crypto/sha1"
+	"crypto/sha256"
 	gosql "database/sql"
 	"encoding/binary"
 	"fmt"
+	"github.com/cockroachdb/cockroach-go/crdb"
+	"github.com/cockroachdb/cockroach/pkg/util/log"
+	"github.com/jackc/pgx"
 	"hash"
 	"math"
-	"math/rand"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/util/timeutil"
 	"github.com/cockroachdb/cockroach/pkg/workload"
 	"github.com/cockroachdb/cockroach/pkg/workload/histogram"
+	"github.com/cockroachdb/cockroach/pkg/workload/ycsb"
 	"github.com/cockroachdb/errors"
 	"github.com/spf13/pflag"
+	"golang.org/x/exp/rand"
 )
 
 const (
@@ -75,6 +82,13 @@ type kv struct {
 	shards                               int
 	targetCompressionRatio               float64
 	enum                                 bool
+	skewS                                float64
+	zipfVerbose                          bool
+	useOriginal                          bool
+	maxHotkey                            int64
+	keyspace                             int64
+	hash_randomize_keyspace              bool
+	enable_fixed_sized_encoding        bool
 }
 
 func init() {
@@ -104,9 +118,9 @@ var kvMeta = workload.Meta{
 		}
 		g.flags.IntVar(&g.batchSize, `batch`, 1,
 			`Number of blocks to read/insert in a single SQL statement.`)
-		g.flags.IntVar(&g.minBlockSizeBytes, `min-block-bytes`, 1,
+		g.flags.IntVar(&g.minBlockSizeBytes, `min-block-bytes`, 8,
 			`Minimum amount of raw data written with each insertion.`)
-		g.flags.IntVar(&g.maxBlockSizeBytes, `max-block-bytes`, 1,
+		g.flags.IntVar(&g.maxBlockSizeBytes, `max-block-bytes`, 8,
 			`Maximum amount of raw data written with each insertion`)
 		g.flags.Int64Var(&g.cycleLength, `cycle-length`, math.MaxInt64,
 			`Number of keys repeatedly accessed by each writer through upserts.`)
@@ -133,6 +147,16 @@ var kvMeta = workload.Meta{
 			`Target compression ratio for data blocks. Must be >= 1.0`)
 		g.flags.BoolVar(&g.enum, `enum`, false,
 			`Inject an enum column and use it`)
+		g.flags.Float64Var(&g.skewS, `s`, 1.2, `s parameter in the zipfian generator, default 1.2`)
+		g.flags.BoolVar(&g.zipfVerbose, `zipfVerbose`, false, `whether zipfian generator is verbose`)
+		g.flags.BoolVar(&g.useOriginal, `useOriginal`, true, `whether or not to use original fake zipfian generator.`)
+		g.flags.Int64Var(&g.maxHotkey, `hotkey`, -1, `the largest hot key on the hot shard.`)
+		g.flags.Int64Var(&g.keyspace, `keyspace`, 1000000, `key range starting from 0`)
+		g.flags.BoolVar(&g.hash_randomize_keyspace, `hash_randomize_keyspace`,
+			true, `apply hash to keyspace, so hotkeys are not contiguous`)
+		g.flags.BoolVar(&g.enable_fixed_sized_encoding,
+			`enable_fixed_sized_encoding`, true,
+			`whether to allow keyspaces to be variable sized`)
 		g.connFlags = workload.NewConnFlags(&g.flags)
 		return g
 	},
@@ -312,6 +336,7 @@ func (w *kv) Ops(
 			config:          w,
 			hists:           reg.GetHandle(),
 			numEmptyResults: numEmptyResults,
+			mcp:             mcp,
 		}
 		op.readStmt = op.sr.Define(readStmtStr)
 		op.writeStmt = op.sr.Define(writeStmtStr)
@@ -322,7 +347,8 @@ func (w *kv) Ops(
 		if w.sequential {
 			op.g = newSequentialGenerator(seq)
 		} else if w.zipfian {
-			op.g = newZipfianGenerator(seq)
+			//op.g = newZipfianGenerator(seq, w.skewS, w.zipfVerbose, w.useOriginal, w.keyspace)
+			op.g = NewRejectionInversionGenerator(seq, w.keyspace, w.skewS)
 		} else {
 			op.g = newHashGenerator(seq)
 		}
@@ -341,30 +367,145 @@ type kvOp struct {
 	spanStmt        workload.StmtHandle
 	g               keyGenerator
 	numEmptyResults *int64 // accessed atomically
+	mcp             *workload.MultiConnPool
+}
+
+type byInt []int64
+
+func (s byInt) Len() int {
+	return len(s)
+}
+
+func (s byInt) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s byInt) Less(i, j int) bool {
+	return s[i] < s[j]
+	// reverse
+	// return s[i] > s[j]
+}
+
+type generateKeyFunc func() int64
+
+func randomizeHash(key int64, keyspace int64) int64 {
+	byteKey := make([]byte, 8)
+	binary.BigEndian.PutUint64(byteKey, uint64(key))
+	hashed32Bytes := sha256.Sum256(byteKey)
+	hashed := make([]byte, 32)
+	for i, b := range hashed32Bytes {
+		hashed[i] = b
+	}
+	hashedUint64 := binary.BigEndian.Uint64(hashed)
+	hashedModulo := hashedUint64 % uint64(keyspace+1)
+	return int64(hashedModulo)
+}
+
+func jenkyFixedBytes(key int64, keyspace int64) int64 {
+	var constant int64 = 256
+	for keyspace > constant {
+		constant *= 256
+	}
+
+	constant = int64(math.Pow(256, 5))
+
+	return key + constant
+}
+
+func correctTxnParams(batchSize int, generateKey generateKeyFunc,
+	keyspace int64, hash_randomize_keyspace bool,
+	enable_fixed_sized_encoding bool) []int64 {
+
+	// sort the keys first
+	argsInt := make([]int64, batchSize)
+	duplicates := make(map[int64]bool)
+	for i := 0; i < batchSize; i++ {
+		key := generateKey()
+		for duplicates[key] {
+			key = generateKey()
+		}
+		duplicates[key] = true
+		if hash_randomize_keyspace {
+			key = randomizeHash(key, keyspace)
+		}
+
+		if enable_fixed_sized_encoding {
+			key = jenkyFixedBytes(key, keyspace)
+		}
+
+		argsInt[i] = key
+	}
+	sort.Sort(byInt(argsInt))
+
+	//jenndebug hot replacing hot keys
+	//for i := 0; i < len(argsInt); i++ {
+	//	if argsInt[i] <= greatestHotKey {
+	//		argsInt[i] = argsInt[0]
+	//	}
+	//}
+	//sort.Sort(byInt(argsInt))
+
+	return argsInt
 }
 
 func (o *kvOp) run(ctx context.Context) error {
+
+	tx, _ := o.mcp.Get().BeginEx(ctx, &pgx.TxOptions{
+		IsoLevel:   pgx.Serializable,
+		AccessMode: pgx.ReadWrite,
+	})
+
 	statementProbability := o.g.rand().Intn(100) // Determines what statement is executed.
 	if statementProbability < o.config.readPercent {
+
+		argsInt := correctTxnParams(o.config.batchSize, o.g.readKey,
+			o.config.keyspace, o.config.hash_randomize_keyspace,
+			o.config.enable_fixed_sized_encoding)
+
+		/* if argsInt[0] <= o.config.hotkey { //jenndebug hot
+			o.hists.Get(`read`).Record(0 * time.Millisecond)
+			return nil
+		}*/
+
 		args := make([]interface{}, o.config.batchSize)
 		for i := 0; i < o.config.batchSize; i++ {
-			args[i] = o.g.readKey()
+			args[i] = argsInt[i]
 		}
+
 		start := timeutil.Now()
-		rows, err := o.readStmt.Query(ctx, args...)
-		if err != nil {
-			return err
-		}
-		empty := true
-		for rows.Next() {
-			empty = false
-		}
-		if empty {
-			atomic.AddInt64(o.numEmptyResults, 1)
-		}
+		isAborted := false
+		err := crdb.ExecuteInTx(ctx, (*workload.PgxTx)(tx), func() error {
+			rows, err := o.readStmt.QueryTx(ctx, tx, args...)
+			if err != nil {
+				return err
+			}
+			empty := true
+			for rows.Next() {
+				//val, _ := rows.Values()
+				//log.Warning(ctx, "jenndebug key val %d, %s\n", args[0], val)
+				empty = false
+			}
+			if empty {
+				log.Warningf(ctx, "jenndebug empty key %d\n", argsInt[0])
+				atomic.AddInt64(o.numEmptyResults, 1)
+			}
+			if rowErr := rows.Err(); rowErr != nil {
+				isAborted = true
+				//fmt.Printf("jenndebug rowErr %+v\n", rowErr)
+				return nil
+			} else {
+				rows.Close()
+				return nil
+			}
+		})
 		elapsed := timeutil.Since(start)
-		o.hists.Get(`read`).Record(elapsed)
-		return rows.Err()
+		if !isAborted {
+			o.hists.Get(`read`).Record(elapsed)
+		}
+		if err != nil {
+			//fmt.Printf("jenndebug read %+v, err %+v\n", argsInt[0], err)
+		}
+		return nil
 	}
 	// Since we know the statement is not a read, we recalibrate
 	// statementProbability to only consider the other statements.
@@ -377,17 +518,37 @@ func (o *kvOp) run(ctx context.Context) error {
 		return err
 	}
 	const argCount = 2
+
+	argsInt := correctTxnParams(o.config.batchSize, o.g.writeKey,
+		o.config.keyspace, o.config.hash_randomize_keyspace,
+		o.config.enable_fixed_sized_encoding)
 	args := make([]interface{}, argCount*o.config.batchSize)
 	for i := 0; i < o.config.batchSize; i++ {
 		j := i * argCount
-		args[j+0] = o.g.writeKey()
+		args[j+0] = argsInt[i]
 		args[j+1] = randomBlock(o.config, o.g.rand())
 	}
+
+	isAborted := false
 	start := timeutil.Now()
-	_, err := o.writeStmt.Exec(ctx, args...)
+	err := crdb.ExecuteInTx(ctx, (*workload.PgxTx)(tx), func() error {
+		_, err := o.writeStmt.ExecTx(ctx, tx, args...)
+		if err != nil {
+			isAborted = true
+			//fmt.Printf("jenndebug write err %+v\n", err)
+		}
+		return nil
+		//return err
+	})
 	elapsed := timeutil.Since(start)
-	o.hists.Get(`write`).Record(elapsed)
-	return err
+	if !isAborted {
+		o.hists.Get(`write`).Record(elapsed)
+	}
+	if err != nil {
+		//fmt.Printf("jenndebug write executeInTxn err %+v\n", err)
+	}
+	//return err
+	return nil
 }
 
 func (o *kvOp) close(context.Context) {
@@ -437,10 +598,128 @@ type hashGenerator struct {
 	buf    [sha1.Size]byte
 }
 
+var TaylorThreshold = 1e-8 // Threshold below which Taylor series will be used
+var F12 = 1.0 / 2
+var F13 = 1.0 / 3
+var F14 = 1.0 / 4
+
+type RejectionInversionGenerator struct {
+	seq                  *sequence
+	numElements          int64   // number of elements
+	exponent_            float64 // exponent parameter of the distribution
+	hIntegralX1          float64 // hIntegral(1.5) - 1.
+	hIntegralNumElements float64 // hIntegral(numElements + 0.5)
+	s_                   float64 // 2 - hIntegralInv(hIntegral(2.5) - h(2)
+	random               *rand.Rand
+}
+
+func (g *RejectionInversionGenerator) sequence() int64 {
+	return atomic.LoadInt64(&g.seq.val)
+}
+
+func (g *RejectionInversionGenerator) hIntegral(x float64) float64 {
+	logX := math.Log(x)
+	return g.helper2((1-g.exponent_)*logX) * logX
+}
+
+func (g *RejectionInversionGenerator) helper2(x float64) float64 {
+	if math.Abs(x) > TaylorThreshold {
+		return math.Expm1(x) / x
+	} else {
+		return 1 + x*F12*(1+x*F13*(1+F14*x))
+	}
+}
+
+func NewRejectionInversionGenerator(seq *sequence, numElements int64,
+	exponent float64) *RejectionInversionGenerator {
+	if numElements <= 0 {
+		log.Fatalf(context.Background(), "number of elements is not positive")
+	}
+
+	if exponent <= 0 {
+		log.Fatalf(context.Background(), "exponent is not positive")
+	}
+
+	g := RejectionInversionGenerator{
+		seq:         seq,
+		numElements: numElements,
+		exponent_:   exponent,
+		random:      rand.New(rand.NewSource(uint64(time.Now().UnixNano()))),
+	}
+	g.hIntegralX1 = g.hIntegral(1.5) - 1
+	g.hIntegralNumElements = g.hIntegral(float64(numElements) + F12)
+	g.s_ = 2 - g.hIntegralInv(g.hIntegral(2.5)-g.h(2))
+
+	return &g
+}
+
+func (g *RejectionInversionGenerator) sample() int64 {
+	var dummy int64 = 0
+	for true {
+		var u = g.hIntegralNumElements + g.U()*(g.
+			hIntegralX1-g.hIntegralNumElements)
+		// u is uniformly distributed in (h_integral_x1_, h_integral_num_elements]
+
+		var x = g.hIntegralInv(u)
+		var k = int64(x + F12)
+
+		// Limit k to the range [1, num_elements_] if it would be outside due
+		// to numerical inaccuracies
+		if k < 1 {
+			k = 1
+		} else if k > g.numElements {
+			k = g.numElements
+		}
+
+		if float64(k)-x <= g.s_ || u >= g.hIntegral(float64(k)+F12)-g.h(
+			float64(k)) {
+			return k
+		}
+	}
+	return dummy
+}
+
+func (g *RejectionInversionGenerator) U() float64 {
+	return g.random.Float64()
+}
+
+func (g *RejectionInversionGenerator) h(x float64) float64 {
+	return math.Exp(-g.exponent_ * math.Log(x))
+}
+func (g *RejectionInversionGenerator) helper1(x float64) float64 {
+	if math.Abs(x) > TaylorThreshold {
+		return math.Log1p(x) / x
+	} else {
+		return 1 - x*(F12-x*(F13-F14*x))
+	}
+}
+
+func (g *RejectionInversionGenerator) hIntegralInv(x float64) float64 {
+	var t = x * (1 - g.exponent_)
+	if t < -1 {
+		// Limit value to the range [-1, +inf).
+		// t could be smaller than -1 in some rare cases due to numerical errors.
+		t = -1
+	}
+	return math.Exp(g.helper1(t) * x)
+}
+
+func (g *RejectionInversionGenerator) readKey() int64 {
+	return int64(g.sample())
+}
+
+func (g *RejectionInversionGenerator) writeKey() int64 {
+	return int64(g.sample())
+}
+
+func (g *RejectionInversionGenerator) rand() *rand.Rand {
+	return g.random
+}
+
 func newHashGenerator(seq *sequence) *hashGenerator {
 	return &hashGenerator{
 		seq:    seq,
-		random: rand.New(rand.NewSource(timeutil.Now().UnixNano())),
+		random: rand.New(rand.NewSource(uint64(timeutil.Now().UnixNano()))),
 		hasher: sha1.New(),
 	}
 }
@@ -482,7 +761,7 @@ type sequentialGenerator struct {
 func newSequentialGenerator(seq *sequence) *sequentialGenerator {
 	return &sequentialGenerator{
 		seq:    seq,
-		random: rand.New(rand.NewSource(timeutil.Now().UnixNano())),
+		random: rand.New(rand.NewSource(uint64(timeutil.Now().UnixNano()))),
 	}
 }
 
@@ -506,27 +785,42 @@ func (g *sequentialGenerator) sequence() int64 {
 	return atomic.LoadInt64(&g.seq.val)
 }
 
+type zipfWrapper interface {
+	Uint64Jenn(*rand.Rand) uint64
+}
+
 type zipfGenerator struct {
 	seq    *sequence
 	random *rand.Rand
-	zipf   *zipf
+	zipf   zipfWrapper
 }
 
 // Creates a new zipfian generator.
-func newZipfianGenerator(seq *sequence) *zipfGenerator {
-	random := rand.New(rand.NewSource(timeutil.Now().UnixNano()))
+func newZipfianGenerator(seq *sequence, s float64, verbose bool, useOriginal bool,
+	keyspace int64) *zipfGenerator {
+	random := rand.New(rand.NewSource(uint64(timeutil.Now().UnixNano())))
+	max := uint64(keyspace)
+	//var hey zipfWrapper
+	//if useOriginal {
+	//	hey = newZipf(s, 1, max)
+	//} else {
+	//	hey, _ = ycsb.NewZipfGenerator(random, 0, max, s, verbose)
+	//
+	//}
+	hey, _ := ycsb.NewZipfGenerator(random, 0, max, s, verbose)
 	return &zipfGenerator{
 		seq:    seq,
 		random: random,
-		zipf:   newZipf(1.1, 1, uint64(math.MaxInt64)),
+		// zipf:   hey,
+		zipf: hey,
 	}
 }
 
 // Get a random number seeded by v that follows the
 // zipfian distribution.
 func (g *zipfGenerator) zipfian(seed int64) int64 {
-	randomWithSeed := rand.New(rand.NewSource(seed))
-	return int64(g.zipf.Uint64(randomWithSeed))
+	randomWithSeed := rand.New(rand.NewSource(uint64(seed)))
+	return int64(g.zipf.Uint64Jenn(randomWithSeed))
 }
 
 // Get a zipf write key appropriately.
@@ -538,7 +832,8 @@ func (g *zipfGenerator) writeKey() int64 {
 func (g *zipfGenerator) readKey() int64 {
 	v := g.seq.read()
 	if v == 0 {
-		return 0
+		//return 0
+		v = 1
 	}
 	return g.zipfian(g.random.Int63n(v))
 }
@@ -562,8 +857,10 @@ func randomBlock(config *kv, r *rand.Rand) []byte {
 		if i >= uniqueSize {
 			blockData[i] = blockData[i-uniqueSize]
 		} else {
-			blockData[i] = byte(r.Int() & 0xff)
+			//blockData[i] = byte(r.Int() & 0xff)
+			blockData[i] = byte('j')
 		}
 	}
+	blockData = []byte("jennifer")
 	return blockData
 }
