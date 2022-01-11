@@ -13,7 +13,7 @@ package kvserver
 import (
 	"context"
 	"reflect"
-	"time"
+	//"time"
 
 	"github.com/cockroachdb/cockroach/pkg/kv/kvserver/batcheval"
 	"github.com/cockroachdb/cockroach/pkg/kv/kvserver/concurrency"
@@ -34,7 +34,7 @@ import (
 func (r *Replica) Send(
 	ctx context.Context, ba roachpb.BatchRequest,
 ) (*roachpb.BatchResponse, *roachpb.Error) {
-	_ = r.RecordKey(time.Now(), &ba)
+	//_ = r.RecordKey(time.Now(), &ba)
 	return r.sendWithRangeID(ctx, r.RangeID, &ba)
 }
 
