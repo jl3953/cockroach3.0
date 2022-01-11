@@ -1358,43 +1358,43 @@ func (txn *Txn) Send(
 	copy(originalRequests, ba.Requests)                 // copy of the original batchRequests
 	warmKeysRequests := make([]roachpb.RequestUnion, 0) // to be sent to CRDB
 	isInCicada := make([]bool, len(originalRequests))   // which of the requests is in Cicada
-	var ops []*execinfrapb.Op                           // batchRequests (reads) to be sent to Cicada
+	//var ops []*execinfrapb.Op                           // batchRequests (reads) to be sent to Cicada
 
 	for i, req := range originalRequests {
 		// by default, non-Cicada requests go through CRDB
 		warmKeysRequests = append(warmKeysRequests, req)
 		isInCicada[i] = false
 
-		if req.GetEndTxn() != nil {
-			if txn.HasWriteHotkeys() {
-				didWritesCommit, sendErr := txn.oneTouchWritesCicada(ctx)
-				txn.ClearWriteHotkeys()
-				if sendErr != nil {
-					log.Error(ctx, "jenndebug cicada grpc send err %+v\n", sendErr)
-					return nil, roachpb.NewError(roachpb.NewTransactionAbortedError(roachpb.ABORT_REASON_PUSHER_ABORTED))
-				} else if !didWritesCommit {
-					//log.Error(ctx, "jenndebug cicada 1-touch write failed to commit\n")
-					return nil, roachpb.NewError(roachpb.NewTransactionAbortedError(roachpb.ABORT_REASON_PUSHER_ABORTED))
-				}
-			}
-		}
+		//if req.GetEndTxn() != nil {
+		//	if txn.HasWriteHotkeys() {
+		//		didWritesCommit, sendErr := txn.oneTouchWritesCicada(ctx)
+		//		txn.ClearWriteHotkeys()
+		//		if sendErr != nil {
+		//			log.Error(ctx, "jenndebug cicada grpc send err %+v\n", sendErr)
+		//			return nil, roachpb.NewError(roachpb.NewTransactionAbortedError(roachpb.ABORT_REASON_PUSHER_ABORTED))
+		//		} else if !didWritesCommit {
+		//			//log.Error(ctx, "jenndebug cicada 1-touch write failed to commit\n")
+		//			return nil, roachpb.NewError(roachpb.NewTransactionAbortedError(roachpb.ABORT_REASON_PUSHER_ABORTED))
+		//		}
+		//	}
+		//}
 
-		if key := req.GetInner().Header().Key; IsUserKey(key.String()) {
-			if cicadaAffiliatedKey, isPromoted := txn.DB().IsKeyInCicadaAtTimestamp(
-				key, txn.ProvisionalCommitTimestamp()); isPromoted && !txn.IsDemotion() {
-				// remove from default CRDB path
-				if putReq := req.GetPut(); putReq != nil {
-					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
-					isInCicada[i] = true
-					txn.AddWriteHotkeys([][]byte{cicadaAffiliatedKey.Key, putReq.Value.RawBytes})
-				} else if scanReq := req.GetScan(); scanReq != nil {
-					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
-					isInCicada[i] = true
-					op := constructCicadaReadOp(cicadaAffiliatedKey)
-					ops = append(ops, &op)
-				}
-			}
-		}
+		//if key := req.GetInner().Header().Key; IsUserKey(key.String()) {
+		//	if cicadaAffiliatedKey, isPromoted := txn.DB().IsKeyInCicadaAtTimestamp(
+		//		key, txn.ProvisionalCommitTimestamp()); isPromoted && !txn.IsDemotion() {
+		//		// remove from default CRDB path
+		//		if putReq := req.GetPut(); putReq != nil {
+		//			warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
+		//			isInCicada[i] = true
+		//			txn.AddWriteHotkeys([][]byte{cicadaAffiliatedKey.Key, putReq.Value.RawBytes})
+		//		} else if scanReq := req.GetScan(); scanReq != nil {
+		//			warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
+		//			isInCicada[i] = true
+		//			op := constructCicadaReadOp(cicadaAffiliatedKey)
+		//			ops = append(ops, &op)
+		//		}
+		//	}
+		//}
 	}
 
 	// if there are CRDB requests to be sent, send them
@@ -1428,52 +1428,52 @@ func (txn *Txn) Send(
 		}
 	}
 
-	// check if any warm keys are in warm key batch. If there are, retry the txn
-	for _, req := range warmKeysRequests {
-		if key := req.GetInner().Header().Key; IsUserKey(key.String()) {
-			if req.GetScan() != nil || req.GetPut() != nil {
-				if _, isPromoted := txn.DB().IsKeyInCicadaAtTimestamp(key, txn.ProvisionalCommitTimestamp()); isPromoted {
-					if txn.IsDemotion() {
-						continue
-					}
-					//log.Warningf(ctx, "jenndebug warmkey %+v promoted to Cicada\n", key)
-					return nil, txn.constructInjectedRetryError(ctx,
-						"jenndebug cicada reads already promoted, need reroute")
-				}
-			}
-		}
-	}
-	if onlyCRDBRequestsThisSend := !containsTrue(isInCicada); onlyCRDBRequestsThisSend {
+	//// check if any warm keys are in warm key batch. If there are, retry the txn
+	//for _, req := range warmKeysRequests {
+	//	if key := req.GetInner().Header().Key; IsUserKey(key.String()) {
+	//		if req.GetScan() != nil || req.GetPut() != nil {
+	//			if _, isPromoted := txn.DB().IsKeyInCicadaAtTimestamp(key, txn.ProvisionalCommitTimestamp()); isPromoted {
+	//				if txn.IsDemotion() {
+	//					continue
+	//				}
+	//				//log.Warningf(ctx, "jenndebug warmkey %+v promoted to Cicada\n", key)
+	//				return nil, txn.constructInjectedRetryError(ctx,
+	//					"jenndebug cicada reads already promoted, need reroute")
+	//			}
+	//		}
+	//	}
+	//}
+	//if onlyCRDBRequestsThisSend := !containsTrue(isInCicada); onlyCRDBRequestsThisSend {
 		return brCRDB, pErr
-	}
+	//}
 
 	//if there are Cicada read requests to be sent, send them.
-	var brCicada *roachpb.BatchResponse = nil
-	if len(ops) > 0 {
-		brCicada = &roachpb.BatchResponse{
-			Responses: make([]roachpb.ResponseUnion, len(ops)),
-		}
-		didReadsSucceed, sendErr := txn.readsCicada(ctx, ops, brCicada)
-		if sendErr != nil {
-			log.Errorf(ctx, "jenndebug cicada reads never went through %+v\n", sendErr)
-			populateScansWithEmptyResp(brCicada)
-		} else if !didReadsSucceed {
-			return nil, txn.constructInjectedRetryError(ctx, "jenndebug cicada reads failed to commit")
-		}
-	}
+	//var brCicada *roachpb.BatchResponse = nil
+	//if len(ops) > 0 {
+	//	brCicada = &roachpb.BatchResponse{
+	//		Responses: make([]roachpb.ResponseUnion, len(ops)),
+	//	}
+	//	didReadsSucceed, sendErr := txn.readsCicada(ctx, ops, brCicada)
+	//	if sendErr != nil {
+	//		log.Errorf(ctx, "jenndebug cicada reads never went through %+v\n", sendErr)
+	//		populateScansWithEmptyResp(brCicada)
+	//	} else if !didReadsSucceed {
+	//		return nil, txn.constructInjectedRetryError(ctx, "jenndebug cicada reads failed to commit")
+	//	}
+	//}
 
 	// merge responses from CRDB and Cicada
-	var br *roachpb.BatchResponse = nil
-	br = &roachpb.BatchResponse{
-		BatchResponse_Header: roachpb.BatchResponse_Header{},
-		Responses:            make([]roachpb.ResponseUnion, len(isInCicada)),
-	}
-	if queriedCRDBThisSend := len(warmKeysRequests) > 0; queriedCRDBThisSend {
-		br.BatchResponse_Header = brCRDB.BatchResponse_Header
-	}
-	mergeCRDBCicadaResponses(ctx, isInCicada, originalRequests, brCRDB, brCicada, br)
-
-	return br, pErr
+	//var br *roachpb.BatchResponse = nil
+	//br = &roachpb.BatchResponse{
+	//	BatchResponse_Header: roachpb.BatchResponse_Header{},
+	//	Responses:            make([]roachpb.ResponseUnion, len(isInCicada)),
+	//}
+	//if queriedCRDBThisSend := len(warmKeysRequests) > 0; queriedCRDBThisSend {
+	//	br.BatchResponse_Header = brCRDB.BatchResponse_Header
+	//}
+	//mergeCRDBCicadaResponses(ctx, isInCicada, originalRequests, brCRDB, brCicada, br)
+	//
+	//return br, pErr
 }
 
 func reconstructValue(key []byte, value []byte, walltime int64, logicaltime int32, isZero []byte) [][]byte {
