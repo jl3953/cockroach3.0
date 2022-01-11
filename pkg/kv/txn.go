@@ -1231,12 +1231,12 @@ func (txn *Txn) submitTxnToCicada(_ context.Context,
 	replyChan := make(CicadaTxnReplyChan, 1)
 
 	// submit request for cicada txn
-	//submitTxnWrapper := SubmitTxnWrapper{
-	//	TxnReq:    txnReq,
-	//	ReplyChan: replyChan,
-	//}
+	submitTxnWrapper := SubmitTxnWrapper{
+		TxnReq:    txnReq,
+		ReplyChan: replyChan,
+	}
 
-	//txn.DB().BatchChannel <- submitTxnWrapper
+	txn.DB().BatchChannel <- submitTxnWrapper
 
 	// wait for cicada's response
 	var extractTxnWrapper ExtractTxnWrapper
