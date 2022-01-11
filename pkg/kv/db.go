@@ -270,7 +270,7 @@ type DB struct {
 	CicadaAffiliatedKeys sync.Map
 	InProgressDemotion   sync.Map
 
-	BatchChannel chan SubmitTxnWrapper
+	//BatchChannel chan SubmitTxnWrapper
 }
 
 type CicadaTxnReplyChan chan ExtractTxnWrapper
@@ -409,7 +409,7 @@ func NewDBWithContext(
 		crs: CrossRangeTxnWrapperSender{
 			wrapped: factory.NonTransactionalSender(),
 		},
-		BatchChannel: make(chan SubmitTxnWrapper, 1000000),
+		//BatchChannel: make(chan SubmitTxnWrapper, 1000000),
 	}
 	db.crs.db = db
 	return db
@@ -830,14 +830,6 @@ func (db *DB) send(
 	return db.sendUsingSender(ctx, ba, db.NonTransactionalSender())
 }
 
-//func TableIndexKeyColFamOnly(key string) string {
-//	components := strings.Split(key, "/")
-//	if components[len(components)-1] != "0" {
-//		components = append(components, "0")
-//	}
-//	return strings.Join(components, "/")
-//}
-
 func ConvertToWriteKey(key roachpb.Key) roachpb.Key {
 
 	isReadKey := len(strings.Split(key.String(), "/")) == 5
@@ -854,7 +846,6 @@ func ConvertToWriteKey(key roachpb.Key) roachpb.Key {
 }
 
 func (db *DB) IsKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) (CicadaAffiliatedKey, bool) {
-	//mapStr := TableIndexKeyColFamOnly(key.String())
 	var writeKey roachpb.Key = ConvertToWriteKey(key)
 	mapStr := writeKey.String()
 	if val, alreadyExists := db.CicadaAffiliatedKeys.Load(mapStr); alreadyExists {

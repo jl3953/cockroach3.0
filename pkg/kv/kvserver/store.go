@@ -2200,29 +2200,29 @@ func (s *Store) batchTxnsToCicada(ctx context.Context) {
 				batchOfCicadaTxns = make([]kv.SubmitTxnWrapper, 0)
 			} else {
 			}
-		case submitTxnWrapper := <-s.DB().BatchChannel:
+		//case submitTxnWrapper := <-s.DB().BatchChannel:
 
-			// add on to batch
-			batchOfCicadaTxns = append(batchOfCicadaTxns, submitTxnWrapper)
+		//	// add on to batch
+		//	batchOfCicadaTxns = append(batchOfCicadaTxns, submitTxnWrapper)
 
-			// if length of batch is set
-			if len(batchOfCicadaTxns) >= batchSize {
+		//	// if length of batch is set
+		//	if len(batchOfCicadaTxns) >= batchSize {
 
-				// copy batch of txns to cicada
-				batchOfCicadaTxnsCopy := make([]kv.SubmitTxnWrapper, len(batchOfCicadaTxns))
-				copy(batchOfCicadaTxnsCopy, batchOfCicadaTxns)
+		//		// copy batch of txns to cicada
+		//		batchOfCicadaTxnsCopy := make([]kv.SubmitTxnWrapper, len(batchOfCicadaTxns))
+		//		copy(batchOfCicadaTxnsCopy, batchOfCicadaTxns)
 
-				// submit batch of txns to cicada
-				go s.submitBatchToCicada(ctx, batchOfCicadaTxnsCopy)
+		//		// submit batch of txns to cicada
+		//		go s.submitBatchToCicada(ctx, batchOfCicadaTxnsCopy)
 
-				// reset batch of txns to cicada to nothing
-				batchOfCicadaTxns = make([]kv.SubmitTxnWrapper, 0)
+		//		// reset batch of txns to cicada to nothing
+		//		batchOfCicadaTxns = make([]kv.SubmitTxnWrapper, 0)
 
-				// reset timer
-				timerChan = time.After(batchingInterval)
+		//		// reset timer
+		//		timerChan = time.After(batchingInterval)
 
-			} else {
-			}
+		//	} else {
+		//	}
 		default:
 			// nothing, I guess
 		}
