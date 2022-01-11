@@ -186,8 +186,8 @@ func EndTxn(
 	if args.Require1PC {
 		// If a 1PC txn was required and we're in EndTxn, we've failed to evaluate
 		// the batch as a 1PC. We're returning early instead of preferring a
-		// possible retryable error because we might want to leave locks behind in
-		// case of retryable errors - which Require1PC does not want.
+		// possible retriable error because we might want to leave locks behind in
+		// case of retriable errors - which Require1PC does not want.
 		return result.Result{}, roachpb.NewTransactionStatusError("could not commit in one phase as requested")
 	}
 	if args.Commit && args.Poison {
