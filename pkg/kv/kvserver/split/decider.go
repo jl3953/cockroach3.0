@@ -22,8 +22,6 @@ import (
 
 const minSplitSuggestionInterval = time.Minute
 
-
-
 // A Decider collects measurements about the activity (measured in qps) on a
 // Replica and, assuming that qps thresholds are exceeded, tries to determine
 // a split key that would approximately result in halving the load on each of
@@ -76,7 +74,6 @@ func (d *Decider) Record(now time.Time, n int, span func() roachpb.Span) bool {
 
 	return d.recordLocked(now, n, span)
 }
-
 
 func (d *Decider) recordLocked(now time.Time, n int, span func() roachpb.Span) bool {
 	d.mu.count += int64(n)

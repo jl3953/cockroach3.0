@@ -3293,20 +3293,3 @@ func BenchmarkStoreGetReplica(b *testing.B) {
 		}
 	})
 }
-
-func TestNewStore(t *testing.T) {
-	defer leaktest.AfterTest(t)()
-	// Create a store with a preemptive snapshot sitting in its engine before it's
-	// started. Ensure that the preemptive snapshots are removed and the replicas
-	// for those ranges are not created.
-	//
-	ctx := context.Background()
-	stopper := stop.NewStopper()
-	defer stopper.Stop(ctx)
-	store, _ := createTestStore(t, testStoreOpts{createSystemRanges: true}, stopper)
-	_ = store.Start(ctx, stopper)
-}
-
-func TestDemoteSingleHotkey(t *testing.T) {
-	t.Fatalf("look on client_replica_test.go for the DemoteSingleHotkey test. Don't forget to comment out the starting of the server first in store.")
-}
