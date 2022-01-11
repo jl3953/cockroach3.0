@@ -176,68 +176,6 @@ func TestRejectFutureCommand(t *testing.T) {
 	}
 }
 
-func TestReplica_DemoteHotkey(t *testing.T) {
-
-	const numNodes = 10
-	var clocks []*hlc.Clock
-	for i := 0; i < numNodes; i++ {
-		clocks = append(clocks, hlc.NewClock(hlc.UnixNano, 100*time.Millisecond))
-	}
-
-	mtc := &multiTestContext{
-		clocks: clocks,
-		// This test was written before the multiTestContext started creating many
-		// system ranges at startup, and hasn't been update to take that into
-		// account.
-		startWithSingleRange: true,
-	}
-	defer mtc.Stop()
-	mtc.Start(t, numNodes)
-	rangeDesc, err := mtc.FirstRange()
-	if err != nil {
-		t.Fatalf("jenndebug error on mtc.FirstRange, err %+v\n", err)
-	}
-	key := keys.MakeTablePrefix(keys.MinUserDescID)
-
-	rangeId := rangeDesc.RangeID
-
-	ts := hlc.Timestamp{
-		WallTime: hlc.UnixNano(),
-		Logical:  0,
-	}
-	_ = kvserver.WriteRandomDataToRange(t, mtc.stores[0],
-		rangeId,
-		key)
-	value := roachpb.MakeValueFromString("jennifer")
-
-	ctx := context.Background()
-
-	store := mtc.stores[numNodes-1]
-	txn := kv.NewTxn(ctx, store.DB(), numNodes-1)
-	if myError := kvserver.DemoteSingleHotkey(ctx, txn, ts, key, &value); myError != nil {
-		t.Fatalf("jenndebug err %+v\n", err)
-	}
-
-	db := mtc.dbs[0]
-	txnRead := kv.NewTxn(ctx, db, 0 /* gatewayNodeID */)
-	if keyValue, err := txnRead.Get(ctx, key); err != nil {
-		t.Fatalf("jenndebug txnRead.Get(ctx, key %+v) failed\n", key)
-	} else {
-		returnedValue := keyValue.Value
-		if bytes.Equal(returnedValue.RawBytes, value.RawBytes) {
-			if returnedValue.Timestamp.Equal(ts) {
-				log.Warningf(ctx, "jenndebug test succeeded!")
-			} else {
-				t.Fatalf("jenndebug returnedValue.Timestamp %+v != ts %+v", returnedValue.Timestamp, ts)
-			}
-		} else {
-			t.Logf("jenndebug returnedValue %s, value %s\n", returnedValue.String(), value.String())
-			t.Fatalf("jenndebug returnedValue %+v != value %+v\n", returnedValue.RawBytes, value.RawBytes)
-		}
-	}
-
-}
-
 // TestTxnPutOutOfOrder tests a case where a put operation of an older
 // timestamp comes after a put operation of a newer timestamp in a
 // txn. The test ensures such an out-of-order put succeeds and

@@ -548,7 +548,6 @@ func (r *Replica) executeAdminCommandWithDescriptor(
 	return roachpb.NewError(lastErr)
 }
 
-
 // AdminMerge extends this range to subsume the range that comes next
 // in the key space. The merge is performed inside of a distributed
 // transaction which writes the left hand side range descriptor (the
