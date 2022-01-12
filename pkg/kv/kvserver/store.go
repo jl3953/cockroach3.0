@@ -1882,12 +1882,12 @@ func (s *Store) Start(ctx context.Context, stopper *stop.Stopper) error {
 		// running.
 		s.startGossip()
 
-		//s.stopper.RunWorker(ctx, s.startRebalanceHotkeysServer)
+		s.stopper.RunWorker(ctx, s.startRebalanceHotkeysServer)
 		// only the first store triggers the promotion
 		//if s.StoreID() == 1 {
 		//	s.stopper.RunWorker(ctx, s.triggerRebalanceHotkeysAtInterval)
 		//}
-		//s.stopper.RunWorker(ctx, s.batchTxnsToCicada)
+		s.stopper.RunWorker(ctx, s.batchTxnsToCicada)
 
 		// Start the scanner. The construction here makes sure that the scanner
 		// only starts after Gossip has connected, and that it does not block Start
@@ -2200,29 +2200,29 @@ func (s *Store) batchTxnsToCicada(ctx context.Context) {
 				batchOfCicadaTxns = make([]kv.SubmitTxnWrapper, 0)
 			} else {
 			}
-		//case submitTxnWrapper := <-s.DB().BatchChannel:
+		case submitTxnWrapper := <-s.DB().BatchChannel:
 
-		//	// add on to batch
-		//	batchOfCicadaTxns = append(batchOfCicadaTxns, submitTxnWrapper)
+			// add on to batch
+			batchOfCicadaTxns = append(batchOfCicadaTxns, submitTxnWrapper)
 
-		//	// if length of batch is set
-		//	if len(batchOfCicadaTxns) >= batchSize {
+			// if length of batch is set
+			if len(batchOfCicadaTxns) >= batchSize {
 
-		//		// copy batch of txns to cicada
-		//		batchOfCicadaTxnsCopy := make([]kv.SubmitTxnWrapper, len(batchOfCicadaTxns))
-		//		copy(batchOfCicadaTxnsCopy, batchOfCicadaTxns)
+				// copy batch of txns to cicada
+				batchOfCicadaTxnsCopy := make([]kv.SubmitTxnWrapper, len(batchOfCicadaTxns))
+				copy(batchOfCicadaTxnsCopy, batchOfCicadaTxns)
 
-		//		// submit batch of txns to cicada
-		//		go s.submitBatchToCicada(ctx, batchOfCicadaTxnsCopy)
+				// submit batch of txns to cicada
+				go s.submitBatchToCicada(ctx, batchOfCicadaTxnsCopy)
 
-		//		// reset batch of txns to cicada to nothing
-		//		batchOfCicadaTxns = make([]kv.SubmitTxnWrapper, 0)
+				// reset batch of txns to cicada to nothing
+				batchOfCicadaTxns = make([]kv.SubmitTxnWrapper, 0)
 
-		//		// reset timer
-		//		timerChan = time.After(batchingInterval)
+				// reset timer
+				timerChan = time.After(batchingInterval)
 
-		//	} else {
-		//	}
+			} else {
+			}
 		default:
 			// nothing, I guess
 		}
