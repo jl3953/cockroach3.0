@@ -857,20 +857,30 @@ func (db *DB) IsKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) (Cicad
 	//mapStr := TableIndexKeyColFamOnly(key.String())
 	var writeKey roachpb.Key = ConvertToWriteKey(key)
 	mapStr := writeKey.String()
-	if val, alreadyExists := db.CicadaAffiliatedKeys.Load(mapStr); alreadyExists {
-		cicadaKey := val.(CicadaAffiliatedKey)
+	_, _, keyCols := ExtractKey(mapStr)
+	num := keyCols[0]
 
-		// no timestamp given
-		if ts.WallTime == 0 {
-			return cicadaKey, true
-		}
-
-		if cicadaKey.PromotionTimestamp.Less(ts) {
-			return cicadaKey, true
-		}
+	cicadaAffiliatedKey := CicadaAffiliatedKey{
+		Key:                key,
+		PromotionTimestamp: hlc.Timestamp{},
+		CicadaKeyCols:      []int64{num},
 	}
 
-	return CicadaAffiliatedKey{}, false
+	return cicadaAffiliatedKey, num < 10000000
+	//if val, alreadyExists := db.CicadaAffiliatedKeys.Load(mapStr); alreadyExists {
+	//	cicadaKey := val.(CicadaAffiliatedKey)
+	//
+	//	// no timestamp given
+	//	if ts.WallTime == 0 {
+	//		return cicadaKey, true
+	//	}
+	//
+	//	if cicadaKey.PromotionTimestamp.Less(ts) {
+	//		return cicadaKey, true
+	//	}
+	//}
+	//
+	//return CicadaAffiliatedKey{}, false
 }
 
 func IsUserKey(str string) bool {
