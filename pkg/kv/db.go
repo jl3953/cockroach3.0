@@ -857,16 +857,6 @@ func (db *DB) IsKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) (Cicad
 	//mapStr := TableIndexKeyColFamOnly(key.String())
 	var writeKey roachpb.Key = ConvertToWriteKey(key)
 	mapStr := writeKey.String()
-	_, _, keyCols := ExtractKey(mapStr)
-	num := keyCols[0]
-
-	cicadaAffiliatedKey := CicadaAffiliatedKey{
-		Key:                key,
-		PromotionTimestamp: hlc.Timestamp{},
-		CicadaKeyCols:      []int64{num},
-	}
-	return cicadaAffiliatedKey, num < 10000000
-	/**
 	if val, alreadyExists := db.CicadaAffiliatedKeys.Load(mapStr); alreadyExists {
 		cicadaKey := val.(CicadaAffiliatedKey)
 
@@ -881,8 +871,6 @@ func (db *DB) IsKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) (Cicad
 	}
 
 	return CicadaAffiliatedKey{}, false
-
-	 */
 }
 
 func IsUserKey(str string) bool {
@@ -900,8 +888,7 @@ func IsUserKey(str string) bool {
 	return false
 }
 
-func ExtractKey(key string) (crdbTable int64, crdbIndex int64,
-	keyCols []int64) {
+func ExtractKey(key string) (int64, int64, []int64) {
 	components := strings.Split(key, "/")
 	//log.Warningf(context.Background(), "jenndebug components %+v\n", components)
 	table, _ := strconv.Atoi(components[2])
