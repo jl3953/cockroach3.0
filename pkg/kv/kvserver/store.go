@@ -2997,9 +2997,9 @@ func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
 	resp := smdbrpc.PromoteKeysResp{
 		WereSuccessfullyMigrated: make([]*smdbrpc.KeyMigrationResp, len(req.Keys)),
 	}
-	//t := true
-	//
-	//for i, kvVersion := range req.Keys {
+	t := true
+
+	for i /*, kvVersion*/ := range req.Keys {
 	//	key := roachpb.Key(kvVersion.Key)
 	//	//log.Warningf(context.Background(), "jenndebug promoted key %+v\n", key)
 	//	cicadaAffiliatedKey := kv.CicadaAffiliatedKey{
@@ -3011,10 +3011,10 @@ func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
 	//		CicadaKeyCols: kvVersion.CicadaKeyCols,
 	//	}
 	//	rbServer.store.DB().CicadaAffiliatedKeys.Store(key.String(), cicadaAffiliatedKey)
-	//	resp.WereSuccessfullyMigrated[i] = &smdbrpc.KeyMigrationResp{
-	//		IsSuccessfullyMigrated: &t,
-	//	}
-	//}
+		resp.WereSuccessfullyMigrated[i] = &smdbrpc.KeyMigrationResp{
+			IsSuccessfullyMigrated: &t,
+		}
+	}
 
 	return &resp, nil
 }
