@@ -25,6 +25,7 @@ import (
 	"github.com/cockroachdb/cockroach/pkg/util/tracing"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"math"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -858,7 +859,7 @@ func (db *DB) IsKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) (Cicad
 	var writeKey roachpb.Key = ConvertToWriteKey(key)
 	mapStr := writeKey.String()
 	_, _, keyCols := ExtractKey(mapStr)
-	num := keyCols[0]
+	num := keyCols[0] - int64(math.Pow(256, 5))
 
 	cicadaAffiliatedKey := CicadaAffiliatedKey{
 		Key:                key,
