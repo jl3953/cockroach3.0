@@ -861,7 +861,11 @@ func (db *DB) IsKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) (Cicad
 	_, _, keyCols := ExtractKey(mapStr)
 	num := keyCols[0] - int64(math.Pow(256, 5))
 
-	val, _ := db.CicadaAffiliatedKeys.Load("dummykey")
+	val, alreadyExists := db.CicadaAffiliatedKeys.Load("dummykey")
+	if !alreadyExists {
+		return CicadaAffiliatedKey{}, false
+	}
+
 	cicadaKey := val.(CicadaAffiliatedKey)
 	if cicadaKey.PromotionTimestamp.Less(ts) {
 		return CicadaAffiliatedKey{}, false
