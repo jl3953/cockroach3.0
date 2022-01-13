@@ -3016,6 +3016,16 @@ func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
 		}
 	}
 
+	kvVersion := req.Keys[0]
+	rbServer.store.DB().CicadaAffiliatedKeys.Store("dummykey", kv.CicadaAffiliatedKey{
+		Key:                nil,
+		PromotionTimestamp: hlc.Timestamp{
+			WallTime: *kvVersion.Timestamp.Walltime,
+			Logical:  *kvVersion.Timestamp.Logicaltime,
+		},
+		CicadaKeyCols:      nil,
+	})
+
 	return &resp, nil
 }
 
