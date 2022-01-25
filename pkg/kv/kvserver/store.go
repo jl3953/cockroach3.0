@@ -2605,13 +2605,23 @@ func (rbServer *rebalanceServer) TestAddKeyToPromotionMap(_ context.Context,
 	testPromotionKeyReq *smdbrpc.TestPromotionKeyReq) (*smdbrpc.TestPromotionKeyResp, error) {
 	//keyStr := string(testPromotionKeyReq.Key)
 	cicadaAffiliatedKey := kv.CicadaAffiliatedKey{
-		Key: testPromotionKeyReq.Key,
+		RoachKey: [10]byte{},
+		RoachKeyLen: 0,
 		PromotionTimestamp: hlc.Timestamp{
 			WallTime: *testPromotionKeyReq.PromotionTimestamp.Walltime,
 			Logical:  *testPromotionKeyReq.PromotionTimestamp.Logicaltime,
 		},
-		CicadaKeyCols: testPromotionKeyReq.CicadaKeyCols,
+		CicadaKeyCols: [3]int64{},
+		CicadaKeyColsLen: 0,
 	}
+	for i, b := range testPromotionKeyReq.Key {
+		cicadaAffiliatedKey.RoachKey[i] = b
+	}
+	cicadaAffiliatedKey.RoachKeyLen = len(testPromotionKeyReq.Key)
+	for i, int64Col := range testPromotionKeyReq.CicadaKeyCols {
+		cicadaAffiliatedKey.CicadaKeyCols[i] = int64Col
+	}
+	cicadaAffiliatedKey.CicadaKeyColsLen = len(testPromotionKeyReq.CicadaKeyCols)
 	//rbServer.store.DB().CicadaAffiliatedKeys.Store(keyStr, cicadaAffiliatedKey)
 	rbServer.store.DB().PutInPromotionMap(testPromotionKeyReq.Key,
 		cicadaAffiliatedKey)
@@ -2637,7 +2647,10 @@ func (rbServer *rebalanceServer) TestIsKeyInPromotionMap(_ context.Context,
 			t := true
 			resp := smdbrpc.TestPromotionKeyResp{
 				IsKeyIn: &t,
-				CicadaKeyCols: cicadaAffiliatedKey.CicadaKeyCols,
+				CicadaKeyCols: make([]int64, cicadaAffiliatedKey.CicadaKeyColsLen),
+			}
+			for i := 0; i < cicadaAffiliatedKey.CicadaKeyColsLen; i++ {
+				resp.CicadaKeyCols[i] = cicadaAffiliatedKey.CicadaKeyCols[i]
 			}
 			return &resp, nil
 		}
@@ -2887,12 +2900,17 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	// update this node's promotion map
 	for _, promotedKey := range promotionReqToCicada.Keys {
 		cicadaKey := kv.CicadaAffiliatedKey{
-			Key: promotedKey.Key,
+			RoachKey: [10]byte{},
+			RoachKeyLen: 0,
 			PromotionTimestamp: hlc.Timestamp{
 				WallTime: *promotedKey.Timestamp.Walltime,
 				Logical:  *promotedKey.Timestamp.Logicaltime,
 			},
 		}
+		for i, b := range promotedKey.Key {
+			cicadaKey.RoachKey[i] = b
+		}
+		cicadaKey.RoachKeyLen = len(promotedKey.Key)
 		//rbServer.store.DB().CicadaAffiliatedKeys.Store(roachpb.Key(promotedKey.Key).String(), cicadaKey)
 		rbServer.store.DB().PutInPromotionMap(promotedKey.Key, cicadaKey)
 	}
@@ -3023,13 +3041,23 @@ func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
 		key := roachpb.Key(kvVersion.Key)
 		//log.Warningf(context.Background(), "jenndebug promoted key %+v\n", key)
 		cicadaAffiliatedKey := kv.CicadaAffiliatedKey{
-			Key: key,
+			RoachKey: [10]byte{},
+			RoachKeyLen: 0,
 			PromotionTimestamp: hlc.Timestamp{
 				WallTime: *kvVersion.Timestamp.Walltime,
 				Logical:  *kvVersion.Timestamp.Logicaltime,
 			},
-			CicadaKeyCols: kvVersion.CicadaKeyCols,
+			CicadaKeyCols: [3]int64{},
+			CicadaKeyColsLen: 0,
 		}
+		for j, b := range key {
+			cicadaAffiliatedKey.RoachKey[j] = b
+		}
+		cicadaAffiliatedKey.RoachKeyLen = len(key)
+		for j, int64Col := range kvVersion.CicadaKeyCols {
+			cicadaAffiliatedKey.CicadaKeyCols[j] = int64Col
+		}
+		cicadaAffiliatedKey.CicadaKeyColsLen = len(kvVersion.CicadaKeyCols)
 		//rbServer.store.DB().CicadaAffiliatedKeys.Store(key.String(), cicadaAffiliatedKey)
 		rbServer.store.DB().PutInPromotionMap(key, cicadaAffiliatedKey)
 		resp.WereSuccessfullyMigrated[i] = &smdbrpc.KeyMigrationResp{

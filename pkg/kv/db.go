@@ -286,9 +286,11 @@ type ExtractTxnWrapper struct {
 }
 
 type CicadaAffiliatedKey struct {
-	Key                roachpb.Key
+	RoachKey           [10]byte
+	RoachKeyLen       int
 	PromotionTimestamp hlc.Timestamp
-	CicadaKeyCols      []int64
+	CicadaKeyCols      [3]int64
+	CicadaKeyColsLen   int
 }
 
 type ConnectionObjectWrapper struct {

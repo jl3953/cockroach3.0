@@ -1133,10 +1133,13 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 			Cmd:     &put,
 			Table:   &table,
 			Index:   &index,
-			CicadaKeyCols: cicadaAffiliatedKey.CicadaKeyCols,
+			CicadaKeyCols: make([]int64, cicadaAffiliatedKey.CicadaKeyColsLen),
 			Key:     writeKey,
 			Value:   val,
 			CrdbKeyCols: crdbKeyCols,
+		}
+		for i := 0; i < cicadaAffiliatedKey.CicadaKeyColsLen; i++ {
+			op.CicadaKeyCols[i] = cicadaAffiliatedKey.CicadaKeyCols[i]
 		}
 		writeOps = append(writeOps, &op)
 	}
@@ -1178,14 +1181,24 @@ func (txn *Txn) constructInjectedRetryError(ctx context.Context, errMsg string) 
 
 func constructCicadaReadOp(cicadaAffiliatedKey CicadaAffiliatedKey) execinfrapb.Op {
 	get := execinfrapb.Cmd_GET
-	table, index, crdbKeyCols := ExtractKey(cicadaAffiliatedKey.Key.String())
+	roachKey := make([]byte, cicadaAffiliatedKey.RoachKeyLen)
+	for i, b := range cicadaAffiliatedKey.RoachKey {
+		roachKey[i] = b
+	}
+	table, index, crdbKeyCols := ExtractKey(roachpb.Key(roachKey).String())
 	op := execinfrapb.Op{
 		Cmd:     &get,
 		Table:   &table,
 		Index:   &index,
-		CicadaKeyCols: cicadaAffiliatedKey.CicadaKeyCols,
-		Key:     cicadaAffiliatedKey.Key,
+		CicadaKeyCols: make([]int64, cicadaAffiliatedKey.CicadaKeyColsLen),
+		Key:     make([]byte, cicadaAffiliatedKey.RoachKeyLen),
 		CrdbKeyCols: crdbKeyCols,
+	}
+	for i := 0; i < cicadaAffiliatedKey.CicadaKeyColsLen; i++ {
+		op.CicadaKeyCols[i] = cicadaAffiliatedKey.CicadaKeyCols[i]
+	}
+	for i := 0; i < cicadaAffiliatedKey.RoachKeyLen; i++ {
+		op.Key[i] = cicadaAffiliatedKey.RoachKey[i]
 	}
 	return op
 }
@@ -1388,7 +1401,7 @@ func (txn *Txn) Send(
 				if putReq := req.GetPut(); putReq != nil {
 					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
 					isInCicada[i] = true
-					txn.AddWriteHotkeys([][]byte{cicadaAffiliatedKey.Key, putReq.Value.RawBytes})
+					txn.AddWriteHotkeys([][]byte{putReq.Key, putReq.Value.RawBytes})
 				} else if scanReq := req.GetScan(); scanReq != nil {
 					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
 					isInCicada[i] = true
