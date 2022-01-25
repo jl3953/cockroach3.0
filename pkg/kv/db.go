@@ -861,8 +861,12 @@ func (db *DB) GetFromPromotionMap(key roachpb.Key) (CicadaAffiliatedKey, bool) {
 	var promoMapKey int64 = crdbKeyCols[0]
 
 	val, alreadyExists := db.CicadaAffiliatedKeys.Load(promoMapKey)
-	cicadaKey := val.(CicadaAffiliatedKey)
-	return cicadaKey, alreadyExists
+	if alreadyExists {
+		cicadaKey := val.(CicadaAffiliatedKey)
+		return cicadaKey, true
+	} else {
+		return CicadaAffiliatedKey{}, false
+	}
 }
 
 func (db *DB) PutInPromotionMap(key roachpb.Key,
