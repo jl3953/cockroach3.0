@@ -1120,13 +1120,15 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 		put := execinfrapb.Cmd_PUT
 		table, index, crdbKeyCols := ExtractKey(roachpb.Key(writeKey).String())
 
-		mapKeyStr := roachpb.Key(writeKey).String()
-		cicadaAffiliatedKeyInterface, isInPromotionMap := txn.db.
-			CicadaAffiliatedKeys.Load(mapKeyStr)
+		//mapKeyStr := roachpb.Key(writeKey).String()
+		//cicadaAffiliatedKeyInterface, isInPromotionMap := txn.db.
+		//	CicadaAffiliatedKeys.Load(mapKeyStr)
+		cicadaAffiliatedKey, isInPromotionMap := txn.DB().GetFromPromotionMap(writeKey)
 		if !isInPromotionMap {
-			log.Fatalf(ctx, "jenndebug why is this key not %s\n", mapKeyStr)
+			log.Fatalf(ctx, "jenndebug why is this key not %s\n",
+				roachpb.Key(writeKey).String())
 		}
-		cicadaAffiliatedKey := cicadaAffiliatedKeyInterface.(CicadaAffiliatedKey)
+		//cicadaAffiliatedKey := cicadaAffiliatedKeyInterface.(CicadaAffiliatedKey)
 		op := execinfrapb.Op{
 			Cmd:     &put,
 			Table:   &table,

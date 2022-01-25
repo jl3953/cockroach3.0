@@ -112,7 +112,7 @@ message TestPromotionKeyResp {
 }
 
 message DeleteFromPromotionMapReq {
-  optional string key = 1;
+  optional bytes key = 1;
 }
 
 message DeleteFromPromotionMapResp {

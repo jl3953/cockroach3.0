@@ -853,12 +853,36 @@ func ConvertToWriteKey(key roachpb.Key) roachpb.Key {
 	return result
 }
 
-func (db *DB) IsKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) (CicadaAffiliatedKey, bool) {
-	//mapStr := TableIndexKeyColFamOnly(key.String())
+func (db *DB) GetFromPromotionMap(key roachpb.Key) (CicadaAffiliatedKey, bool) {
 	var writeKey roachpb.Key = ConvertToWriteKey(key)
 	mapStr := writeKey.String()
-	if val, alreadyExists := db.CicadaAffiliatedKeys.Load(mapStr); alreadyExists {
-		cicadaKey := val.(CicadaAffiliatedKey)
+
+	val, alreadyExists := db.CicadaAffiliatedKeys.Load(mapStr)
+	cicadaKey := val.(CicadaAffiliatedKey)
+	return cicadaKey, alreadyExists
+}
+
+func (db *DB) PutInPromotionMap(key roachpb.Key,
+	cicadaAffiliatedKey CicadaAffiliatedKey) {
+	var writeKey roachpb.Key = ConvertToWriteKey(key)
+	mapStr := writeKey.String()
+	db.CicadaAffiliatedKeys.Store(mapStr, cicadaAffiliatedKey)
+}
+
+func (db *DB) DelFromPromotionMap(key roachpb.Key) {
+	var writeKey roachpb.Key = ConvertToWriteKey(key)
+	mapStr := writeKey.String()
+
+	db.CicadaAffiliatedKeys.Delete(mapStr)
+}
+
+func (db *DB) IsKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) (CicadaAffiliatedKey, bool) {
+	//mapStr := TableIndexKeyColFamOnly(key.String())
+	//var writeKey roachpb.Key = ConvertToWriteKey(key)
+	//mapStr := writeKey.String()
+	//if val, alreadyExists := db.CicadaAffiliatedKeys.Load(mapStr); alreadyExists {
+	//	cicadaKey := val.(CicadaAffiliatedKey)
+	if cicadaKey, alreadyExists := db.GetFromPromotionMap(key); alreadyExists {
 
 		// no timestamp given
 		if ts.WallTime == 0 {

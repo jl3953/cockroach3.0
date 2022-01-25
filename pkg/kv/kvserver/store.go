@@ -1624,21 +1624,22 @@ func (rbServer *rebalanceServer) DemoteKey(ctx context.Context,
 	}
 
 	// delete from everyone's promotion maps
-	keyStr := string(key)
-	rbServer.store.DB().CicadaAffiliatedKeys.Delete(keyStr)
+	rbServer.store.DB().DelFromPromotionMap(key)
+	//keyStr := string(key)
+	//rbServer.store.DB().CicadaAffiliatedKeys.Delete(keyStr)
 	if demotionSucceededYet {
 		for _, wrapper := range rbServer.store.crdbClientWrappers {
 			crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 			defer crdbCancel()
-			deletePromotionReq := smdbrpc.DeleteFromPromotionMapReq{Key: &keyStr}
+			deletePromotionReq := smdbrpc.DeleteFromPromotionMapReq{Key: key}
 			deletePromotionResp, deletePromotionErr :=
 				wrapper.client.DeleteFromPromotionMap(crdbCtx, &deletePromotionReq)
 			if deletePromotionErr != nil {
 				log.Fatalf(ctx, "jenndebug could not delete key %s from promotion map, rpc err %+v",
-					keyStr, deletePromotionErr)
+					string(key), deletePromotionErr)
 			} else if !*deletePromotionResp.Deleted {
 				log.Fatalf(ctx, "jenndebug could not delete key %s from promotion map, rpc returned false",
-					keyStr)
+					string(key))
 			}
 		}
 		log.Warningf(ctx, "jenndebug successfully demoted %s\n", key)
@@ -2602,7 +2603,7 @@ func (pq *PriorityQueue) update(item *Item, value interface{}, priority float64)
 
 func (rbServer *rebalanceServer) TestAddKeyToPromotionMap(_ context.Context,
 	testPromotionKeyReq *smdbrpc.TestPromotionKeyReq) (*smdbrpc.TestPromotionKeyResp, error) {
-	keyStr := string(testPromotionKeyReq.Key)
+	//keyStr := string(testPromotionKeyReq.Key)
 	cicadaAffiliatedKey := kv.CicadaAffiliatedKey{
 		Key: testPromotionKeyReq.Key,
 		PromotionTimestamp: hlc.Timestamp{
@@ -2611,7 +2612,9 @@ func (rbServer *rebalanceServer) TestAddKeyToPromotionMap(_ context.Context,
 		},
 		CicadaKeyCols: testPromotionKeyReq.CicadaKeyCols,
 	}
-	rbServer.store.DB().CicadaAffiliatedKeys.Store(keyStr, cicadaAffiliatedKey)
+	//rbServer.store.DB().CicadaAffiliatedKeys.Store(keyStr, cicadaAffiliatedKey)
+	rbServer.store.DB().PutInPromotionMap(testPromotionKeyReq.Key,
+		cicadaAffiliatedKey)
 
 	t := true
 	resp := smdbrpc.TestPromotionKeyResp{IsKeyIn: &t}
@@ -2620,10 +2623,12 @@ func (rbServer *rebalanceServer) TestAddKeyToPromotionMap(_ context.Context,
 
 func (rbServer *rebalanceServer) TestIsKeyInPromotionMap(_ context.Context,
 	testPromotionKeyReq *smdbrpc.TestPromotionKeyReq) (*smdbrpc.TestPromotionKeyResp, error) {
-	keyStr := string(testPromotionKeyReq.Key)
-	value, alreadyExists := rbServer.store.DB().CicadaAffiliatedKeys.Load(keyStr)
+	//keyStr := string(testPromotionKeyReq.Key)
+	//value, alreadyExists := rbServer.store.DB().CicadaAffiliatedKeys.Load(keyStr)
+	cicadaAffiliatedKey, alreadyExists := rbServer.store.DB().
+		GetFromPromotionMap(testPromotionKeyReq.Key)
 	if alreadyExists {
-		cicadaAffiliatedKey := value.(kv.CicadaAffiliatedKey)
+		//cicadaAffiliatedKey := value.(kv.CicadaAffiliatedKey)
 		reqPromotionTs := hlc.Timestamp{
 			WallTime: *testPromotionKeyReq.PromotionTimestamp.Walltime,
 			Logical:  *testPromotionKeyReq.PromotionTimestamp.Logicaltime,
@@ -2721,10 +2726,12 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			txns[originalIdx] = txn
 
 			// if, for w/e reason, the key is already there, just return successful
-			k := roachpb.Key(kvVersion.Key).String()
-			if _, valExists := rbServer.store.DB().CicadaAffiliatedKeys.Load(k); valExists {
-				log.Errorf(ctx, "key %s already promoted\n", k)
-				txn.CleanupOnError(ctx, roachpb.NewErrorf("key %s already promoted\n", k).GoError())
+			//k := roachpb.Key(kvVersion.Key).String()
+			//if _, valExists := rbServer.store.DB().CicadaAffiliatedKeys.Load(k); valExists {
+			if _, valExists := rbServer.store.DB().GetFromPromotionMap(kvVersion.Key); valExists {
+				log.Errorf(ctx, "key %s already promoted\n", string(kvVersion.Key))
+				txn.CleanupOnError(ctx, roachpb.NewErrorf(
+					"key %s already promoted\n", string(kvVersion.Key)).GoError())
 				respBools[originalIdx] = false
 				return
 			}
@@ -2734,10 +2741,15 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			for keepLooping := true; keepLooping; {
 				// attempt to lock key
 				if err = txn.Lock(ctx, kvVersion.Key, &keyValue); err == nil {
-					log.Warningf(ctx, "jenndebug promotion successfully locked key %s\n", k)
-					if _, keyAlreadyPromoted := rbServer.store.DB().CicadaAffiliatedKeys.Load(k); !keyAlreadyPromoted {
+					log.Warningf(ctx,
+						"jenndebug promotion successfully locked key %s\n",
+						roachpb.Key(kvVersion.Key).String())
+					//if _, keyAlreadyPromoted := rbServer.store.DB().CicadaAffiliatedKeys.Load(k); !keyAlreadyPromoted {
+					if _, keyAlreadyPromoted := rbServer.store.DB().
+						GetFromPromotionMap(kvVersion.Key); !keyAlreadyPromoted {
 						// if key is locked, and has not been promoted yet, add it to list of keys to be promoted
-						table, idx, crdbKeyCols := kv.ExtractKey(k)
+						table, idx, crdbKeyCols := kv.ExtractKey(roachpb.Key(kvVersion.Key).
+							String())
 						keysList[originalIdx] = smdbrpc.Key{
 							Table:   &table,
 							Index:   &idx,
@@ -2752,8 +2764,11 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 						}
 					} else {
 						// if key has been promoted between now and being locked, release it
-						txn.CleanupOnError(ctx, roachpb.NewErrorf("already promoted key %s\n", k).GoError())
-						log.Errorf(ctx, "promotion key %s locking succeeded, but already promoted\n", k)
+						txn.CleanupOnError(ctx, roachpb.NewErrorf(
+							"already promoted key %s\n", roachpb.Key(kvVersion.Key).String()).
+							GoError())
+						log.Errorf(ctx, "promotion key %s locking succeeded, but already promoted\n",
+							roachpb.Key(kvVersion.Key).String())
 						respBools[originalIdx] = false
 					}
 					break
@@ -2762,11 +2777,13 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 					case *roachpb.TransactionRetryWithProtoRefreshError:
 						// if error is retryable, retry txn and keep trying to lock
 						log.Warningf(ctx, "promotion locking key %s retryable err %+v, try locking again\n",
-							k, err)
+							roachpb.Key(kvVersion.Key).String(), err)
 						txn.PrepareForRetry(ctx, err)
 					case *roachpb.UnhandledRetryableError:
 						// if error is not retryable, then unlock the key and mark it unsuccessful
-						log.Errorf(ctx, "promotion locking key %s encountered unhandledRetryableErr err %+v\n", k, err)
+						log.Errorf(ctx,
+							"promotion locking key %s encountered unhandledRetryableErr err" +
+							" %+v\n", roachpb.Key(kvVersion.Key).String(), err)
 						txn.CleanupOnError(ctx, err)
 						respBools[originalIdx] = false
 						keepLooping = false
@@ -2876,7 +2893,8 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 				Logical:  *promotedKey.Timestamp.Logicaltime,
 			},
 		}
-		rbServer.store.DB().CicadaAffiliatedKeys.Store(roachpb.Key(promotedKey.Key).String(), cicadaKey)
+		//rbServer.store.DB().CicadaAffiliatedKeys.Store(roachpb.Key(promotedKey.Key).String(), cicadaKey)
+		rbServer.store.DB().PutInPromotionMap(promotedKey.Key, cicadaKey)
 	}
 
 	// respond to the call
@@ -2947,14 +2965,16 @@ func (rbServer *rebalanceServer) RequestCicadaStats(ctx context.Context,
 func (rbServer *rebalanceServer) DeleteFromPromotionMap(_ context.Context,
 	req *smdbrpc.DeleteFromPromotionMapReq) (*smdbrpc.DeleteFromPromotionMapResp, error) {
 
-	key := roachpb.Key(*req.Key).String()
+	//key := roachpb.Key(*req.Key).String()
 
 	// jenndebug here's a little test that should def fail
-	if _, keyExists := rbServer.store.DB().CicadaAffiliatedKeys.Load(key); !keyExists {
+	//if _, keyExists := rbServer.store.DB().CicadaAffiliatedKeys.Load(key); !keyExists {
+	if _, keyExists := rbServer.store.DB().GetFromPromotionMap(req.Key); !keyExists {
 		log.Fatalf(context.Background(), "jenndebug cannot delete non-existent key %s from promotion map",
-			key)
+			roachpb.Key(req.Key).String())
 	}
-	rbServer.store.DB().CicadaAffiliatedKeys.Delete(key)
+	//rbServer.store.DB().CicadaAffiliatedKeys.Delete(key)
+	rbServer.store.DB().DelFromPromotionMap(req.Key)
 	t := true
 	resp := smdbrpc.DeleteFromPromotionMapResp{Deleted: &t}
 	return &resp, nil
@@ -3010,7 +3030,8 @@ func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
 			},
 			CicadaKeyCols: kvVersion.CicadaKeyCols,
 		}
-		rbServer.store.DB().CicadaAffiliatedKeys.Store(key.String(), cicadaAffiliatedKey)
+		//rbServer.store.DB().CicadaAffiliatedKeys.Store(key.String(), cicadaAffiliatedKey)
+		rbServer.store.DB().PutInPromotionMap(key, cicadaAffiliatedKey)
 		resp.WereSuccessfullyMigrated[i] = &smdbrpc.KeyMigrationResp{
 			IsSuccessfullyMigrated: &t,
 		}

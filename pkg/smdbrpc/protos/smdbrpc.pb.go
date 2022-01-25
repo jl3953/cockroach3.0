@@ -68,7 +68,7 @@ func (x *Cmd) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (Cmd) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{0}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{0}
 }
 
 type HLCTimestamp struct {
@@ -80,7 +80,7 @@ func (m *HLCTimestamp) Reset()         { *m = HLCTimestamp{} }
 func (m *HLCTimestamp) String() string { return proto.CompactTextString(m) }
 func (*HLCTimestamp) ProtoMessage()    {}
 func (*HLCTimestamp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{0}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{0}
 }
 func (m *HLCTimestamp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -117,7 +117,7 @@ func (m *KVPair) Reset()         { *m = KVPair{} }
 func (m *KVPair) String() string { return proto.CompactTextString(m) }
 func (*KVPair) ProtoMessage()    {}
 func (*KVPair) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{1}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{1}
 }
 func (m *KVPair) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -150,7 +150,7 @@ func (m *BatchSendTxnsReq) Reset()         { *m = BatchSendTxnsReq{} }
 func (m *BatchSendTxnsReq) String() string { return proto.CompactTextString(m) }
 func (*BatchSendTxnsReq) ProtoMessage()    {}
 func (*BatchSendTxnsReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{2}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{2}
 }
 func (m *BatchSendTxnsReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -183,7 +183,7 @@ func (m *BatchSendTxnsResp) Reset()         { *m = BatchSendTxnsResp{} }
 func (m *BatchSendTxnsResp) String() string { return proto.CompactTextString(m) }
 func (*BatchSendTxnsResp) ProtoMessage()    {}
 func (*BatchSendTxnsResp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{3}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{3}
 }
 func (m *BatchSendTxnsResp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -217,7 +217,7 @@ func (m *CRDBTxnReq) Reset()         { *m = CRDBTxnReq{} }
 func (m *CRDBTxnReq) String() string { return proto.CompactTextString(m) }
 func (*CRDBTxnReq) ProtoMessage()    {}
 func (*CRDBTxnReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{4}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{4}
 }
 func (m *CRDBTxnReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -251,7 +251,7 @@ func (m *CRDBTxnResp) Reset()         { *m = CRDBTxnResp{} }
 func (m *CRDBTxnResp) String() string { return proto.CompactTextString(m) }
 func (*CRDBTxnResp) ProtoMessage()    {}
 func (*CRDBTxnResp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{5}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{5}
 }
 func (m *CRDBTxnResp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -286,7 +286,7 @@ func (m *TestPromotionKeyReq) Reset()         { *m = TestPromotionKeyReq{} }
 func (m *TestPromotionKeyReq) String() string { return proto.CompactTextString(m) }
 func (*TestPromotionKeyReq) ProtoMessage()    {}
 func (*TestPromotionKeyReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{6}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{6}
 }
 func (m *TestPromotionKeyReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -320,7 +320,7 @@ func (m *TestPromotionKeyResp) Reset()         { *m = TestPromotionKeyResp{} }
 func (m *TestPromotionKeyResp) String() string { return proto.CompactTextString(m) }
 func (*TestPromotionKeyResp) ProtoMessage()    {}
 func (*TestPromotionKeyResp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{7}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{7}
 }
 func (m *TestPromotionKeyResp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -346,14 +346,14 @@ func (m *TestPromotionKeyResp) XXX_DiscardUnknown() {
 var xxx_messageInfo_TestPromotionKeyResp proto.InternalMessageInfo
 
 type DeleteFromPromotionMapReq struct {
-	Key *string `protobuf:"bytes,1,opt,name=key" json:"key,omitempty"`
+	Key []byte `protobuf:"bytes,1,opt,name=key" json:"key,omitempty"`
 }
 
 func (m *DeleteFromPromotionMapReq) Reset()         { *m = DeleteFromPromotionMapReq{} }
 func (m *DeleteFromPromotionMapReq) String() string { return proto.CompactTextString(m) }
 func (*DeleteFromPromotionMapReq) ProtoMessage()    {}
 func (*DeleteFromPromotionMapReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{8}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{8}
 }
 func (m *DeleteFromPromotionMapReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -386,7 +386,7 @@ func (m *DeleteFromPromotionMapResp) Reset()         { *m = DeleteFromPromotionM
 func (m *DeleteFromPromotionMapResp) String() string { return proto.CompactTextString(m) }
 func (*DeleteFromPromotionMapResp) ProtoMessage()    {}
 func (*DeleteFromPromotionMapResp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{9}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{9}
 }
 func (m *DeleteFromPromotionMapResp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -419,7 +419,7 @@ func (m *UpdateInProgressDemotionMapReq) Reset()         { *m = UpdateInProgress
 func (m *UpdateInProgressDemotionMapReq) String() string { return proto.CompactTextString(m) }
 func (*UpdateInProgressDemotionMapReq) ProtoMessage()    {}
 func (*UpdateInProgressDemotionMapReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{10}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{10}
 }
 func (m *UpdateInProgressDemotionMapReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -452,7 +452,7 @@ func (m *UpdateInProgressDemotionMapResp) Reset()         { *m = UpdateInProgres
 func (m *UpdateInProgressDemotionMapResp) String() string { return proto.CompactTextString(m) }
 func (*UpdateInProgressDemotionMapResp) ProtoMessage()    {}
 func (*UpdateInProgressDemotionMapResp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{11}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{11}
 }
 func (m *UpdateInProgressDemotionMapResp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -485,7 +485,7 @@ func (m *DeleteFromInProgressDemotionMapReq) Reset()         { *m = DeleteFromIn
 func (m *DeleteFromInProgressDemotionMapReq) String() string { return proto.CompactTextString(m) }
 func (*DeleteFromInProgressDemotionMapReq) ProtoMessage()    {}
 func (*DeleteFromInProgressDemotionMapReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{12}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{12}
 }
 func (m *DeleteFromInProgressDemotionMapReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -518,7 +518,7 @@ func (m *DeleteFromInProgressDemotionMapResp) Reset()         { *m = DeleteFromI
 func (m *DeleteFromInProgressDemotionMapResp) String() string { return proto.CompactTextString(m) }
 func (*DeleteFromInProgressDemotionMapResp) ProtoMessage()    {}
 func (*DeleteFromInProgressDemotionMapResp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{13}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{13}
 }
 func (m *DeleteFromInProgressDemotionMapResp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -557,7 +557,7 @@ func (m *Key) Reset()         { *m = Key{} }
 func (m *Key) String() string { return proto.CompactTextString(m) }
 func (*Key) ProtoMessage()    {}
 func (*Key) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{14}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{14}
 }
 func (m *Key) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -596,7 +596,7 @@ func (m *Op) Reset()         { *m = Op{} }
 func (m *Op) String() string { return proto.CompactTextString(m) }
 func (*Op) ProtoMessage()    {}
 func (*Op) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{15}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{15}
 }
 func (m *Op) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -634,7 +634,7 @@ func (m *TxnReq) Reset()         { *m = TxnReq{} }
 func (m *TxnReq) String() string { return proto.CompactTextString(m) }
 func (*TxnReq) ProtoMessage()    {}
 func (*TxnReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{16}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{16}
 }
 func (m *TxnReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -669,7 +669,7 @@ func (m *TxnResp) Reset()         { *m = TxnResp{} }
 func (m *TxnResp) String() string { return proto.CompactTextString(m) }
 func (*TxnResp) ProtoMessage()    {}
 func (*TxnResp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{17}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{17}
 }
 func (m *TxnResp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -709,7 +709,7 @@ func (m *CalculateCicadaReq) Reset()         { *m = CalculateCicadaReq{} }
 func (m *CalculateCicadaReq) String() string { return proto.CompactTextString(m) }
 func (*CalculateCicadaReq) ProtoMessage()    {}
 func (*CalculateCicadaReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{18}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{18}
 }
 func (m *CalculateCicadaReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -746,7 +746,7 @@ func (m *CalculateCicadaStatsResp) Reset()         { *m = CalculateCicadaStatsRe
 func (m *CalculateCicadaStatsResp) String() string { return proto.CompactTextString(m) }
 func (*CalculateCicadaStatsResp) ProtoMessage()    {}
 func (*CalculateCicadaStatsResp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{19}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{19}
 }
 func (m *CalculateCicadaStatsResp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -781,7 +781,7 @@ func (m *CicadaStatsResponse) Reset()         { *m = CicadaStatsResponse{} }
 func (m *CicadaStatsResponse) String() string { return proto.CompactTextString(m) }
 func (*CicadaStatsResponse) ProtoMessage()    {}
 func (*CicadaStatsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{20}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{20}
 }
 func (m *CicadaStatsResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -814,7 +814,7 @@ func (m *CRDBKeyStatsResponse) Reset()         { *m = CRDBKeyStatsResponse{} }
 func (m *CRDBKeyStatsResponse) String() string { return proto.CompactTextString(m) }
 func (*CRDBKeyStatsResponse) ProtoMessage()    {}
 func (*CRDBKeyStatsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{21}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{21}
 }
 func (m *CRDBKeyStatsResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -850,7 +850,7 @@ func (m *HotshardRequest) Reset()         { *m = HotshardRequest{} }
 func (m *HotshardRequest) String() string { return proto.CompactTextString(m) }
 func (*HotshardRequest) ProtoMessage()    {}
 func (*HotshardRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{22}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{22}
 }
 func (m *HotshardRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -885,7 +885,7 @@ func (m *HotshardReply) Reset()         { *m = HotshardReply{} }
 func (m *HotshardReply) String() string { return proto.CompactTextString(m) }
 func (*HotshardReply) ProtoMessage()    {}
 func (*HotshardReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{23}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{23}
 }
 func (m *HotshardReply) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -922,7 +922,7 @@ func (m *KVVersion) Reset()         { *m = KVVersion{} }
 func (m *KVVersion) String() string { return proto.CompactTextString(m) }
 func (*KVVersion) ProtoMessage()    {}
 func (*KVVersion) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{24}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{24}
 }
 func (m *KVVersion) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -957,7 +957,7 @@ func (m *KeyMigrationReq) Reset()         { *m = KeyMigrationReq{} }
 func (m *KeyMigrationReq) String() string { return proto.CompactTextString(m) }
 func (*KeyMigrationReq) ProtoMessage()    {}
 func (*KeyMigrationReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{25}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{25}
 }
 func (m *KeyMigrationReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -992,7 +992,7 @@ func (m *KeyMigrationResp) Reset()         { *m = KeyMigrationResp{} }
 func (m *KeyMigrationResp) String() string { return proto.CompactTextString(m) }
 func (*KeyMigrationResp) ProtoMessage()    {}
 func (*KeyMigrationResp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{26}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{26}
 }
 func (m *KeyMigrationResp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1027,7 +1027,7 @@ func (m *KeyStat) Reset()         { *m = KeyStat{} }
 func (m *KeyStat) String() string { return proto.CompactTextString(m) }
 func (*KeyStat) ProtoMessage()    {}
 func (*KeyStat) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{27}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{27}
 }
 func (m *KeyStat) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1060,7 +1060,7 @@ func (m *KeyStatsRequest) Reset()         { *m = KeyStatsRequest{} }
 func (m *KeyStatsRequest) String() string { return proto.CompactTextString(m) }
 func (*KeyStatsRequest) ProtoMessage()    {}
 func (*KeyStatsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{28}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{28}
 }
 func (m *KeyStatsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1093,7 +1093,7 @@ func (m *MultiKeyMigrationReq) Reset()         { *m = MultiKeyMigrationReq{} }
 func (m *MultiKeyMigrationReq) String() string { return proto.CompactTextString(m) }
 func (*MultiKeyMigrationReq) ProtoMessage()    {}
 func (*MultiKeyMigrationReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{29}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{29}
 }
 func (m *MultiKeyMigrationReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1126,7 +1126,7 @@ func (m *MultiKeyMigrationResp) Reset()         { *m = MultiKeyMigrationResp{} }
 func (m *MultiKeyMigrationResp) String() string { return proto.CompactTextString(m) }
 func (*MultiKeyMigrationResp) ProtoMessage()    {}
 func (*MultiKeyMigrationResp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{30}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{30}
 }
 func (m *MultiKeyMigrationResp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1162,7 +1162,7 @@ func (m *TriggerDemotionByNumsReq) Reset()         { *m = TriggerDemotionByNumsR
 func (m *TriggerDemotionByNumsReq) String() string { return proto.CompactTextString(m) }
 func (*TriggerDemotionByNumsReq) ProtoMessage()    {}
 func (*TriggerDemotionByNumsReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{31}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{31}
 }
 func (m *TriggerDemotionByNumsReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1197,7 +1197,7 @@ func (m *TriggerDemotionByNumsResp) Reset()         { *m = TriggerDemotionByNums
 func (m *TriggerDemotionByNumsResp) String() string { return proto.CompactTextString(m) }
 func (*TriggerDemotionByNumsResp) ProtoMessage()    {}
 func (*TriggerDemotionByNumsResp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{32}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{32}
 }
 func (m *TriggerDemotionByNumsResp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1231,7 +1231,7 @@ func (m *TriggerDemotionRequest) Reset()         { *m = TriggerDemotionRequest{}
 func (m *TriggerDemotionRequest) String() string { return proto.CompactTextString(m) }
 func (*TriggerDemotionRequest) ProtoMessage()    {}
 func (*TriggerDemotionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{33}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{33}
 }
 func (m *TriggerDemotionRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1264,7 +1264,7 @@ func (m *TriggerDemotionReply) Reset()         { *m = TriggerDemotionReply{} }
 func (m *TriggerDemotionReply) String() string { return proto.CompactTextString(m) }
 func (*TriggerDemotionReply) ProtoMessage()    {}
 func (*TriggerDemotionReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{34}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{34}
 }
 func (m *TriggerDemotionReply) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1298,7 +1298,7 @@ func (m *TriggerDemotionStatus) Reset()         { *m = TriggerDemotionStatus{} }
 func (m *TriggerDemotionStatus) String() string { return proto.CompactTextString(m) }
 func (*TriggerDemotionStatus) ProtoMessage()    {}
 func (*TriggerDemotionStatus) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{35}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{35}
 }
 func (m *TriggerDemotionStatus) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1331,7 +1331,7 @@ func (m *PromoteKeysReq) Reset()         { *m = PromoteKeysReq{} }
 func (m *PromoteKeysReq) String() string { return proto.CompactTextString(m) }
 func (*PromoteKeysReq) ProtoMessage()    {}
 func (*PromoteKeysReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{36}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{36}
 }
 func (m *PromoteKeysReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1364,7 +1364,7 @@ func (m *PromoteKeysResp) Reset()         { *m = PromoteKeysResp{} }
 func (m *PromoteKeysResp) String() string { return proto.CompactTextString(m) }
 func (*PromoteKeysResp) ProtoMessage()    {}
 func (*PromoteKeysResp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{37}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{37}
 }
 func (m *PromoteKeysResp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1397,7 +1397,7 @@ func (m *PromoteKeysToCicadaReq) Reset()         { *m = PromoteKeysToCicadaReq{}
 func (m *PromoteKeysToCicadaReq) String() string { return proto.CompactTextString(m) }
 func (*PromoteKeysToCicadaReq) ProtoMessage()    {}
 func (*PromoteKeysToCicadaReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{38}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{38}
 }
 func (m *PromoteKeysToCicadaReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1430,7 +1430,7 @@ func (m *PromoteKeysToCicadaResp) Reset()         { *m = PromoteKeysToCicadaResp
 func (m *PromoteKeysToCicadaResp) String() string { return proto.CompactTextString(m) }
 func (*PromoteKeysToCicadaResp) ProtoMessage()    {}
 func (*PromoteKeysToCicadaResp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_smdbrpc_372369acbc3ec00c, []int{39}
+	return fileDescriptor_smdbrpc_52bc260044772476, []int{39}
 }
 func (m *PromoteKeysToCicadaResp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2528,8 +2528,8 @@ func (m *DeleteFromPromotionMapReq) MarshalTo(dAtA []byte) (int, error) {
 	if m.Key != nil {
 		dAtA[i] = 0xa
 		i++
-		i = encodeVarintSmdbrpc(dAtA, i, uint64(len(*m.Key)))
-		i += copy(dAtA[i:], *m.Key)
+		i = encodeVarintSmdbrpc(dAtA, i, uint64(len(m.Key)))
+		i += copy(dAtA[i:], m.Key)
 	}
 	return i, nil
 }
@@ -3922,7 +3922,7 @@ func (m *DeleteFromPromotionMapReq) Size() (n int) {
 	var l int
 	_ = l
 	if m.Key != nil {
-		l = len(*m.Key)
+		l = len(m.Key)
 		n += 1 + l + sovSmdbrpc(uint64(l))
 	}
 	return n
@@ -5568,7 +5568,7 @@ func (m *DeleteFromPromotionMapReq) Unmarshal(dAtA []byte) error {
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Key", wireType)
 			}
-			var stringLen uint64
+			var byteLen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowSmdbrpc
@@ -5578,21 +5578,22 @@ func (m *DeleteFromPromotionMapReq) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
+			if byteLen < 0 {
 				return ErrInvalidLengthSmdbrpc
 			}
-			postIndex := iNdEx + intStringLen
+			postIndex := iNdEx + byteLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			s := string(dAtA[iNdEx:postIndex])
-			m.Key = &s
+			m.Key = append(m.Key[:0], dAtA[iNdEx:postIndex]...)
+			if m.Key == nil {
+				m.Key = []byte{}
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -9575,10 +9576,10 @@ var (
 )
 
 func init() {
-	proto.RegisterFile("smdbrpc/protos/smdbrpc.proto", fileDescriptor_smdbrpc_372369acbc3ec00c)
+	proto.RegisterFile("smdbrpc/protos/smdbrpc.proto", fileDescriptor_smdbrpc_52bc260044772476)
 }
 
-var fileDescriptor_smdbrpc_372369acbc3ec00c = []byte{
+var fileDescriptor_smdbrpc_52bc260044772476 = []byte{
 	// 2041 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x58, 0x4b, 0x73, 0x1b, 0xc7,
 	0xf1, 0xc7, 0x62, 0x41, 0x12, 0xec, 0x05, 0x45, 0x7a, 0xf8, 0x82, 0x20, 0x19, 0x02, 0x47, 0x55,
@@ -9609,10 +9610,10 @@ var fileDescriptor_smdbrpc_372369acbc3ec00c = []byte{
 	0x69, 0xbc, 0x26, 0x23, 0xc3, 0x0a, 0x5c, 0xda, 0x54, 0x3b, 0xea, 0xb6, 0xaa, 0x2f, 0x49, 0x72,
 	0x8f, 0x8c, 0xba, 0x81, 0x4b, 0xf1, 0x0b, 0x58, 0xbb, 0x1a, 0x17, 0x0d, 0x51, 0x13, 0x16, 0x1c,
 	0xda, 0x23, 0xa3, 0x03, 0x5f, 0x04, 0x57, 0xd7, 0x93, 0x65, 0x99, 0xe5, 0x6a, 0x99, 0xe5, 0x07,
-	0x70, 0x7b, 0x8f, 0xb8, 0x84, 0x91, 0xc7, 0x51, 0xe0, 0xa5, 0xf6, 0x0f, 0xcd, 0xb0, 0xb0, 0x6f,
-	0x65, 0x7b, 0x51, 0xec, 0x1b, 0x7f, 0x06, 0xad, 0x49, 0xe2, 0x32, 0x1c, 0x5b, 0x70, 0x93, 0xc3,
-	0x48, 0x96, 0x78, 0x07, 0xda, 0xdf, 0x84, 0xb6, 0xc9, 0xc8, 0x81, 0x7f, 0x1c, 0x05, 0x67, 0x11,
-	0xa1, 0x74, 0x8f, 0x5c, 0xe3, 0xeb, 0x73, 0xb8, 0x37, 0x55, 0x87, 0x86, 0xbc, 0xb6, 0x4c, 0xdb,
+	0x70, 0x7b, 0x8f, 0xb8, 0x84, 0x91, 0xc7, 0x51, 0xe0, 0xa5, 0xf6, 0x0f, 0xcd, 0xb0, 0xb0, 0xef,
+	0x04, 0xcc, 0xf8, 0x33, 0x68, 0x4d, 0x12, 0x97, 0xe1, 0xd8, 0x82, 0x9b, 0x1c, 0x46, 0xb2, 0xc4,
+	0x3b, 0xd0, 0xfe, 0x26, 0xb4, 0x4d, 0x46, 0x0e, 0xfc, 0xe3, 0x28, 0x38, 0x8b, 0x08, 0xa5, 0x7b,
+	0x64, 0x92, 0xaf, 0x45, 0xe9, 0xeb, 0x73, 0xb8, 0x37, 0x55, 0x87, 0x86, 0xbc, 0xb6, 0x4c, 0xdb,
 	0x4e, 0xdd, 0xc9, 0x05, 0xfe, 0x0c, 0x70, 0x16, 0xe4, 0x7f, 0xe0, 0xf0, 0xe7, 0x70, 0xff, 0x5a,
 	0xbd, 0xa9, 0xbb, 0xfc, 0x87, 0x02, 0x6a, 0x4f, 0x96, 0x3c, 0x33, 0x5f, 0xb9, 0x44, 0xf0, 0x55,
 	0x5d, 0x2e, 0x38, 0xd5, 0xf1, 0x6d, 0x32, 0x14, 0x78, 0x57, 0x75, 0xb9, 0x98, 0x15, 0x02, 0x49,
@@ -9707,5 +9708,5 @@ var fileDescriptor_smdbrpc_372369acbc3ec00c = []byte{
 	0xfb, 0x7f, 0xb5, 0x2b, 0xdf, 0x5f, 0xb6, 0x95, 0x1f, 0x2e, 0xdb, 0xca, 0x8f, 0x97, 0x6d, 0xe5,
 	0x9f, 0x97, 0x6d, 0xe5, 0xf7, 0x6f, 0xdb, 0x95, 0x1f, 0xde, 0xb6, 0x2b, 0x3f, 0xbe, 0x6d, 0x57,
 	0x5e, 0x6a, 0x64, 0x48, 0x2c, 0xc7, 0x3f, 0x8d, 0xcc, 0xf0, 0xd5, 0xbf, 0x03, 0x00, 0x00, 0xff,
-	0xff, 0x12, 0x84, 0x84, 0x01, 0x9a, 0x18, 0x00, 0x00,
+	0xff, 0x49, 0xd3, 0x87, 0x94, 0x9a, 0x18, 0x00, 0x00,
 }
