@@ -857,7 +857,10 @@ func (db *DB) GetFromPromotionMap(key roachpb.Key) (CicadaAffiliatedKey, bool) {
 	var writeKey roachpb.Key = ConvertToWriteKey(key)
 	mapStr := writeKey.String()
 
-	val, alreadyExists := db.CicadaAffiliatedKeys.Load(mapStr)
+	_, _, crdbKeyCols := ExtractKey(mapStr)
+	var promoMapKey int64 = crdbKeyCols[0]
+
+	val, alreadyExists := db.CicadaAffiliatedKeys.Load(promoMapKey)
 	cicadaKey := val.(CicadaAffiliatedKey)
 	return cicadaKey, alreadyExists
 }
@@ -866,14 +869,21 @@ func (db *DB) PutInPromotionMap(key roachpb.Key,
 	cicadaAffiliatedKey CicadaAffiliatedKey) {
 	var writeKey roachpb.Key = ConvertToWriteKey(key)
 	mapStr := writeKey.String()
-	db.CicadaAffiliatedKeys.Store(mapStr, cicadaAffiliatedKey)
+
+	_, _, crdbKeyCols := ExtractKey(mapStr)
+	var promoMapKey int64 = crdbKeyCols[0]
+
+	db.CicadaAffiliatedKeys.Store(promoMapKey, cicadaAffiliatedKey)
 }
 
 func (db *DB) DelFromPromotionMap(key roachpb.Key) {
 	var writeKey roachpb.Key = ConvertToWriteKey(key)
 	mapStr := writeKey.String()
 
-	db.CicadaAffiliatedKeys.Delete(mapStr)
+	_, _, crdbKeyCols := ExtractKey(mapStr)
+	var promoMapKey int64 = crdbKeyCols[0]
+
+	db.CicadaAffiliatedKeys.Delete(promoMapKey)
 }
 
 func (db *DB) IsKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) (CicadaAffiliatedKey, bool) {
@@ -912,7 +922,7 @@ func IsUserKey(str string) bool {
 	return false
 }
 
-func ExtractKey(key string) (int64, int64, []int64) {
+func ExtractKey(key string) (tbl int64, idx int64, crdbCols []int64) {
 	components := strings.Split(key, "/")
 	//log.Warningf(context.Background(), "jenndebug components %+v\n", components)
 	table, _ := strconv.Atoi(components[2])
