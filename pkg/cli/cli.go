@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"runtime"
 	"runtime/pprof"
 	"strings"
 	"text/tabwriter"
@@ -239,19 +238,19 @@ func Run(args []string) error {
 	}
 	defer pprof.StopCPUProfile()
 
-	defer func() {
-		memF, memErr := os.Create(root + "/mem.prof")
-		if memErr != nil {
-			log.Fatal(context.Background(),
-				"jenndebug could not create memory profile: ", memErr)
-		}
-		runtime.GC()
-		if memErr = pprof.WriteHeapProfile(memF); nil != memErr {
-			log.Fatal(context.Background(),
-				"jenndebug could not write memory profile: ", err)
-		}
-		_ = memF.Close()
-	}()
+	//defer func() {
+	//	memF, memErr := os.Create(root + "/mem.prof")
+	//	if memErr != nil {
+	//		log.Fatal(context.Background(),
+	//			"jenndebug could not create memory profile: ", memErr)
+	//	}
+	//	runtime.GC()
+	//	if memErr = pprof.WriteHeapProfile(memF); nil != memErr {
+	//		log.Fatal(context.Background(),
+	//			"jenndebug could not write memory profile: ", err)
+	//	}
+	//	_ = memF.Close()
+	//}()
 	cockroachCmd.SetArgs(args)
 	return cockroachCmd.Execute()
 }
