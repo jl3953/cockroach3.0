@@ -268,9 +268,11 @@ type DB struct {
 	numClients    int
 
 	//CicadaAffiliatedKeys map[int64]CicadaAffiliatedKey
-	CicadaAffiliatedKeys sync.Map
-	PromotionMapList     []CicadaAffiliatedKey
-	InProgressDemotion   sync.Map
+	//CicadaAffiliatedKeys sync.Map
+	CicadaAffiliatedKeys map[int64]int64
+	PromotionMapMu      sync.RWMutex
+	PromotionMapList    []CicadaAffiliatedKey
+	InProgressDemotion  sync.Map
 
 	BatchChannel chan SubmitTxnWrapper
 }
@@ -414,8 +416,9 @@ func NewDBWithContext(
 			wrapped: factory.NonTransactionalSender(),
 		},
 		//CicadaAffiliatedKeys: make(map[int64]CicadaAffiliatedKey, 10000000),
-		PromotionMapList: make([]CicadaAffiliatedKey, 10000000),
-		BatchChannel:     make(chan SubmitTxnWrapper, 10000000),
+		CicadaAffiliatedKeys: make(map[int64]int64, 10000000),
+		PromotionMapList:    make([]CicadaAffiliatedKey, 10000000),
+		BatchChannel:        make(chan SubmitTxnWrapper, 10000000),
 	}
 	db.crs.db = db
 	return db
@@ -866,11 +869,15 @@ func (db *DB) GetFromPromotionMap(key roachpb.Key) (CicadaAffiliatedKey, bool) {
 	_, _, crdbKeyCols := ExtractKey(mapStr)
 	var promoMapKey int64 = crdbKeyCols[0]
 
-	val, alreadyExists := db.CicadaAffiliatedKeys.Load(promoMapKey)
+	//val, alreadyExists := db.CicadaAffiliatedKeys.Load(promoMapKey)
 	//cicadaKey, alreadyExists := db.CicadaAffiliatedKeys[promoMapKey]
+	db.PromotionMapMu.RLock()
+	defer db.PromotionMapMu.RUnlock()
+	val, alreadyExists := db.CicadaAffiliatedKeys[promoMapKey]
 	if alreadyExists {
 		//cicadaKey := val.(CicadaAffiliatedKey)
-		idx := val.(int64)
+		//idx := val.(int64)
+		idx := val
 		cicadaKey := db.PromotionMapList[idx]
 		return cicadaKey, true
 	} else {
@@ -886,11 +893,14 @@ func (db *DB) PutInPromotionMap(key roachpb.Key,
 	_, _, crdbKeyCols := ExtractKey(mapStr)
 	var promoMapKey int64 = crdbKeyCols[0]
 
+	db.PromotionMapMu.Lock()
+	defer db.PromotionMapMu.Unlock()
 	db.PromotionMapList[cicadaAffiliatedKey.
 		CicadaKeyCols[0]] = cicadaAffiliatedKey
-	db.CicadaAffiliatedKeys.Store(promoMapKey,
-		cicadaAffiliatedKey.CicadaKeyCols[0])
+	//db.CicadaAffiliatedKeys.Store(promoMapKey,
+	//	cicadaAffiliatedKey.CicadaKeyCols[0])
 	//db.CicadaAffiliatedKeys[promoMapKey] = cicadaAffiliatedKey
+	db.CicadaAffiliatedKeys[promoMapKey] = cicadaAffiliatedKey.CicadaKeyCols[0]
 }
 
 func (db *DB) DelFromPromotionMap(key roachpb.Key) {
@@ -900,8 +910,10 @@ func (db *DB) DelFromPromotionMap(key roachpb.Key) {
 	_, _, crdbKeyCols := ExtractKey(mapStr)
 	var promoMapKey int64 = crdbKeyCols[0]
 
-	db.CicadaAffiliatedKeys.Delete(promoMapKey)
-	//delete(db.CicadaAffiliatedKeys, promoMapKey)
+	//db.CicadaAffiliatedKeys.Delete(promoMapKey)
+	db.PromotionMapMu.Lock()
+	defer db.PromotionMapMu.Unlock()
+	delete(db.CicadaAffiliatedKeys, promoMapKey)
 }
 
 func (db *DB) IsKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) (CicadaAffiliatedKey, bool) {
