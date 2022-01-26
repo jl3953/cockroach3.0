@@ -869,7 +869,7 @@ func (db *DB) GetFromPromotionMap(key roachpb.Key) (CicadaAffiliatedKey, bool) {
 	//cicadaKey, alreadyExists := db.CicadaAffiliatedKeys[promoMapKey]
 	if alreadyExists {
 		//cicadaKey := val.(CicadaAffiliatedKey)
-		idx := val.(int64)
+		idx := val.(int)
 		cicadaKey := db.PromotionMapList[idx]
 		return cicadaKey, true
 	} else {
