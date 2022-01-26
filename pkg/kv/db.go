@@ -269,6 +269,7 @@ type DB struct {
 
 	//CicadaAffiliatedKeys map[int64]CicadaAffiliatedKey
 	CicadaAffiliatedKeys sync.Map
+	PromotionMapList []CicadaAffiliatedKey
 	InProgressDemotion   sync.Map
 
 	BatchChannel chan SubmitTxnWrapper
@@ -867,7 +868,9 @@ func (db *DB) GetFromPromotionMap(key roachpb.Key) (CicadaAffiliatedKey, bool) {
 	val, alreadyExists := db.CicadaAffiliatedKeys.Load(promoMapKey)
 	//cicadaKey, alreadyExists := db.CicadaAffiliatedKeys[promoMapKey]
 	if alreadyExists {
-		cicadaKey := val.(CicadaAffiliatedKey)
+		//cicadaKey := val.(CicadaAffiliatedKey)
+		idx := val.(int64)
+		cicadaKey := db.PromotionMapList[idx]
 		return cicadaKey, true
 	} else {
 		return CicadaAffiliatedKey{}, false
@@ -882,7 +885,8 @@ func (db *DB) PutInPromotionMap(key roachpb.Key,
 	_, _, crdbKeyCols := ExtractKey(mapStr)
 	var promoMapKey int64 = crdbKeyCols[0]
 
-	db.CicadaAffiliatedKeys.Store(promoMapKey, cicadaAffiliatedKey)
+	db.PromotionMapList = append(db.PromotionMapList, cicadaAffiliatedKey)
+	db.CicadaAffiliatedKeys.Store(promoMapKey, len(db.PromotionMapList) - 1)
 	//db.CicadaAffiliatedKeys[promoMapKey] = cicadaAffiliatedKey
 }
 
