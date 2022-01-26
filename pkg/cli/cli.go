@@ -223,7 +223,9 @@ func AddCmd(c *cobra.Command) {
 
 // Run ...
 func Run(args []string) error {
-	f, err := os.Create("/home/jennifer/cpu.prof")
+	// TODO	jenndebug implementDemotion
+	root := "/root"
+	f, err := os.Create(root + "/cpu.prof")
 	if nil != err {
 		log.Fatal(context.Background(),
 			"jenndebug could not create memory profile: ", err)
@@ -238,7 +240,7 @@ func Run(args []string) error {
 	defer pprof.StopCPUProfile()
 
 	defer func() {
-		memF, memErr := os.Create("/home/jennifer/mem.prof")
+		memF, memErr := os.Create(root + "/mem.prof")
 		if memErr != nil {
 			log.Fatal(context.Background(),
 				"jenndebug could not create memory profile: ", memErr)
