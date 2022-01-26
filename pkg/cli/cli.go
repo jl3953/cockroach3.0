@@ -221,6 +221,9 @@ func AddCmd(c *cobra.Command) {
 
 // Run ...
 func Run(args []string) error {
+	defer func() {
+		log.Warningf(context.Background(), "jenndebug found ya ;)")
+	}()
 	cockroachCmd.SetArgs(args)
 	return cockroachCmd.Execute()
 }
