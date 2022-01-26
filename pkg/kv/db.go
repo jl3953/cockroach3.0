@@ -414,6 +414,7 @@ func NewDBWithContext(
 			wrapped: factory.NonTransactionalSender(),
 		},
 		//CicadaAffiliatedKeys: make(map[int64]CicadaAffiliatedKey, 10000000),
+		PromotionMapList: make([]CicadaAffiliatedKey, 10000000),
 		BatchChannel: make(chan SubmitTxnWrapper, 10000000),
 	}
 	db.crs.db = db
@@ -885,8 +886,10 @@ func (db *DB) PutInPromotionMap(key roachpb.Key,
 	_, _, crdbKeyCols := ExtractKey(mapStr)
 	var promoMapKey int64 = crdbKeyCols[0]
 
-	db.PromotionMapList = append(db.PromotionMapList, cicadaAffiliatedKey)
-	db.CicadaAffiliatedKeys.Store(promoMapKey, len(db.PromotionMapList) - 1)
+	db.PromotionMapList[cicadaAffiliatedKey.
+		CicadaKeyCols[0]] = cicadaAffiliatedKey
+	db.CicadaAffiliatedKeys.Store(promoMapKey,
+		cicadaAffiliatedKey.CicadaKeyCols[0])
 	//db.CicadaAffiliatedKeys[promoMapKey] = cicadaAffiliatedKey
 }
 
