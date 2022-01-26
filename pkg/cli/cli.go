@@ -16,6 +16,8 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"runtime"
+	"runtime/pprof"
 	"strings"
 	"text/tabwriter"
 
@@ -221,8 +223,32 @@ func AddCmd(c *cobra.Command) {
 
 // Run ...
 func Run(args []string) error {
+	f, err := os.Create("/home/jennifer/cpu.prof")
+	if nil != err {
+		log.Fatal(context.Background(),
+			"jenndebug could not create memory profile: ", err)
+	}
 	defer func() {
-		log.Warningf(context.Background(), "jenndebug found ya ;)")
+		_ = f.Close()
+	}()
+	if err = pprof.StartCPUProfile(f); nil != err {
+		log.Fatal(context.Background(), "jenndebug could not start CPU profile: ",
+			err)
+	}
+	defer pprof.StopCPUProfile()
+
+	defer func() {
+		memF, memErr := os.Create("/home/jennifer/mem.prof")
+		if memErr != nil {
+			log.Fatal(context.Background(),
+				"jenndebug could not create memory profile: ", memErr)
+		}
+		runtime.GC()
+		if memErr = pprof.WriteHeapProfile(memF); nil != memErr {
+			log.Fatal(context.Background(),
+				"jenndebug could not write memory profile: ", err)
+		}
+		_ = memF.Close()
 	}()
 	cockroachCmd.SetArgs(args)
 	return cockroachCmd.Execute()
