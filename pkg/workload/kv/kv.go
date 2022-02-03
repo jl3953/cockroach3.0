@@ -118,9 +118,9 @@ var kvMeta = workload.Meta{
 		}
 		g.flags.IntVar(&g.batchSize, `batch`, 1,
 			`Number of blocks to read/insert in a single SQL statement.`)
-		g.flags.IntVar(&g.minBlockSizeBytes, `min-block-bytes`, 8,
+		g.flags.IntVar(&g.minBlockSizeBytes, `min-block-bytes`, 512,
 			`Minimum amount of raw data written with each insertion.`)
-		g.flags.IntVar(&g.maxBlockSizeBytes, `max-block-bytes`, 8,
+		g.flags.IntVar(&g.maxBlockSizeBytes, `max-block-bytes`, 512,
 			`Maximum amount of raw data written with each insertion`)
 		g.flags.Int64Var(&g.cycleLength, `cycle-length`, math.MaxInt64,
 			`Number of keys repeatedly accessed by each writer through upserts.`)
@@ -857,10 +857,10 @@ func randomBlock(config *kv, r *rand.Rand) []byte {
 		if i >= uniqueSize {
 			blockData[i] = blockData[i-uniqueSize]
 		} else {
-			//blockData[i] = byte(r.Int() & 0xff)
-			blockData[i] = byte('j')
+			blockData[i] = byte(r.Int() & 0xff)
+			//blockData[i] = byte('j')
 		}
 	}
-	blockData = []byte("jennifer")
+	//blockData = []byte("jennifer")
 	return blockData
 }
