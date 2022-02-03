@@ -416,9 +416,9 @@ func NewDBWithContext(
 			wrapped: factory.NonTransactionalSender(),
 		},
 		//CicadaAffiliatedKeys: make(map[int64]CicadaAffiliatedKey, 10000000),
-		CicadaAffiliatedKeys: make(map[int64]int64, 10000000),
-		PromotionMapList:    make([]CicadaAffiliatedKey, 10000000),
-		BatchChannel:        make(chan SubmitTxnWrapper, 10000000),
+		CicadaAffiliatedKeys: make(map[int64]int64, 50000000),
+		PromotionMapList:    make([]CicadaAffiliatedKey, 50000000),
+		BatchChannel:        make(chan SubmitTxnWrapper, 50000000),
 	}
 	db.crs.db = db
 	return db
