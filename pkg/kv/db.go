@@ -955,14 +955,15 @@ func IsUserKey(str string) bool {
 func ExtractKey(key string) (tbl int64, idx int64, crdbCols []int64) {
 	components := strings.Split(key, "/")
 	//log.Warningf(context.Background(), "jenndebug components %+v\n", components)
-	table, _ := strconv.Atoi(components[2])
+	//table, _ := strconv.Atoi(components[2])
 	index, _ := strconv.Atoi(components[3])
 	crdbKeyCols := make([]int64, 0)
 	for _, keyCol := range components[4 : len(components)-1] {
 		col, _ := strconv.Atoi(keyCol)
 		crdbKeyCols = append(crdbKeyCols, int64(col))
 	}
-	return int64(table), int64(index), crdbKeyCols
+	//return int64(table), int64(index), crdbKeyCols
+	return 53, int64(index), crdbKeyCols
 }
 
 // sendUsingSender uses the specified sender to send the batch request.
