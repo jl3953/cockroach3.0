@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx"
 	"hash"
 	"math"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -488,6 +489,7 @@ func (o *kvOp) run(ctx context.Context) error {
 			if empty {
 				log.Warningf(ctx, "jenndebug empty key %d\n", argsInt[0])
 				atomic.AddInt64(o.numEmptyResults, 1)
+				os.Exit(-1)
 			}
 			if rowErr := rows.Err(); rowErr != nil {
 				isAborted = true
