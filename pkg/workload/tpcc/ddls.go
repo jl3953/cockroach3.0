@@ -81,7 +81,7 @@ const (
 
 	// HISTORY table.
 	tpccHistorySchemaBase = `(
-		rowid    uuid    not null default gen_random_uuid(),
+		rowid    uuid    not null,
 		h_c_id   integer not null,
 		h_c_d_id integer not null,
 		h_c_w_id integer not null,
