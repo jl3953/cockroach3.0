@@ -2172,8 +2172,8 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 
 func (s *Store) batchTxnsToCicada(ctx context.Context) {
 
-	batchingInterval := 30 * time.Millisecond
-	batchSize := 5
+	batchingInterval := 15 * time.Millisecond
+	batchSize := 25
 	log.Warningf(ctx, "jenndebug Cicada batchingInterval %+v, batchSize %+v\n",
 		batchingInterval, batchSize)
 
