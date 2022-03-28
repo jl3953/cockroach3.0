@@ -61,6 +61,7 @@ service HotshardGateway {
   rpc DemoteKey (KeyMigrationReq) returns (KeyMigrationResp) {}
   rpc DemoteKeys (MultiKeyMigrationReq) returns (MultiKeyMigrationResp) {}
 
+  rpc PopulateCRDBTableNumMapping (PopulateCRDBTableNumMappingReq) returns (PopulateCRDBTableNumMappingResp) {}
   rpc PromoteKey (KeyMigrationReq) returns (KeyMigrationResp) {}
   rpc PromoteKeys (PromoteKeysReq) returns (PromoteKeysResp) {}
   rpc PromoteKeysToCicada(PromoteKeysToCicadaReq) returns (PromoteKeysToCicadaResp) {}
@@ -77,6 +78,7 @@ service HotshardGateway {
   rpc TestAddKeyToPromotionMap (TestPromotionKeyReq) returns (TestPromotionKeyResp) {}
   rpc TestIsKeyInPromotionMap(TestPromotionKeyReq) returns (TestPromotionKeyResp) {}
   rpc TestSendTxn(CRDBTxnReq) returns (CRDBTxnResp) {}
+  rpc TestQueryTableMap(QueryTableMapReq) returns (QueryTableMapResp) {}
 
   rpc RequestCicadaStats (CalculateCicadaReq) returns (CicadaStatsResponse) {}
 
@@ -98,6 +100,26 @@ message CRDBTxnReq {
 message CRDBTxnResp {
   optional bool is_committed = 1;
   repeated KVPair responses = 2;
+}
+
+message TableNumMapping {
+  required string tableName = 1;
+  required int32 tableNum = 2;
+}
+message PopulateCRDBTableNumMappingReq {
+  repeated TableNumMapping tableNumMappings = 1;
+}
+
+message PopulateCRDBTableNumMappingResp {
+  required bool isPopulated = 1;
+}
+
+message QueryTableMapReq {
+  required bool placeholder = 1;
+}
+
+message QueryTableMapResp {
+  repeated TableNumMapping tableNumMappings = 1;
 }
 
 message TestPromotionKeyReq {

@@ -1512,7 +1512,7 @@ func (rbServer *rebalanceServer) TestSendTxn(ctx context.Context,
 			}
 
 			shouldReloop = false
-		} // all ops have completed
+		}                 // all ops have completed
 		if shouldReloop { // exclusively for the for loop of operations
 			continue
 		}
@@ -2242,7 +2242,7 @@ func (s *Store) promotionHelper(ctx context.Context,
 	}
 
 	for _, keyMigrationResp := range resp.WereSuccessfullyMigrated {
-		if *keyMigrationResp.IsSuccessfullyMigrated	{
+		if *keyMigrationResp.IsSuccessfullyMigrated {
 			numKeysSuccessful++
 		}
 	}
@@ -2601,17 +2601,42 @@ func (pq *PriorityQueue) update(item *Item, value interface{}, priority float64)
 	heap.Fix(pq, item.index)
 }
 
+func (rbServer *rebalanceServer) PopulateCRDBTableNumMapping(_ context.
+Context, req *smdbrpc.PopulateCRDBTableNumMappingReq) (*smdbrpc.
+PopulateCRDBTableNumMappingResp, error) {
+	for _, tableNumMapping := range req.TableNumMappings {
+		tableName := tableNumMapping.TableName
+		tableNum := tableNumMapping.TableNum
+		rbServer.store.db.MapTableNumToName(int(*tableNum), *tableName)
+	}
+	t := true
+	return &smdbrpc.PopulateCRDBTableNumMappingResp{IsPopulated: &t}, nil
+}
+
+func (rbServer *rebalanceServer) TestQueryTableMap(_ context.Context,
+	_ *smdbrpc.QueryTableMapReq) (resp *smdbrpc.QueryTableMapResp, err error) {
+	for tableNum, tableName := range rbServer.store.db.TableNumToTableName {
+		tableNum_i32 := int32(tableNum)
+		resp.TableNumMappings = append(resp.TableNumMappings,
+			&smdbrpc.TableNumMapping{
+				TableName: &tableName,
+				TableNum:  &tableNum_i32,
+			})
+	}
+	return resp, nil
+}
+
 func (rbServer *rebalanceServer) TestAddKeyToPromotionMap(_ context.Context,
 	testPromotionKeyReq *smdbrpc.TestPromotionKeyReq) (*smdbrpc.TestPromotionKeyResp, error) {
 	//keyStr := string(testPromotionKeyReq.Key)
 	cicadaAffiliatedKey := kv.CicadaAffiliatedKey{
-		RoachKey: [10]byte{},
+		RoachKey:    [10]byte{},
 		RoachKeyLen: 0,
 		PromotionTimestamp: hlc.Timestamp{
 			WallTime: *testPromotionKeyReq.PromotionTimestamp.Walltime,
 			Logical:  *testPromotionKeyReq.PromotionTimestamp.Logicaltime,
 		},
-		CicadaKeyCols: [3]int64{},
+		CicadaKeyCols:    [3]int64{},
 		CicadaKeyColsLen: 0,
 	}
 	for i, b := range testPromotionKeyReq.Key {
@@ -2646,7 +2671,7 @@ func (rbServer *rebalanceServer) TestIsKeyInPromotionMap(_ context.Context,
 		if cicadaAffiliatedKey.PromotionTimestamp.Less(reqPromotionTs) {
 			t := true
 			resp := smdbrpc.TestPromotionKeyResp{
-				IsKeyIn: &t,
+				IsKeyIn:       &t,
 				CicadaKeyCols: make([]int64, cicadaAffiliatedKey.CicadaKeyColsLen),
 			}
 			for i := 0; i < cicadaAffiliatedKey.CicadaKeyColsLen; i++ {
@@ -2764,15 +2789,15 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 						table, idx, crdbKeyCols := kv.ExtractKey(roachpb.Key(kvVersion.Key).
 							String())
 						keysList[originalIdx] = smdbrpc.Key{
-							Table:   &table,
-							Index:   &idx,
+							Table:         &table,
+							Index:         &idx,
 							CicadaKeyCols: kvVersion.CicadaKeyCols,
-							Key:     keyValue.Key,
+							Key:           keyValue.Key,
 							Timestamp: &smdbrpc.HLCTimestamp{
 								Walltime:    &keyValue.Value.Timestamp.WallTime,
 								Logicaltime: &keyValue.Value.Timestamp.Logical,
 							},
-							Value: keyValue.Value.RawBytes,
+							Value:       keyValue.Value.RawBytes,
 							CrdbKeyCols: crdbKeyCols,
 						}
 					} else {
@@ -2795,8 +2820,8 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 					case *roachpb.UnhandledRetryableError:
 						// if error is not retryable, then unlock the key and mark it unsuccessful
 						log.Errorf(ctx,
-							"promotion locking key %s encountered unhandledRetryableErr err" +
-							" %+v\n", roachpb.Key(kvVersion.Key).String(), err)
+							"promotion locking key %s encountered unhandledRetryableErr err"+
+								" %+v\n", roachpb.Key(kvVersion.Key).String(), err)
 						txn.CleanupOnError(ctx, err)
 						respBools[originalIdx] = false
 						keepLooping = false
@@ -2900,7 +2925,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	// update this node's promotion map
 	for _, promotedKey := range promotionReqToCicada.Keys {
 		cicadaKey := kv.CicadaAffiliatedKey{
-			RoachKey: [10]byte{},
+			RoachKey:    [10]byte{},
 			RoachKeyLen: 0,
 			PromotionTimestamp: hlc.Timestamp{
 				WallTime: *promotedKey.Timestamp.Walltime,
@@ -3041,13 +3066,13 @@ func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
 		key := roachpb.Key(kvVersion.Key)
 		//log.Warningf(context.Background(), "jenndebug promoted key %+v\n", key)
 		cicadaAffiliatedKey := kv.CicadaAffiliatedKey{
-			RoachKey: [10]byte{},
+			RoachKey:    [10]byte{},
 			RoachKeyLen: 0,
 			PromotionTimestamp: hlc.Timestamp{
 				WallTime: *kvVersion.Timestamp.Walltime,
 				Logical:  *kvVersion.Timestamp.Logicaltime,
 			},
-			CicadaKeyCols: [3]int64{},
+			CicadaKeyCols:    [3]int64{},
 			CicadaKeyColsLen: 0,
 		}
 		for j, b := range key {

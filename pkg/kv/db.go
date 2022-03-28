@@ -275,6 +275,8 @@ type DB struct {
 	InProgressDemotion  sync.Map
 
 	BatchChannel chan SubmitTxnWrapper
+
+	TableNumToTableName map[int]string
 }
 
 type CicadaTxnReplyChan chan ExtractTxnWrapper
@@ -419,6 +421,7 @@ func NewDBWithContext(
 		CicadaAffiliatedKeys: make(map[int64]int64, 50000000),
 		PromotionMapList:    make([]CicadaAffiliatedKey, 50000000),
 		BatchChannel:        make(chan SubmitTxnWrapper, 50000000),
+		TableNumToTableName: make(map[int]string, 20),
 	}
 	db.crs.db = db
 	return db
@@ -901,6 +904,21 @@ func (db *DB) PutInPromotionMap(key roachpb.Key,
 	//	cicadaAffiliatedKey.CicadaKeyCols[0])
 	//db.CicadaAffiliatedKeys[promoMapKey] = cicadaAffiliatedKey
 	db.CicadaAffiliatedKeys[promoMapKey] = cicadaAffiliatedKey.CicadaKeyCols[0]
+}
+
+func (db *DB) MapTableNumToName(tableNum int, tableName string) {
+	db.TableNumToTableName[tableNum] = tableName
+}
+
+func (db *DB) QueryTableName(tableNum int) string {
+	if tableName, tableNumExists := db.
+		TableNumToTableName[tableNum]; !tableNumExists {
+			log.Fatalf(context.Background(),
+				"jenndebug tableNum %d does not exists", tableNum)
+			return ""
+	} else {
+		return tableName
+	}
 }
 
 func (db *DB) DelFromPromotionMap(key roachpb.Key) {
