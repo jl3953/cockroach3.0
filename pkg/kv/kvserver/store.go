@@ -1512,7 +1512,7 @@ func (rbServer *rebalanceServer) TestSendTxn(ctx context.Context,
 			}
 
 			shouldReloop = false
-		}                 // all ops have completed
+		} // all ops have completed
 		if shouldReloop { // exclusively for the for loop of operations
 			continue
 		}
@@ -2602,8 +2602,8 @@ func (pq *PriorityQueue) update(item *Item, value interface{}, priority float64)
 }
 
 func (rbServer *rebalanceServer) PopulateCRDBTableNumMapping(_ context.
-Context, req *smdbrpc.PopulateCRDBTableNumMappingReq) (*smdbrpc.
-PopulateCRDBTableNumMappingResp, error) {
+	Context, req *smdbrpc.PopulateCRDBTableNumMappingReq) (*smdbrpc.
+	PopulateCRDBTableNumMappingResp, error) {
 	for _, tableNumMapping := range req.TableNumMappings {
 		tableName := tableNumMapping.TableName
 		tableNum := tableNumMapping.TableNum
@@ -2614,7 +2614,10 @@ PopulateCRDBTableNumMappingResp, error) {
 }
 
 func (rbServer *rebalanceServer) TestQueryTableMap(_ context.Context,
-	_ *smdbrpc.QueryTableMapReq) (resp *smdbrpc.QueryTableMapResp, err error) {
+	_ *smdbrpc.QueryTableMapReq) (*smdbrpc.QueryTableMapResp, error) {
+	resp := smdbrpc.QueryTableMapResp{
+		TableNumMappings: []*smdbrpc.TableNumMapping{},
+	}
 	for tableNum, tableName := range rbServer.store.db.TableNumToTableName {
 		tableNum_i32 := int32(tableNum)
 		resp.TableNumMappings = append(resp.TableNumMappings,
@@ -2623,7 +2626,7 @@ func (rbServer *rebalanceServer) TestQueryTableMap(_ context.Context,
 				TableNum:  &tableNum_i32,
 			})
 	}
-	return resp, nil
+	return &resp, nil
 }
 
 func (rbServer *rebalanceServer) TestAddKeyToPromotionMap(_ context.Context,
