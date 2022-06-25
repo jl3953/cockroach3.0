@@ -18,8 +18,7 @@ syntax = "proto2";
 // option java_package = "io.grpc.examples.helloworld";
 // option java_outer_classname = "HelloWorldProto";
 // option objc_class_prefix = "HLW";
-option go_package = ".;execinfrapb";
-//option go_package="./"; // UNCOMMENT IN CLOUDLAB
+option go_package = "execinfrapb";
 
 //package cockroach.sql.distsqlrun;
 package smdbrpc;
@@ -70,6 +69,9 @@ service HotshardGateway {
   rpc QueryTableNumFromName(QueryTableNumFromNameReq) returns
       (QueryTableNumFromNameResp) {}
   rpc UpdatePromotionMap (PromoteKeysReq) returns (PromoteKeysResp) {}
+  rpc DeleteFromPromotionMap (DeleteFromPromotionMapReq) returns (DeleteFromPromotionMapResp) {}
+  rpc UpdateInProgressDemotionMap (UpdateInProgressDemotionMapReq) returns (UpdateInProgressDemotionMapResp) {}
+  rpc DeleteFromInProgressDemotionMap (DeleteFromInProgressDemotionMapReq) returns (DeleteFromInProgressDemotionMapResp) {}
 
   rpc RequestCRDBKeyStats(KeyStatsRequest) returns (CRDBKeyStatsResponse) {}
   rpc SendTxn(TxnReq) returns (TxnResp) {}
@@ -145,6 +147,30 @@ message TestPromotionKeyReq {
 message TestPromotionKeyResp {
   required bool isKeyIn = 1;
   repeated int64 cicada_key_cols = 2;
+}
+
+message DeleteFromPromotionMapReq {
+  optional bytes key = 1;
+}
+
+message DeleteFromPromotionMapResp {
+  optional bool deleted = 1;
+}
+
+message UpdateInProgressDemotionMapReq {
+  optional string key = 1;
+}
+
+message UpdateInProgressDemotionMapResp {
+  optional bool added = 1;
+}
+
+message DeleteFromInProgressDemotionMapReq {
+  optional string key = 1;
+}
+
+message DeleteFromInProgressDemotionMapResp {
+  optional bool deleted = 1;
 }
 
 enum Cmd {
