@@ -18,7 +18,8 @@ syntax = "proto2";
 // option java_package = "io.grpc.examples.helloworld";
 // option java_outer_classname = "HelloWorldProto";
 // option objc_class_prefix = "HLW";
-option go_package = "execinfrapb";
+option go_package = ".;execinfrapb";
+//option go_package="./"; // UNCOMMENT IN CLOUDLAB
 
 //package cockroach.sql.distsqlrun;
 package smdbrpc;
@@ -41,6 +42,7 @@ message KVPair {
   optional int64 walltime = 3;
   optional int32 logicaltime = 4;
   optional bytes isZero = 5; // ffttf, t=true, f=false
+  optional string tableName = 6;
 }
 
 // The greeting service definition.
@@ -65,10 +67,9 @@ service HotshardGateway {
   rpc PromoteKey (KeyMigrationReq) returns (KeyMigrationResp) {}
   rpc PromoteKeys (PromoteKeysReq) returns (PromoteKeysResp) {}
   rpc PromoteKeysToCicada(PromoteKeysToCicadaReq) returns (PromoteKeysToCicadaResp) {}
+  rpc QueryTableNumFromName(QueryTableNumFromNameReq) returns
+      (QueryTableNumFromNameResp) {}
   rpc UpdatePromotionMap (PromoteKeysReq) returns (PromoteKeysResp) {}
-  rpc DeleteFromPromotionMap (DeleteFromPromotionMapReq) returns (DeleteFromPromotionMapResp) {}
-  rpc UpdateInProgressDemotionMap (UpdateInProgressDemotionMapReq) returns (UpdateInProgressDemotionMapResp) {}
-  rpc DeleteFromInProgressDemotionMap (DeleteFromInProgressDemotionMapReq) returns (DeleteFromInProgressDemotionMapResp) {}
 
   rpc RequestCRDBKeyStats(KeyStatsRequest) returns (CRDBKeyStatsResponse) {}
   rpc SendTxn(TxnReq) returns (TxnResp) {}
@@ -118,6 +119,19 @@ message QueryTableMapReq {
   required bool placeholder = 1;
 }
 
+message QueryTableNumFromNameReq {
+  repeated string tableNames = 1;
+}
+
+message NameNumPair {
+  required string name = 1;
+  required int32 num = 2;
+}
+
+message QueryTableNumFromNameResp {
+  repeated NameNumPair mapping = 1;
+}
+
 message QueryTableMapResp {
   repeated TableNumMapping tableNumMappings = 1;
 }
@@ -131,30 +145,6 @@ message TestPromotionKeyReq {
 message TestPromotionKeyResp {
   required bool isKeyIn = 1;
   repeated int64 cicada_key_cols = 2;
-}
-
-message DeleteFromPromotionMapReq {
-  optional bytes key = 1;
-}
-
-message DeleteFromPromotionMapResp {
-  optional bool deleted = 1;
-}
-
-message UpdateInProgressDemotionMapReq {
-  optional string key = 1;
-}
-
-message UpdateInProgressDemotionMapResp {
-  optional bool added = 1;
-}
-
-message DeleteFromInProgressDemotionMapReq {
-  optional string key = 1;
-}
-
-message DeleteFromInProgressDemotionMapResp {
-  optional bool deleted = 1;
 }
 
 enum Cmd {
@@ -171,6 +161,7 @@ message Key {
   optional HLCTimestamp timestamp = 5;
   optional bytes value = 6;
   repeated int64 crdb_key_cols = 7;
+  optional string tableName = 8;
 }
 
 message Op {
@@ -181,6 +172,7 @@ message Op {
   required bytes key = 5;
   optional bytes value = 6;
   repeated int64 crdb_key_cols = 7;
+  required string tableName = 8;
 }
 
 message TxnReq {
@@ -248,6 +240,7 @@ message KVVersion {
   optional HLCTimestamp timestamp = 3;
   optional uint64 hotness = 4;
   repeated int64 cicada_key_cols = 5;
+  optional string tableName = 6;
 }
 
 message KeyMigrationReq {
@@ -296,6 +289,7 @@ message TriggerDemotionByNumsResp {
 message TriggerDemotionRequest {
   optional Key key = 1;
   optional bool testLocking = 2;
+  optional bool do_not_contact_crdb = 3;
 }
 
 message TriggerDemotionReply {
