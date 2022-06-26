@@ -2619,10 +2619,11 @@ func (rbServer *rebalanceServer) TestQueryTableMap(_ context.Context,
 		TableNumMappings: []*smdbrpc.TableNumMapping{},
 	}
 	for tableNum, tableName := range rbServer.store.db.TableNumToTableName {
+		tableNameStr := tableName
 		tableNum_i32 := int32(tableNum)
 		resp.TableNumMappings = append(resp.TableNumMappings,
 			&smdbrpc.TableNumMapping{
-				TableName: &tableName,
+				TableName: &tableNameStr,
 				TableNum:  &tableNum_i32,
 			})
 	}
