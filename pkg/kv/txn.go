@@ -953,7 +953,7 @@ func (txn *Txn) DemotionLock(ctx context.Context, key roachpb.Key, value []byte)
 	return nil
 }
 
-func (txn *Txn) Lock(ctx context.Context, key roachpb.Key, keyValue *KeyValue) error {
+func (txn *Txn) LockByGetAndPutBackValue(ctx context.Context, key roachpb.Key, keyValue *KeyValue) error {
 
 	var err error
 	timeout := 1 * time.Second
@@ -984,7 +984,7 @@ func (txn *Txn) Lock(ctx context.Context, key roachpb.Key, keyValue *KeyValue) e
 	doneChan := make(chan bool, 1)
 	go func() {
 		// key exists, lock it
-		err = txn.Put(ctx, key, []byte("PROMOTION_IN_PROGRESS"))
+		err = txn.Put(ctx, key, keyValue.Value)
 		doneChan <- true
 	}()
 	select {

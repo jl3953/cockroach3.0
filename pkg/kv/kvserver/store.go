@@ -2690,6 +2690,72 @@ func (rbServer *rebalanceServer) TestIsKeyInPromotionMap(_ context.Context,
 	return &resp, nil
 }
 
+type PromoteKeyMeta struct {
+	Key                  roachpb.Key
+	Txn                  *kv.Txn
+	CicadaCols           []int64
+	CicadaRespIdx        int
+	successfullyPromoted bool
+}
+
+func (s *Store) Promote(promoteKeys []roachpb.Key) {
+
+	ctx := context.Background()
+
+	promoteKeyMetas := make(map[string]PromoteKeyMeta)
+
+	// TODO jenndebug parallelize locking of keys
+	// TODO jenndebug check if key already exists in CRDB promotion map
+	for _, promoteKey := range promoteKeys {
+		txn := kv.NewTxn(ctx, s.DB(), s.nodeDesc.NodeID)
+		var keyValue kv.KeyValue
+
+		// lock key (or fail to) by getting and putting back the value
+		var err error
+		for keepLooping := true; keepLooping; {
+			err = txn.LockByGetAndPutBackValue(ctx, promoteKey, &keyValue)
+			if err != nil {
+				switch cause := errors.UnwrapAll(err); causeType := cause.(type) {
+				case *roachpb.TransactionRetryWithProtoRefreshError:
+					// if error is retryable, retry txn and keep trying to lock
+					log.Warningf(ctx, "promotion locking key %s retryable err %+v, try locking again\n",
+						promoteKey.String(), err)
+					txn.PrepareForRetry(ctx, err)
+				case *roachpb.UnhandledRetryableError:
+					// if error is not retryable, then unlock the key and mark it unsuccessful
+					log.Errorf(ctx,
+						"promotion locking key %s encountered unhandledRetryableErr err"+
+							" %+v\n", promoteKey.String(), err)
+					txn.CleanupOnError(ctx, err)
+					keepLooping = false
+				default:
+					// if error is unknown, then unlock the key and mark it unsuccessful
+					log.Errorf(ctx, "promotion locking key %+v failed, unknown causeType %+v\n",
+						promoteKey, causeType)
+					txn.CleanupOnError(ctx, err)
+					keepLooping = false
+				}
+				continue
+			} else {
+				keepLooping = false
+			}
+		}
+		if err != nil {
+			// locking this key failed, continue on
+			continue
+		}
+
+		// Add to metas of successfully promoted keys
+		promoteKeyMetas[promoteKey.String()] = PromoteKeyMeta{
+			Key:                  promoteKey,
+			Txn:                  txn,
+			CicadaCols:           ,
+			CicadaRespIdx:        0,
+			successfullyPromoted: false,
+		}
+	}
+}
+
 // PromoteKeys Promote only a single key
 func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	promoteKeysReq *smdbrpc.PromoteKeysReq) (*smdbrpc.PromoteKeysResp, error) {
@@ -2756,7 +2822,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	}
 	keysList := make([]smdbrpc.Key, len(promoteKeysReq.Keys))
 
-	// Lock the keys
+	// LockByGetAndPutBackValue the keys
 	var wg sync.WaitGroup
 	for someIndex := 0; someIndex < len(promoteKeysReq.Keys); someIndex++ {
 		wg.Add(1)
@@ -2782,7 +2848,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 			var err error
 			for keepLooping := true; keepLooping; {
 				// attempt to lock key
-				if err = txn.Lock(ctx, kvVersion.Key, &keyValue); err == nil {
+				if err = txn.LockByGetAndPutBackValue(ctx, kvVersion.Key, &keyValue); err == nil {
 					log.Warningf(ctx,
 						"jenndebug promotion successfully locked key %s\n",
 						roachpb.Key(kvVersion.Key).String())
