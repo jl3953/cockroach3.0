@@ -1122,7 +1122,7 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 
 		//mapKeyStr := roachpb.Key(writeKey).String()
 		//cicadaAffiliatedKeyInterface, isInPromotionMap := txn.db.
-		//	CicadaAffiliatedKeys.Load(mapKeyStr)
+		//	promotionMap.Load(mapKeyStr)
 		cicadaAffiliatedKey, isInPromotionMap := txn.DB().GetFromPromotionMap(writeKey)
 		if !isInPromotionMap {
 			log.Fatalf(ctx, "jenndebug why is this key not %s\n",
@@ -1395,6 +1395,8 @@ func (txn *Txn) Send(
 		}
 
 		if key := req.GetInner().Header().Key; IsUserKey(key.String()) {
+			log.Warningf(ctx, "jenndebug keystr:[%s], keybyte:[%+v]\n",
+				key.String(), []byte(key))
 			if cicadaAffiliatedKey, isPromoted := txn.DB().IsKeyInCicadaAtTimestamp(
 				key, txn.ProvisionalCommitTimestamp()); isPromoted && !txn.IsDemotion() {
 				// remove from default CRDB path

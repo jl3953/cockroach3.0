@@ -38,6 +38,27 @@ import (
 // ScanRequest which uses the KEY_VALUES ScanFormat. Values created from
 // a ScanRequest which uses the BATCH_RESPONSE ScanFormat will contain a
 // zero Timestamp.
+
+const (
+	WAREHOUSE = "warehouse"
+	DISTRICT  = "district"
+	CUSTOMER  = "customer"
+	ORDER     = "order"
+	NEWORDER  = "neworder"
+	ORDERLINE = "orderline"
+	STOCK     = "stock"
+	ITEM      = "item"
+	HISTORY   = "history"
+	KV        = "kv"
+)
+
+const (
+	DIST_PER_WARE   = 10
+	g_cust_per_dist = 3000
+	g_max_items     = 100000
+	g_max_orderline = 1 << 32
+)
+
 type KeyValue struct {
 	Key   roachpb.Key
 	Value *roachpb.Value
@@ -267,12 +288,13 @@ type DB struct {
 	cicadaClients sync.Map
 	numClients    int
 
-	//CicadaAffiliatedKeys map[int64]CicadaAffiliatedKey
-	//CicadaAffiliatedKeys sync.Map
-	CicadaAffiliatedKeys map[int64]int64
-	PromotionMapMu      sync.RWMutex
-	PromotionMapList    []CicadaAffiliatedKey
-	InProgressDemotion  sync.Map
+	//promotionMap map[int64]CicadaAffiliatedKey
+	//promotionMap sync.Map
+	promotionMap          map[int64]int64
+	promotionMapMu        sync.RWMutex
+	promotionMapList      []CicadaAffiliatedKey
+	promotionCurrentIndex int64
+	//InProgressDemotion  sync.Map
 
 	BatchChannel chan SubmitTxnWrapper
 
@@ -295,7 +317,7 @@ type CicadaAffiliatedKey struct {
 	RoachKey           [10]byte
 	RoachKeyLen        int
 	PromotionTimestamp hlc.Timestamp
-	CicadaKeyCols      [3]int64
+	CicadaKeyCols      [4]int64
 	CicadaKeyColsLen   int
 }
 
@@ -417,9 +439,10 @@ func NewDBWithContext(
 		crs: CrossRangeTxnWrapperSender{
 			wrapped: factory.NonTransactionalSender(),
 		},
-		//CicadaAffiliatedKeys: make(map[int64]CicadaAffiliatedKey, 10000000),
-		CicadaAffiliatedKeys: make(map[int64]int64, 50000000),
-		PromotionMapList:    make([]CicadaAffiliatedKey, 50000000),
+		//promotionMap: make(map[int64]CicadaAffiliatedKey, 10000000),
+		promotionMap:        make(map[int64]int64, 50000000),
+		promotionMapList:    make([]CicadaAffiliatedKey, 50000000),
+		promotionCurrentIndex: 0,
 		BatchChannel:        make(chan SubmitTxnWrapper, 50000000),
 		TableNumToTableName: make(map[int]string, 20),
 	}
@@ -872,20 +895,89 @@ func (db *DB) GetFromPromotionMap(key roachpb.Key) (CicadaAffiliatedKey, bool) {
 	_, _, crdbKeyCols := ExtractKey(mapStr)
 	var promoMapKey int64 = crdbKeyCols[0]
 
-	//val, alreadyExists := db.CicadaAffiliatedKeys.Load(promoMapKey)
-	//cicadaKey, alreadyExists := db.CicadaAffiliatedKeys[promoMapKey]
-	db.PromotionMapMu.RLock()
-	defer db.PromotionMapMu.RUnlock()
-	val, alreadyExists := db.CicadaAffiliatedKeys[promoMapKey]
+	//val, alreadyExists := db.promotionMap.Load(promoMapKey)
+	//cicadaKey, alreadyExists := db.promotionMap[promoMapKey]
+	db.promotionMapMu.RLock()
+	defer db.promotionMapMu.RUnlock()
+	val, alreadyExists := db.promotionMap[promoMapKey]
 	if alreadyExists {
 		//cicadaKey := val.(CicadaAffiliatedKey)
 		//idx := val.(int64)
 		idx := val
-		cicadaKey := db.PromotionMapList[idx]
+		cicadaKey := db.promotionMapList[idx]
 		return cicadaKey, true
 	} else {
 		return CicadaAffiliatedKey{}, false
 	}
+}
+
+func (db *DB) LockPromotionMap() {
+	db.promotionMapMu.Lock()
+}
+
+func (db *DB) UnlockPromotionMap() {
+	db.promotionMapMu.Unlock()
+}
+
+func (db *DB) distKey(d_id, d_w_id int64) int64 {
+	return d_w_id*DIST_PER_WARE + d_id
+}
+
+func (db *DB) calculateUniqueKeyInt(tblNum int, tblName string,
+	pkCols []int64) (uniqueInt int64) {
+
+	switch tblName {
+	case WAREHOUSE:
+	case KV:
+	case ITEM:
+	case HISTORY:
+		uniqueInt = pkCols[0]
+	case DISTRICT:
+		d_id, d_w_id := pkCols[0], pkCols[1]
+		uniqueInt = db.distKey(d_id, d_w_id)
+	case CUSTOMER:
+		c_id, c_d_id, c_w_id := pkCols[0], pkCols[1], pkCols[2]
+		uniqueInt = db.distKey(c_d_id, c_w_id)*g_cust_per_dist + c_id
+	case STOCK:
+		s_w_id, s_i_id := pkCols[0], pkCols[1]
+		uniqueInt = s_w_id*g_max_items + s_i_id
+	case ORDER:
+	case NEWORDER:
+		o_id, o_d_id, o_w_id := pkCols[0], pkCols[1], pkCols[2]
+		uniqueInt = db.distKey(o_d_id, o_w_id)*g_max_orderline + (g_max_orderline - o_id)
+	case ORDERLINE:
+		ol_number, ol_o_id, ol_d_id, ol_w_id := pkCols[0], pkCols[1], pkCols[2],
+			pkCols[3]
+		uniqueInt = db.distKey(ol_d_id, ol_w_id)*g_max_orderline*15 + (g_max_orderline-ol_o_id)*15 + ol_number
+	}
+
+	// concatenate table number to the front to ensure uniqueness
+	concat := strconv.Itoa(tblNum) + strconv.Itoa(int(uniqueInt))
+	idxInt, err := strconv.Atoi(concat)
+	if err != nil {
+		log.Fatalf(context.Background(), "jenndebug cannot convert %s to int\n",
+			concat)
+	}
+	uniqueInt = int64(idxInt)
+	return uniqueInt
+}
+
+func (db *DB) PutInPromotionMapAssumeLocked(key roachpb.Key,
+	cicadaAffiliatedKey CicadaAffiliatedKey) (wasSuccessfullyPut bool) {
+
+	if db.ExtractIndex(key) != 1 {
+		return false
+	}
+	tblNum := db.ExtractTableNum(key)
+	tblName, _ := db.TableName(tblNum)
+	pkCols := db.ExtractPrimaryKeys(key, db.NumPKCols(key))
+	uniqueKeyInt := db.calculateUniqueKeyInt(tblNum, tblName, pkCols)
+
+	db.promotionMap[uniqueKeyInt] = db.promotionCurrentIndex
+	db.promotionMapList[db.promotionCurrentIndex] = cicadaAffiliatedKey
+	db.promotionCurrentIndex += 1
+
+	return true
 }
 
 func (db *DB) PutInPromotionMap(key roachpb.Key,
@@ -896,14 +988,14 @@ func (db *DB) PutInPromotionMap(key roachpb.Key,
 	_, _, crdbKeyCols := ExtractKey(mapStr)
 	var promoMapKey int64 = crdbKeyCols[0]
 
-	db.PromotionMapMu.Lock()
-	defer db.PromotionMapMu.Unlock()
-	db.PromotionMapList[cicadaAffiliatedKey.
+	db.promotionMapMu.Lock()
+	defer db.promotionMapMu.Unlock()
+	db.promotionMapList[cicadaAffiliatedKey.
 		CicadaKeyCols[0]] = cicadaAffiliatedKey
-	//db.CicadaAffiliatedKeys.Store(promoMapKey,
+	//db.promotionMap.Store(promoMapKey,
 	//	cicadaAffiliatedKey.CicadaKeyCols[0])
-	//db.CicadaAffiliatedKeys[promoMapKey] = cicadaAffiliatedKey
-	db.CicadaAffiliatedKeys[promoMapKey] = cicadaAffiliatedKey.CicadaKeyCols[0]
+	//db.promotionMap[promoMapKey] = cicadaAffiliatedKey
+	db.promotionMap[promoMapKey] = cicadaAffiliatedKey.CicadaKeyCols[0]
 }
 
 func (db *DB) MapTableNumToName(tableNum int, tableName string) {
@@ -913,32 +1005,32 @@ func (db *DB) MapTableNumToName(tableNum int, tableName string) {
 func (db *DB) QueryTableName(tableNum int) string {
 	if tableName, tableNumExists := db.
 		TableNumToTableName[tableNum]; !tableNumExists {
-			log.Fatalf(context.Background(),
-				"jenndebug tableNum %d does not exists", tableNum)
-			return ""
+		log.Fatalf(context.Background(),
+			"jenndebug tableNum %d does not exists", tableNum)
+		return ""
 	} else {
 		return tableName
 	}
 }
 
-func (db *DB) DelFromPromotionMap(key roachpb.Key) {
-	var writeKey roachpb.Key = ConvertToWriteKey(key)
-	mapStr := writeKey.String()
-
-	_, _, crdbKeyCols := ExtractKey(mapStr)
-	var promoMapKey int64 = crdbKeyCols[0]
-
-	//db.CicadaAffiliatedKeys.Delete(promoMapKey)
-	db.PromotionMapMu.Lock()
-	defer db.PromotionMapMu.Unlock()
-	delete(db.CicadaAffiliatedKeys, promoMapKey)
-}
+//func (db *DB) DelFromPromotionMap(key roachpb.Key) {
+//	var writeKey roachpb.Key = ConvertToWriteKey(key)
+//	mapStr := writeKey.String()
+//
+//	_, _, crdbKeyCols := ExtractKey(mapStr)
+//	var promoMapKey int64 = crdbKeyCols[0]
+//
+//	//db.promotionMap.Delete(promoMapKey)
+//	db.promotionMapMu.Lock()
+//	defer db.promotionMapMu.Unlock()
+//	delete(db.promotionMap, promoMapKey)
+//}
 
 func (db *DB) IsKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) (CicadaAffiliatedKey, bool) {
 	//mapStr := TableIndexKeyColFamOnly(key.String())
 	//var writeKey roachpb.Key = ConvertToWriteKey(key)
 	//mapStr := writeKey.String()
-	//if val, alreadyExists := db.CicadaAffiliatedKeys.Load(mapStr); alreadyExists {
+	//if val, alreadyExists := db.promotionMap.Load(mapStr); alreadyExists {
 	//	cicadaKey := val.(CicadaAffiliatedKey)
 	if cicadaKey, alreadyExists := db.GetFromPromotionMap(key); alreadyExists {
 
@@ -970,10 +1062,112 @@ func IsUserKey(str string) bool {
 	return false
 }
 
+func (db *DB) TableName(num int) (tableName string, exists bool) {
+	tableName, exists = db.TableNumToTableName[num]
+	if !exists {
+		return "", false
+	}
+
+	return tableName, true
+}
+
+func (db *DB) ExtractTableNum(k roachpb.Key) (tableNum int) {
+	return int(k[0] - 136)
+}
+
+func (db *DB) ExtractIndex(k roachpb.Key) (indexNum int) {
+	return int(k[1] - 136)
+}
+
+func (db *DB) NumPKCols(k roachpb.Key) (numPKCols int) {
+	index := db.ExtractIndex(k)
+	if index == 1 {
+		// primary index
+		tableNum := db.ExtractTableNum(k)
+		tableName, _ := db.TableName(tableNum)
+		switch tableName {
+		case WAREHOUSE:
+		case ITEM:
+		case HISTORY:
+			numPKCols = 1
+		case DISTRICT:
+		case STOCK:
+			numPKCols = 2
+		case CUSTOMER:
+		case ORDER:
+		case NEWORDER:
+			numPKCols = 3
+		case ORDERLINE:
+			numPKCols = 4
+		}
+	} else {
+		// secondary index
+		numPKCols = len(k) - 3 // subtract three bytes, one for table,
+		// one for index, one for last write byte
+	}
+
+	return numPKCols
+}
+
+func (db *DB) ExtractPrimaryKeys(k roachpb.Key,
+	numPKCols int) (primaryKeyCols []int64) {
+	const (
+		DEFAULT = iota
+		GREATER
+		NEGATIVE
+	)
+
+	state := DEFAULT
+	hopsUntilStateReversion := 0
+	var inProgressB256 int64 = 0
+
+	for i := 0; i < numPKCols; i++ {
+		if i == 0 || i == 1 || i == len(k)-1 {
+			// i == 0 is tableNum
+			// i == 1 is index
+			// i == last is a 0
+			continue
+		}
+		b := k[i]
+
+		switch state {
+		case GREATER:
+			inProgressB256 = inProgressB256*256 + int64(b)
+			hopsUntilStateReversion--
+			if hopsUntilStateReversion == 0 {
+				primaryKeyCols = append(primaryKeyCols, inProgressB256)
+				inProgressB256 = 0
+				state = DEFAULT
+			}
+		case NEGATIVE:
+			inProgressB256 = inProgressB256*256 + (255 - int64(b))
+			hopsUntilStateReversion--
+			if hopsUntilStateReversion == 0 {
+				primaryKeyCols = append(primaryKeyCols, inProgressB256)
+				inProgressB256 = 0
+				state = DEFAULT
+			}
+		default:
+			if b < 136 {
+				state = NEGATIVE
+				hopsUntilStateReversion = 136 - int(b)
+			} else if b < 245 {
+				primaryKeyCols = append(primaryKeyCols, int64(b-136))
+			} else {
+				state = GREATER
+				hopsUntilStateReversion = int(b) - 245
+			}
+		}
+	}
+
+	return primaryKeyCols
+}
+
 func ExtractKey(key string) (tbl int64, idx int64, crdbCols []int64) {
 	components := strings.Split(key, "/")
 	//log.Warningf(context.Background(), "jenndebug components %+v\n", components)
 	//table, _ := strconv.Atoi(components[2])
+	// /Table/54/1/...
 	index, _ := strconv.Atoi(components[3])
 	crdbKeyCols := make([]int64, 0)
 	for _, keyCol := range components[4 : len(components)-1] {

@@ -62,16 +62,21 @@ service HotshardGateway {
   rpc DemoteKey (KeyMigrationReq) returns (KeyMigrationResp) {}
   rpc DemoteKeys (MultiKeyMigrationReq) returns (MultiKeyMigrationResp) {}
 
+  rpc DeleteFromInProgressDemotionMap (DeleteFromInProgressDemotionMapReq) returns (DeleteFromInProgressDemotionMapResp) {}
+  rpc DeleteFromPromotionMap (DeleteFromPromotionMapReq) returns (DeleteFromPromotionMapResp) {}
+  rpc LockPromotionMap (LockPromotionMapReq) returns (LockPromotionMapResp) {}
   rpc PopulateCRDBTableNumMapping (PopulateCRDBTableNumMappingReq) returns (PopulateCRDBTableNumMappingResp) {}
   rpc PromoteKey (KeyMigrationReq) returns (KeyMigrationResp) {}
   rpc PromoteKeys (PromoteKeysReq) returns (PromoteKeysResp) {}
   rpc PromoteKeysToCicada(PromoteKeysToCicadaReq) returns (PromoteKeysToCicadaResp) {}
   rpc QueryTableNumFromName(QueryTableNumFromNameReq) returns
       (QueryTableNumFromNameResp) {}
+  rpc UnlockPromotionMap (UnlockPromotionMapReq) returns
+    (UnlockPromotionMapResp) {}
   rpc UpdatePromotionMap (PromoteKeysReq) returns (PromoteKeysResp) {}
-  rpc DeleteFromPromotionMap (DeleteFromPromotionMapReq) returns (DeleteFromPromotionMapResp) {}
+  rpc UpdatePromotionMapWithoutLocking (PromoteKeysReq) returns
+    (PromoteKeysResp) {}
   rpc UpdateInProgressDemotionMap (UpdateInProgressDemotionMapReq) returns (UpdateInProgressDemotionMapResp) {}
-  rpc DeleteFromInProgressDemotionMap (DeleteFromInProgressDemotionMapReq) returns (DeleteFromInProgressDemotionMapResp) {}
 
   rpc RequestCRDBKeyStats(KeyStatsRequest) returns (CRDBKeyStatsResponse) {}
   rpc SendTxn(TxnReq) returns (TxnResp) {}
@@ -163,6 +168,12 @@ message UpdateInProgressDemotionMapReq {
 
 message UpdateInProgressDemotionMapResp {
   optional bool added = 1;
+}
+
+message UnlockPromotionMapReq {}
+
+message UnlockPromotionMapResp {
+  required bool successfullyUnlocked = 1;
 }
 
 message DeleteFromInProgressDemotionMapReq {
@@ -258,6 +269,11 @@ message HotshardReply {
   optional bool is_committed = 1;
   repeated KVPair read_valueset = 2;
   // optional HLCTimestamp hlctimestamp = 2;
+}
+message LockPromotionMapReq {}
+
+message LockPromotionMapResp {
+  required bool successfullyLocked = 1;
 }
 
 message KVVersion {
