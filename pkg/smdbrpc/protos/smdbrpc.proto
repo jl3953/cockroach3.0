@@ -70,7 +70,7 @@ service HotshardGateway {
   rpc PromoteKeys (PromoteKeysReq) returns (PromoteKeysResp) {}
   rpc PromoteKeysToCicada(PromoteKeysToCicadaReq) returns (PromoteKeysToCicadaResp) {}
   rpc QueryTableNumFromName(QueryTableNumFromNameReq) returns
-      (QueryTableNumFromNameResp) {}
+    (QueryTableNumFromNameResp) {}
   rpc UnlockPromotionMap (UnlockPromotionMapReq) returns
     (UnlockPromotionMapResp) {}
   rpc UpdatePromotionMap (PromoteKeysReq) returns (PromoteKeysResp) {}
@@ -85,6 +85,8 @@ service HotshardGateway {
 
   rpc TestAddKeyToPromotionMap (TestPromotionKeyReq) returns (TestPromotionKeyResp) {}
   rpc TestIsKeyInPromotionMap(TestPromotionKeyReq) returns (TestPromotionKeyResp) {}
+  rpc TestPromoteTPCCTables(TestPromoteTPCCTablesReq) returns
+    (TestPromoteTPCCTablesResp) {}
   rpc TestSendTxn(CRDBTxnReq) returns (CRDBTxnResp) {}
   rpc TestQueryTableMap(QueryTableMapReq) returns (QueryTableMapResp) {}
 
@@ -153,6 +155,21 @@ message TestPromotionKeyResp {
   required bool isKeyIn = 1;
   repeated int64 cicada_key_cols = 2;
 }
+
+message TestPromoteTPCCTablesReq {
+  required int64 num_warehouses = 1;
+  required bool warehouse = 2;
+  required bool district = 3;
+  required bool customer = 4;
+  required bool order = 5;
+  required bool neworder = 6;
+  required bool orderline = 7;
+  required bool stock = 8;
+  required bool item = 9;
+  required bool history = 10;
+}
+
+message TestPromoteTPCCTablesResp{}
 
 message DeleteFromPromotionMapReq {
   optional bytes key = 1;
@@ -228,13 +245,13 @@ message TxnResp {
 }
 
 message CalculateCicadaReq {
-  optional double cpu_target = 1;		// ideal % cpu usage
-  optional double cpu_ceiling = 2; 		// max allowable % cpu usage
-  optional double cpu_floor = 3; 		// min allowable % cpu usage
-  optional double mem_target = 4; 		// ideal mem usage
-  optional double mem_ceiling = 5; 		// max allowable mem usage
-  optional double mem_floor = 6; 		// min allowable mem usage
-  optional double percentile_n = 7; 	// the percentile of keys newly promoted keys have to beat
+  optional double cpu_target = 1;    // ideal % cpu usage
+  optional double cpu_ceiling = 2;    // max allowable % cpu usage
+  optional double cpu_floor = 3;    // min allowable % cpu usage
+  optional double mem_target = 4;    // ideal mem usage
+  optional double mem_ceiling = 5;    // max allowable mem usage
+  optional double mem_floor = 6;    // min allowable mem usage
+  optional double percentile_n = 7;  // the percentile of keys newly promoted keys have to beat
   optional HLCTimestamp timestamp = 8;
 }
 
@@ -292,8 +309,8 @@ message KeyMigrationReq {
 }
 
 message KeyMigrationResp {
-//  optional bytes key = 1;
-//  optional bool is_successfully_migrated = 2;
+  //  optional bytes key = 1;
+  //  optional bool is_successfully_migrated = 2;
   optional bool is_successfully_migrated = 1;
 }
 

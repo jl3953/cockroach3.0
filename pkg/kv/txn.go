@@ -953,14 +953,15 @@ func (txn *Txn) DemotionLock(ctx context.Context, key roachpb.Key, value []byte)
 	return nil
 }
 
-func (txn *Txn) LockByGetAndPutBackValue(ctx context.Context, key roachpb.Key, keyValue *KeyValue) error {
+func (txn *Txn) LockByGetAndPutBackValue(ctx context.Context,
+	key roachpb.Key, keyValue *KeyValue) error {
 
 	var err error
-	timeout := 1 * time.Second
+	timeout := 5 * time.Second
 
 	readChan := make(chan bool, 1)
 	go func() {
-		// read txn's value
+		//read txn's value
 		*keyValue, err = txn.Get(ctx, key)
 		readChan <- true
 	}()
@@ -984,7 +985,13 @@ func (txn *Txn) LockByGetAndPutBackValue(ctx context.Context, key roachpb.Key, k
 	doneChan := make(chan bool, 1)
 	go func() {
 		// key exists, lock it
-		err = txn.Put(ctx, key, keyValue.Value)
+		switch keyValue.Value.GetTag() {
+		case roachpb.ValueType_TUPLE:
+			tuple, _ := keyValue.Value.GetTuple()
+			err = txn.Put(ctx, key, tuple)
+		case roachpb.ValueType_BYTES:
+			err = txn.Put(ctx, key, keyValue.ValueBytes())
+		}
 		doneChan <- true
 	}()
 	select {
@@ -1395,8 +1402,6 @@ func (txn *Txn) Send(
 		}
 
 		if key := req.GetInner().Header().Key; IsUserKey(key.String()) {
-			log.Warningf(ctx, "jenndebug keystr:[%s], keybyte:[%+v]\n",
-				key.String(), []byte(key))
 			if cicadaAffiliatedKey, isPromoted := txn.DB().IsKeyInCicadaAtTimestamp(
 				key, txn.ProvisionalCommitTimestamp()); isPromoted && !txn.IsDemotion() {
 				// remove from default CRDB path

@@ -44,9 +44,9 @@ const (
 	DISTRICT  = "district"
 	CUSTOMER  = "customer"
 	ORDER     = "order"
-	NEWORDER  = "neworder"
-	ORDERLINE = "orderline"
-	STOCK     = "stock"
+	NEW_ORDER  = "new_order"
+	ORDER_LINE = "order_line"
+	STOCK      = "stock"
 	ITEM      = "item"
 	HISTORY   = "history"
 	KV        = "kv"
@@ -299,6 +299,7 @@ type DB struct {
 	BatchChannel chan SubmitTxnWrapper
 
 	TableNumToTableName map[int]string
+	TableNameToTableNum map[string]int
 }
 
 type CicadaTxnReplyChan chan ExtractTxnWrapper
@@ -445,6 +446,7 @@ func NewDBWithContext(
 		promotionCurrentIndex: 0,
 		BatchChannel:        make(chan SubmitTxnWrapper, 50000000),
 		TableNumToTableName: make(map[int]string, 20),
+		TableNameToTableNum: make(map[string]int, 20),
 	}
 	db.crs.db = db
 	return db
@@ -942,10 +944,10 @@ func (db *DB) calculateUniqueKeyInt(tblNum int, tblName string,
 		s_w_id, s_i_id := pkCols[0], pkCols[1]
 		uniqueInt = s_w_id*g_max_items + s_i_id
 	case ORDER:
-	case NEWORDER:
+	case NEW_ORDER:
 		o_id, o_d_id, o_w_id := pkCols[0], pkCols[1], pkCols[2]
 		uniqueInt = db.distKey(o_d_id, o_w_id)*g_max_orderline + (g_max_orderline - o_id)
-	case ORDERLINE:
+	case ORDER_LINE:
 		ol_number, ol_o_id, ol_d_id, ol_w_id := pkCols[0], pkCols[1], pkCols[2],
 			pkCols[3]
 		uniqueInt = db.distKey(ol_d_id, ol_w_id)*g_max_orderline*15 + (g_max_orderline-ol_o_id)*15 + ol_number
@@ -1000,6 +1002,10 @@ func (db *DB) PutInPromotionMap(key roachpb.Key,
 
 func (db *DB) MapTableNumToName(tableNum int, tableName string) {
 	db.TableNumToTableName[tableNum] = tableName
+}
+
+func (db *DB) MapTableNameToNum(tableName string, tableNum int) {
+	db.TableNameToTableNum[tableName] = tableNum
 }
 
 func (db *DB) QueryTableName(tableNum int) string {
@@ -1071,6 +1077,15 @@ func (db *DB) TableName(num int) (tableName string, exists bool) {
 	return tableName, true
 }
 
+func (db *DB) TableNum (name string) (tableNum int, exists bool) {
+	tableNum, exists = db.TableNameToTableNum[name]
+	if !exists {
+		return -1, false
+	}
+
+	return tableNum, true
+}
+
 func (db *DB) ExtractTableNum(k roachpb.Key) (tableNum int) {
 	return int(k[0] - 136)
 }
@@ -1095,9 +1110,9 @@ func (db *DB) NumPKCols(k roachpb.Key) (numPKCols int) {
 			numPKCols = 2
 		case CUSTOMER:
 		case ORDER:
-		case NEWORDER:
+		case NEW_ORDER:
 			numPKCols = 3
-		case ORDERLINE:
+		case ORDER_LINE:
 			numPKCols = 4
 		}
 	} else {

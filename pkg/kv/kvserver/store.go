@@ -2608,6 +2608,7 @@ func (rbServer *rebalanceServer) PopulateCRDBTableNumMapping(_ context.
 		tableName := tableNumMapping.TableName
 		tableNum := tableNumMapping.TableNum
 		rbServer.store.db.MapTableNumToName(int(*tableNum), *tableName)
+		rbServer.store.db.MapTableNameToNum(*tableName, int(*tableNum))
 	}
 	t := true
 	return &smdbrpc.PopulateCRDBTableNumMappingResp{IsPopulated: &t}, nil
@@ -2690,9 +2691,32 @@ func (rbServer *rebalanceServer) TestIsKeyInPromotionMap(_ context.Context,
 	return &resp, nil
 }
 
+func (rbServer *rebalanceServer) TestPromoteTPCCTables(_ context.Context,
+	req *smdbrpc.TestPromoteTPCCTablesReq) (*smdbrpc.TestPromoteTPCCTablesResp,
+	error) {
+
+	promoteKeys := make([]roachpb.Key, 0)
+
+	if *req.Warehouse {
+		warehouseKeys := rbServer.store.deduceWarehouseKeys(int(*req.NumWarehouses))
+		promoteKeys = append(promoteKeys, warehouseKeys...)
+	}
+
+	keyPromotionStatus := rbServer.store.Promote(promoteKeys)
+	for key, promoted := range keyPromotionStatus {
+		if promoted {
+			continue
+		} else {
+			log.Warningf(context.Background(), "jenndebug key %s not promoted\n", key)
+		}
+	}
+
+	return &smdbrpc.TestPromoteTPCCTablesResp{}, nil
+}
+
 type PromoteKeyMeta struct {
 	Key            roachpb.Key
-	Txn 					 *kv.Txn
+	Txn            *kv.Txn
 	TableNum       int64
 	TableName      string
 	IndexNum       int64
@@ -2705,10 +2729,12 @@ func (s *Store) Promote(promoteKeys []roachpb.Key) (wereKeysPromoted map[string]
 	ctx := context.Background()
 
 	promoteKeyMetas := make(map[string]PromoteKeyMeta)
+	wereKeysPromoted = make(map[string]bool)
 
 	// TODO jenndebug check if key already exists in CRDB promotion map
 
 	// Lock all keys by creating a new txn per key, where each txn locks each key
+	var wg sync.WaitGroup
 	for _, toBePromotedKey := range promoteKeys {
 
 		// create new txn
@@ -2716,7 +2742,9 @@ func (s *Store) Promote(promoteKeys []roachpb.Key) (wereKeysPromoted map[string]
 
 		// lock key (or fail to) by getting and putting back the value. Loop until
 		// locking is successful, or irreversibly fails.
+		wg.Add(1)
 		go func(txn *kv.Txn, promoteKey roachpb.Key) {
+			defer wg.Done()
 			var keyValue kv.KeyValue
 			var err error
 			for LockKeyShouldBeTried := true; LockKeyShouldBeTried; {
@@ -2732,7 +2760,7 @@ func (s *Store) Promote(promoteKeys []roachpb.Key) (wereKeysPromoted map[string]
 			}
 			if err != nil {
 				// locking this key failed, continue on to the next key
-				wereKeysPromoted[promoteKey.String()] = false
+				//wereKeysPromoted[promoteKey.String()] = false
 				return
 			}
 
@@ -2743,6 +2771,15 @@ func (s *Store) Promote(promoteKeys []roachpb.Key) (wereKeysPromoted map[string]
 				log.Fatalf(ctx, "jenndebug %s not mapped db.tableNumToTableName\n",
 					tableName)
 			}
+			var data []byte
+			switch keyValue.Value.GetTag() {
+			case roachpb.ValueType_TUPLE:
+				data, _ = keyValue.Value.GetTuple()
+			case roachpb.ValueType_BYTES:
+				data, _ = keyValue.Value.GetBytes()
+			default:
+				log.Fatalf(ctx, "jenndebug what type is this")
+			}
 			promoteKeyMetas[promoteKey.String()] = PromoteKeyMeta{
 				Key:       promoteKey,
 				Txn:       txn,
@@ -2751,10 +2788,11 @@ func (s *Store) Promote(promoteKeys []roachpb.Key) (wereKeysPromoted map[string]
 				IndexNum:  int64(s.DB().ExtractIndex(promoteKey)),
 				PrimaryKeyCols: s.DB().ExtractPrimaryKeys(promoteKey,
 					s.DB().NumPKCols(promoteKey)),
-				Value: keyValue.ValueBytes(),
+				Value: data,
 			}
-		} (newTxn, toBePromotedKey)
+		}(newTxn, toBePromotedKey)
 	}
+	wg.Wait()
 
 	// ensure that all transactions commit and release their locks
 	defer func(c context.Context) {
@@ -4387,6 +4425,22 @@ func (s *Store) handleLockingErr(ctx context.Context, err error,
 	}
 
 	return txnCanBeRetried
+}
+
+func (s *Store) deduceWarehouseKeys(numWarehouses int) (
+	warehouseKeys []roachpb.Key) {
+
+	tableNum, _ := s.DB().TableNum(kv.WAREHOUSE)
+	index := 1
+
+
+	for w_id := 0; w_id < numWarehouses; w_id++ {
+		key := []byte{byte(136+tableNum), byte(136+index), byte(136 + w_id),
+			byte(136)}
+		warehouseKeys = append(warehouseKeys, key)
+	}
+
+	return warehouseKeys
 }
 
 // WriteClusterVersion writes the given cluster version to the store-local cluster version key.
