@@ -288,8 +288,6 @@ type DB struct {
 	cicadaClients sync.Map
 	numClients    int
 
-	//promotionMap map[int64]CicadaAffiliatedKey
-	//promotionMap sync.Map
 	promotionMap          map[int64]int64
 	promotionMapMu        sync.RWMutex
 	promotionMapList      []CicadaAffiliatedKey
@@ -891,22 +889,14 @@ func ConvertToWriteKey(key roachpb.Key) roachpb.Key {
 }
 
 func (db *DB) GetFromPromotionMap(key roachpb.Key) (CicadaAffiliatedKey, bool) {
-	var writeKey roachpb.Key = ConvertToWriteKey(key)
-	mapStr := writeKey.String()
 
-	_, _, crdbKeyCols := ExtractKey(mapStr)
-	var promoMapKey int64 = crdbKeyCols[0]
+	promoMapKey := db.CalculateUniqueKeyIntFromRawKey(key)
 
-	//val, alreadyExists := db.promotionMap.Load(promoMapKey)
-	//cicadaKey, alreadyExists := db.promotionMap[promoMapKey]
 	db.promotionMapMu.RLock()
 	defer db.promotionMapMu.RUnlock()
-	val, alreadyExists := db.promotionMap[promoMapKey]
-	if alreadyExists {
-		//cicadaKey := val.(CicadaAffiliatedKey)
-		//idx := val.(int64)
-		idx := val
-		cicadaKey := db.promotionMapList[idx]
+	idxIntoSlice, exists := db.promotionMap[promoMapKey]
+	if exists {
+		cicadaKey := db.promotionMapList[idxIntoSlice]
 		return cicadaKey, true
 	} else {
 		return CicadaAffiliatedKey{}, false
@@ -923,6 +913,21 @@ func (db *DB) UnlockPromotionMap() {
 
 func (db *DB) distKey(d_id, d_w_id int64) int64 {
 	return d_w_id*DIST_PER_WARE + d_id
+}
+func (db *DB) CalculateUniqueKeyIntFromRawKey(key roachpb.Key) (
+	uniqueInt int64) {
+
+	tblNum := db.ExtractTableNum(key)
+	tblName, _ := db.TableName(tblNum)
+	numPkCols := db.NumPKCols(key)
+	pkCols := db.ExtractPrimaryKeys(key, numPkCols)
+	if tblName == NEW_ORDER {
+		log.Errorf(context.Background(), "jenndebug tblNum:[%d], tblName:[%s], " +
+			"numPkCols:[%d], pkCols:%+v\n", tblNum, tblName, numPkCols, pkCols)
+	}
+	uniqueKeyInt := db.calculateUniqueKeyInt(tblNum, tblName, pkCols)
+
+	return uniqueKeyInt
 }
 
 func (db *DB) calculateUniqueKeyInt(tblNum int, tblName string,
@@ -970,11 +975,12 @@ func (db *DB) PutInPromotionMapAssumeLocked(key roachpb.Key,
 	if db.ExtractIndex(key) != 1 {
 		return false
 	}
-	tblNum := db.ExtractTableNum(key)
-	tblName, _ := db.TableName(tblNum)
-	pkCols := db.ExtractPrimaryKeys(key, db.NumPKCols(key))
-	uniqueKeyInt := db.calculateUniqueKeyInt(tblNum, tblName, pkCols)
-
+	uniqueKeyInt := db.CalculateUniqueKeyIntFromRawKey(key)
+	if _, exists := db.promotionMap[uniqueKeyInt]; exists {
+		log.Warningf(context.Background(),
+			"jenndebug PutInPromotionMap already exists, key:[%+v], overwriting\n",
+			key)
+	}
 	db.promotionMap[uniqueKeyInt] = db.promotionCurrentIndex
 	db.promotionMapList[db.promotionCurrentIndex] = cicadaAffiliatedKey
 	db.promotionCurrentIndex += 1
@@ -984,20 +990,9 @@ func (db *DB) PutInPromotionMapAssumeLocked(key roachpb.Key,
 
 func (db *DB) PutInPromotionMap(key roachpb.Key,
 	cicadaAffiliatedKey CicadaAffiliatedKey) {
-	var writeKey roachpb.Key = ConvertToWriteKey(key)
-	mapStr := writeKey.String()
-
-	_, _, crdbKeyCols := ExtractKey(mapStr)
-	var promoMapKey int64 = crdbKeyCols[0]
-
 	db.promotionMapMu.Lock()
 	defer db.promotionMapMu.Unlock()
-	db.promotionMapList[cicadaAffiliatedKey.
-		CicadaKeyCols[0]] = cicadaAffiliatedKey
-	//db.promotionMap.Store(promoMapKey,
-	//	cicadaAffiliatedKey.CicadaKeyCols[0])
-	//db.promotionMap[promoMapKey] = cicadaAffiliatedKey
-	db.promotionMap[promoMapKey] = cicadaAffiliatedKey.CicadaKeyCols[0]
+	_ = db.PutInPromotionMapAssumeLocked(key, cicadaAffiliatedKey)
 }
 
 func (db *DB) MapTableNumToName(tableNum int, tableName string) {
@@ -1125,7 +1120,7 @@ func (db *DB) NumPKCols(k roachpb.Key) (numPKCols int) {
 }
 
 func (db *DB) ExtractPrimaryKeys(k roachpb.Key,
-	numPKCols int) (primaryKeyCols []int64) {
+	_ int) (primaryKeyCols []int64) {
 	const (
 		DEFAULT = iota
 		GREATER
@@ -1136,7 +1131,7 @@ func (db *DB) ExtractPrimaryKeys(k roachpb.Key,
 	hopsUntilStateReversion := 0
 	var inProgressB256 int64 = 0
 
-	for i := 0; i < numPKCols; i++ {
+	for i := 0; i < len(k); i++ {
 		if i == 0 || i == 1 || i == len(k)-1 {
 			// i == 0 is tableNum
 			// i == 1 is index

@@ -2728,7 +2728,10 @@ func (s *Store) Promote(promoteKeys []roachpb.Key) (wereKeysPromoted map[string]
 
 	ctx := context.Background()
 
+	var promoteKeysMetasMu sync.Mutex
 	promoteKeyMetas := make(map[string]PromoteKeyMeta)
+
+	var wereKeysPromotedMu sync.Mutex
 	wereKeysPromoted = make(map[string]bool)
 
 	// TODO jenndebug check if key already exists in CRDB promotion map
@@ -2760,7 +2763,9 @@ func (s *Store) Promote(promoteKeys []roachpb.Key) (wereKeysPromoted map[string]
 			}
 			if err != nil {
 				// locking this key failed, continue on to the next key
-				//wereKeysPromoted[promoteKey.String()] = false
+				wereKeysPromotedMu.Lock()
+				wereKeysPromoted[promoteKey.String()] = false
+				wereKeysPromotedMu.Unlock()
 				return
 			}
 
@@ -2780,6 +2785,7 @@ func (s *Store) Promote(promoteKeys []roachpb.Key) (wereKeysPromoted map[string]
 			default:
 				log.Fatalf(ctx, "jenndebug what type is this")
 			}
+			promoteKeysMetasMu.Lock()
 			promoteKeyMetas[promoteKey.String()] = PromoteKeyMeta{
 				Key:       promoteKey,
 				Txn:       txn,
@@ -2790,6 +2796,7 @@ func (s *Store) Promote(promoteKeys []roachpb.Key) (wereKeysPromoted map[string]
 					s.DB().NumPKCols(promoteKey)),
 				Value: data,
 			}
+			promoteKeysMetasMu.Unlock()
 		}(newTxn, toBePromotedKey)
 	}
 	wg.Wait()
