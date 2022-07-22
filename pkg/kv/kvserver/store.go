@@ -2816,12 +2816,17 @@ func (s *Store) Promote(promoteKeys []roachpb.Key) (wereKeysPromoted map[string]
 	}
 	cicadaRespIdx := 0
 	for keyStr, meta := range promoteKeyMetas {
+		walltime := meta.Txn.ProvisionalCommitTimestamp().WallTime
+		logical := meta.Txn.ProvisionalCommitTimestamp().Logical
 		promotionReq.Keys[cicadaRespIdx] = &smdbrpc.Key{
 			Table:         &meta.TableNum,
 			Index:         &meta.IndexNum,
 			CicadaKeyCols: meta.PrimaryKeyCols,
 			Key:           meta.Key,
-			Timestamp:     nil,
+			Timestamp:     &smdbrpc.HLCTimestamp{
+				Walltime:    &walltime,
+				Logicaltime: &logical,
+			},
 			Value:         meta.Value,
 			CrdbKeyCols:   nil,
 			TableName:     &meta.TableName,
@@ -2962,6 +2967,29 @@ func (s *Store) UpdateAllPromotionMapsWithoutLocking(
 				return false
 			}
 		}
+	}
+
+	for _, kvVersion := range req.Keys {
+		key := roachpb.Key(kvVersion.Key)
+		cicadaAffiliatedKey := kv.CicadaAffiliatedKey{
+			RoachKey:    [10]byte{},
+			RoachKeyLen: 0,
+			PromotionTimestamp: hlc.Timestamp{
+				WallTime: *kvVersion.Timestamp.Walltime,
+				Logical:  *kvVersion.Timestamp.Logicaltime,
+			},
+			CicadaKeyCols:    [4]int64{},
+			CicadaKeyColsLen: 0,
+		}
+		for j, b := range key {
+			cicadaAffiliatedKey.RoachKey[j] = b
+		}
+		cicadaAffiliatedKey.RoachKeyLen = len(key)
+		for j, int64Col := range kvVersion.CicadaKeyCols {
+			cicadaAffiliatedKey.CicadaKeyCols[j] = int64Col
+		}
+		cicadaAffiliatedKey.CicadaKeyColsLen = len(kvVersion.CicadaKeyCols)
+		s.DB().PutInPromotionMapAssumeLocked(key, cicadaAffiliatedKey)
 	}
 
 	return true
@@ -4440,9 +4468,8 @@ func (s *Store) deduceWarehouseKeys(numWarehouses int) (
 	tableNum, _ := s.DB().TableNum(kv.WAREHOUSE)
 	index := 1
 
-
 	for w_id := 0; w_id < numWarehouses; w_id++ {
-		key := []byte{byte(136+tableNum), byte(136+index), byte(136 + w_id),
+		key := []byte{byte(136 + tableNum), byte(136 + index), byte(136 + w_id),
 			byte(136)}
 		warehouseKeys = append(warehouseKeys, key)
 	}

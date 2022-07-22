@@ -891,7 +891,6 @@ func ConvertToWriteKey(key roachpb.Key) roachpb.Key {
 func (db *DB) GetFromPromotionMap(key roachpb.Key) (CicadaAffiliatedKey, bool) {
 
 	promoMapKey := db.CalculateUniqueKeyIntFromRawKey(key)
-
 	db.promotionMapMu.RLock()
 	defer db.promotionMapMu.RUnlock()
 	idxIntoSlice, exists := db.promotionMap[promoMapKey]
@@ -921,10 +920,6 @@ func (db *DB) CalculateUniqueKeyIntFromRawKey(key roachpb.Key) (
 	tblName, _ := db.TableName(tblNum)
 	numPkCols := db.NumPKCols(key)
 	pkCols := db.ExtractPrimaryKeys(key, numPkCols)
-	if tblName == NEW_ORDER {
-		log.Errorf(context.Background(), "jenndebug tblNum:[%d], tblName:[%s], " +
-			"numPkCols:[%d], pkCols:%+v\n", tblNum, tblName, numPkCols, pkCols)
-	}
 	uniqueKeyInt := db.calculateUniqueKeyInt(tblNum, tblName, pkCols)
 
 	return uniqueKeyInt
@@ -934,10 +929,7 @@ func (db *DB) calculateUniqueKeyInt(tblNum int, tblName string,
 	pkCols []int64) (uniqueInt int64) {
 
 	switch tblName {
-	case WAREHOUSE:
-	case KV:
-	case ITEM:
-	case HISTORY:
+	case WAREHOUSE, KV, ITEM, HISTORY:
 		uniqueInt = pkCols[0]
 	case DISTRICT:
 		d_id, d_w_id := pkCols[0], pkCols[1]
@@ -948,8 +940,7 @@ func (db *DB) calculateUniqueKeyInt(tblNum int, tblName string,
 	case STOCK:
 		s_w_id, s_i_id := pkCols[0], pkCols[1]
 		uniqueInt = s_w_id*g_max_items + s_i_id
-	case ORDER:
-	case NEW_ORDER:
+	case ORDER, NEW_ORDER:
 		o_id, o_d_id, o_w_id := pkCols[0], pkCols[1], pkCols[2]
 		uniqueInt = db.distKey(o_d_id, o_w_id)*g_max_orderline + (g_max_orderline - o_id)
 	case ORDER_LINE:
