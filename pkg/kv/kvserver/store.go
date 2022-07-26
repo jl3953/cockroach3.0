@@ -2135,6 +2135,7 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 	// send request to Cicada
 	batchSendTxnResp, sendErr := c.BatchSendTxns(cicadaCtx,
 		&smdbrpc.BatchSendTxnsReq{Txns: txnReqs})
+	log.Errorf(ctx, "jenndebug submitted batch to cicada\n")
 
 	// handle reply
 	if sendErr != nil {
@@ -2166,6 +2167,7 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 				TxnResp: *txnResp,
 				SendErr: nil,
 			}
+			log.Errorf(ctx, "jenndebug txnResp %+v\n", *txnResp)
 		}
 	}
 }
@@ -2770,30 +2772,22 @@ func (s *Store) Promote(promoteKeys []roachpb.Key) (wereKeysPromoted map[string]
 			}
 
 			// Add promotion meta info of locked keys
-			tableNum := s.DB().ExtractTableNum(promoteKey)
+			tableNum := kv.ExtractTableNum(promoteKey)
 			tableName, isTableMapped := s.DB().TableName(tableNum)
 			if !isTableMapped {
 				log.Fatalf(ctx, "jenndebug %s not mapped db.tableNumToTableName\n",
 					tableName)
 			}
-			var data []byte
-			switch keyValue.Value.GetTag() {
-			case roachpb.ValueType_TUPLE:
-				data, _ = keyValue.Value.GetTuple()
-			case roachpb.ValueType_BYTES:
-				data, _ = keyValue.Value.GetBytes()
-			default:
-				log.Fatalf(ctx, "jenndebug what type is this")
-			}
+
+			data := keyValue.Value.RawBytes
 			promoteKeysMetasMu.Lock()
 			promoteKeyMetas[promoteKey.String()] = PromoteKeyMeta{
 				Key:       promoteKey,
 				Txn:       txn,
 				TableNum:  int64(tableNum),
 				TableName: tableName,
-				IndexNum:  int64(s.DB().ExtractIndex(promoteKey)),
-				PrimaryKeyCols: s.DB().ExtractPrimaryKeys(promoteKey,
-					s.DB().NumPKCols(promoteKey)),
+				IndexNum:  int64(kv.ExtractIndex(promoteKey)),
+				PrimaryKeyCols: kv.ExtractPrimaryKeys(promoteKey),
 				Value: data,
 			}
 			promoteKeysMetasMu.Unlock()
@@ -2833,6 +2827,8 @@ func (s *Store) Promote(promoteKeys []roachpb.Key) (wereKeysPromoted map[string]
 		}
 		promoteKeyMetas[keyStr] = meta
 		cicadaRespIdx++
+		log.Errorf(ctx, "jenndebug sent to cicada key:[%s], value:%+v\n",
+			meta.Key, meta.Value)
 
 	}
 
@@ -3142,8 +3138,9 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 					if _, keyAlreadyPromoted := rbServer.store.DB().
 						GetFromPromotionMap(kvVersion.Key); !keyAlreadyPromoted {
 						// if key is locked, and has not been promoted yet, add it to list of keys to be promoted
-						table, idx, crdbKeyCols := kv.ExtractKey(roachpb.Key(kvVersion.Key).
-							String())
+						//table, idx, crdbKeyCols := kv.ExtractKey(roachpb.Key(kvVersion.Key).
+						//	String())
+							table, idx, crdbKeyCols := kv.ExtractKey(kvVersion.Key)
 						keysList[originalIdx] = smdbrpc.Key{
 							Table:         &table,
 							Index:         &idx,

@@ -982,31 +982,31 @@ func (txn *Txn) LockByGetAndPutBackValue(ctx context.Context,
 		}
 	}
 
-	doneChan := make(chan bool, 1)
-	go func() {
-		// key exists, lock it
-		switch keyValue.Value.GetTag() {
-		case roachpb.ValueType_TUPLE:
-			tuple, _ := keyValue.Value.GetTuple()
-			err = txn.Put(ctx, key, tuple)
-		case roachpb.ValueType_BYTES:
-			err = txn.Put(ctx, key, keyValue.ValueBytes())
-		}
-		doneChan <- true
-	}()
-	select {
-	case <-time.After(timeout):
-		log.Warningf(ctx, "jenndebug timed out locking key %s after %+v\n",
-			key, timeout)
-		return &roachpb.UnhandledRetryableError{}
-
-	case <-doneChan:
-		if err != nil {
-			log.Warningf(ctx, "jenndebug cannot lock key %+v, "+
-				"Put(...) failed %+v\n", key, err)
-			return err
-		}
-	}
+	//doneChan := make(chan bool, 1)
+	//go func() {
+	//	// key exists, lock it
+	//	switch keyValue.Value.GetTag() {
+	//	case roachpb.ValueType_TUPLE:
+	//		tuple, _ := keyValue.Value.GetTuple()
+	//		err = txn.Put(ctx, key, tuple)
+	//	case roachpb.ValueType_BYTES:
+	//		err = txn.Put(ctx, key, keyValue.ValueBytes())
+	//	}
+	//	doneChan <- true
+	//}()
+	//select {
+	//case <-time.After(timeout):
+	//	log.Warningf(ctx, "jenndebug timed out locking key %s after %+v\n",
+	//		key, timeout)
+	//	return &roachpb.UnhandledRetryableError{}
+	//
+	//case <-doneChan:
+	//	if err != nil {
+	//		log.Warningf(ctx, "jenndebug cannot lock key %+v, "+
+	//			"Put(...) failed %+v\n", key, err)
+	//		return err
+	//	}
+	//}
 
 	// key is locked
 	return nil
@@ -1125,7 +1125,8 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 		writeKey := txn.writeHotkeys[j]
 		val := txn.writeHotkeys[j+1]
 		put := execinfrapb.Cmd_PUT
-		table, index, crdbKeyCols := ExtractKey(roachpb.Key(writeKey).String())
+		//table, index, crdbKeyCols := ExtractKey(roachpb.Key(writeKey).String())
+		table, index, pkCols := ExtractKey(writeKey)
 
 		//mapKeyStr := roachpb.Key(writeKey).String()
 		//cicadaAffiliatedKeyInterface, isInPromotionMap := txn.db.
@@ -1136,14 +1137,19 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 				roachpb.Key(writeKey).String())
 		}
 		//cicadaAffiliatedKey := cicadaAffiliatedKeyInterface.(CicadaAffiliatedKey)
+		tableName, exists := txn.DB().TableName(int(table))
+		if !exists {
+			log.Fatalf(ctx, "jenndebug table %d has no name\n", table)
+		}
 		op := execinfrapb.Op{
 			Cmd:     &put,
 			Table:   &table,
 			Index:   &index,
-			CicadaKeyCols: make([]int64, cicadaAffiliatedKey.CicadaKeyColsLen),
+			CicadaKeyCols: pkCols,
 			Key:     writeKey,
 			Value:   val,
-			CrdbKeyCols: crdbKeyCols,
+			CrdbKeyCols: pkCols,
+			TableName: &tableName,
 		}
 		for i := 0; i < cicadaAffiliatedKey.CicadaKeyColsLen; i++ {
 			op.CicadaKeyCols[i] = cicadaAffiliatedKey.CicadaKeyCols[i]
@@ -1186,26 +1192,28 @@ func (txn *Txn) constructInjectedRetryError(ctx context.Context, errMsg string) 
 	return roachpb.NewErrorWithTxn(retryableErr, &transaction)
 }
 
-func constructCicadaReadOp(cicadaAffiliatedKey CicadaAffiliatedKey) execinfrapb.Op {
+func (txn *Txn) constructCicadaReadOp(
+	cicadaAffiliatedKey CicadaAffiliatedKey) execinfrapb.Op {
 	get := execinfrapb.Cmd_GET
 	roachKey := make([]byte, cicadaAffiliatedKey.RoachKeyLen)
-	for i, b := range cicadaAffiliatedKey.RoachKey {
-		roachKey[i] = b
+	for i := 0; i < len(roachKey); i++ {
+		roachKey[i] = cicadaAffiliatedKey.RoachKey[i]
 	}
-	table, index, crdbKeyCols := ExtractKey(roachpb.Key(roachKey).String())
+
+	table, index, pkCols := ExtractKey(roachKey)
+	tableName, exists := txn.DB().TableName(int(table))
+	if !exists {
+		log.Fatalf(context.Background(), "jenndebug table %d has no name\n", table)
+	}
 	op := execinfrapb.Op{
-		Cmd:     &get,
-		Table:   &table,
-		Index:   &index,
-		CicadaKeyCols: make([]int64, cicadaAffiliatedKey.CicadaKeyColsLen),
-		Key:     make([]byte, cicadaAffiliatedKey.RoachKeyLen),
-		CrdbKeyCols: crdbKeyCols,
-	}
-	for i := 0; i < cicadaAffiliatedKey.CicadaKeyColsLen; i++ {
-		op.CicadaKeyCols[i] = cicadaAffiliatedKey.CicadaKeyCols[i]
-	}
-	for i := 0; i < cicadaAffiliatedKey.RoachKeyLen; i++ {
-		op.Key[i] = cicadaAffiliatedKey.RoachKey[i]
+		Cmd:           &get,
+		Table:         &table,
+		Index:         &index,
+		CicadaKeyCols: pkCols,
+		Key:           roachKey,
+		Value:         nil,
+		CrdbKeyCols:   pkCols,
+		TableName:     &tableName,
 	}
 	return op
 }
@@ -1412,7 +1420,7 @@ func (txn *Txn) Send(
 				} else if scanReq := req.GetScan(); scanReq != nil {
 					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
 					isInCicada[i] = true
-					op := constructCicadaReadOp(cicadaAffiliatedKey)
+					op := txn.constructCicadaReadOp(cicadaAffiliatedKey)
 					ops = append(ops, &op)
 				}
 			}

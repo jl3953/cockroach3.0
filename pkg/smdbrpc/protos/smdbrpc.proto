@@ -62,21 +62,21 @@ service HotshardGateway {
   rpc DemoteKey (KeyMigrationReq) returns (KeyMigrationResp) {}
   rpc DemoteKeys (MultiKeyMigrationReq) returns (MultiKeyMigrationResp) {}
 
-  rpc DeleteFromInProgressDemotionMap (DeleteFromInProgressDemotionMapReq) returns (DeleteFromInProgressDemotionMapResp) {}
-  rpc DeleteFromPromotionMap (DeleteFromPromotionMapReq) returns (DeleteFromPromotionMapResp) {}
   rpc LockPromotionMap (LockPromotionMapReq) returns (LockPromotionMapResp) {}
   rpc PopulateCRDBTableNumMapping (PopulateCRDBTableNumMappingReq) returns (PopulateCRDBTableNumMappingResp) {}
   rpc PromoteKey (KeyMigrationReq) returns (KeyMigrationResp) {}
   rpc PromoteKeys (PromoteKeysReq) returns (PromoteKeysResp) {}
   rpc PromoteKeysToCicada(PromoteKeysToCicadaReq) returns (PromoteKeysToCicadaResp) {}
   rpc QueryTableNumFromName(QueryTableNumFromNameReq) returns
-    (QueryTableNumFromNameResp) {}
+      (QueryTableNumFromNameResp) {}
   rpc UnlockPromotionMap (UnlockPromotionMapReq) returns
     (UnlockPromotionMapResp) {}
   rpc UpdatePromotionMap (PromoteKeysReq) returns (PromoteKeysResp) {}
   rpc UpdatePromotionMapWithoutLocking (PromoteKeysReq) returns
     (PromoteKeysResp) {}
+  rpc DeleteFromPromotionMap (DeleteFromPromotionMapReq) returns (DeleteFromPromotionMapResp) {}
   rpc UpdateInProgressDemotionMap (UpdateInProgressDemotionMapReq) returns (UpdateInProgressDemotionMapResp) {}
+  rpc DeleteFromInProgressDemotionMap (DeleteFromInProgressDemotionMapReq) returns (DeleteFromInProgressDemotionMapResp) {}
 
   rpc RequestCRDBKeyStats(KeyStatsRequest) returns (CRDBKeyStatsResponse) {}
   rpc SendTxn(TxnReq) returns (TxnResp) {}
@@ -215,7 +215,7 @@ message Key {
   optional HLCTimestamp timestamp = 5;
   optional bytes value = 6;
   repeated int64 crdb_key_cols = 7;
-  optional string tableName = 8;
+  required string tableName = 8;
 }
 
 message Op {
@@ -245,13 +245,13 @@ message TxnResp {
 }
 
 message CalculateCicadaReq {
-  optional double cpu_target = 1;    // ideal % cpu usage
-  optional double cpu_ceiling = 2;    // max allowable % cpu usage
-  optional double cpu_floor = 3;    // min allowable % cpu usage
-  optional double mem_target = 4;    // ideal mem usage
-  optional double mem_ceiling = 5;    // max allowable mem usage
-  optional double mem_floor = 6;    // min allowable mem usage
-  optional double percentile_n = 7;  // the percentile of keys newly promoted keys have to beat
+  optional double cpu_target = 1;		// ideal % cpu usage
+  optional double cpu_ceiling = 2; 		// max allowable % cpu usage
+  optional double cpu_floor = 3; 		// min allowable % cpu usage
+  optional double mem_target = 4; 		// ideal mem usage
+  optional double mem_ceiling = 5; 		// max allowable mem usage
+  optional double mem_floor = 6; 		// min allowable mem usage
+  optional double percentile_n = 7; 	// the percentile of keys newly promoted keys have to beat
   optional HLCTimestamp timestamp = 8;
 }
 
@@ -299,7 +299,7 @@ message KVVersion {
   optional HLCTimestamp timestamp = 3;
   optional uint64 hotness = 4;
   repeated int64 cicada_key_cols = 5;
-  optional string tableName = 6;
+  required string tableName = 6;
 }
 
 message KeyMigrationReq {
@@ -309,8 +309,8 @@ message KeyMigrationReq {
 }
 
 message KeyMigrationResp {
-  //  optional bytes key = 1;
-  //  optional bool is_successfully_migrated = 2;
+	//  optional bytes key = 1;
+	//  optional bool is_successfully_migrated = 2;
   optional bool is_successfully_migrated = 1;
 }
 

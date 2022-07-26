@@ -910,22 +910,21 @@ func (db *DB) UnlockPromotionMap() {
 	db.promotionMapMu.Unlock()
 }
 
-func (db *DB) distKey(d_id, d_w_id int64) int64 {
+func DistKey(d_id, d_w_id int64) int64 {
 	return d_w_id*DIST_PER_WARE + d_id
 }
 func (db *DB) CalculateUniqueKeyIntFromRawKey(key roachpb.Key) (
 	uniqueInt int64) {
 
-	tblNum := db.ExtractTableNum(key)
+	tblNum := ExtractTableNum(key)
 	tblName, _ := db.TableName(tblNum)
-	numPkCols := db.NumPKCols(key)
-	pkCols := db.ExtractPrimaryKeys(key, numPkCols)
-	uniqueKeyInt := db.calculateUniqueKeyInt(tblNum, tblName, pkCols)
+	pkCols := ExtractPrimaryKeys(key)[:db.NumPKCols(key)]
+	uniqueKeyInt := CalculateUniqueKeyInt(tblNum, tblName, pkCols)
 
 	return uniqueKeyInt
 }
 
-func (db *DB) calculateUniqueKeyInt(tblNum int, tblName string,
+func CalculateUniqueKeyInt(tblNum int, tblName string,
 	pkCols []int64) (uniqueInt int64) {
 
 	switch tblName {
@@ -933,20 +932,22 @@ func (db *DB) calculateUniqueKeyInt(tblNum int, tblName string,
 		uniqueInt = pkCols[0]
 	case DISTRICT:
 		d_id, d_w_id := pkCols[0], pkCols[1]
-		uniqueInt = db.distKey(d_id, d_w_id)
+		uniqueInt = DistKey(d_id, d_w_id)
 	case CUSTOMER:
 		c_id, c_d_id, c_w_id := pkCols[0], pkCols[1], pkCols[2]
-		uniqueInt = db.distKey(c_d_id, c_w_id)*g_cust_per_dist + c_id
+		uniqueInt = DistKey(c_d_id, c_w_id)*g_cust_per_dist + c_id
 	case STOCK:
 		s_w_id, s_i_id := pkCols[0], pkCols[1]
 		uniqueInt = s_w_id*g_max_items + s_i_id
 	case ORDER, NEW_ORDER:
 		o_id, o_d_id, o_w_id := pkCols[0], pkCols[1], pkCols[2]
-		uniqueInt = db.distKey(o_d_id, o_w_id)*g_max_orderline + (g_max_orderline - o_id)
+		uniqueInt = DistKey(o_d_id, o_w_id)*g_max_orderline + (
+			g_max_orderline - o_id)
 	case ORDER_LINE:
 		ol_number, ol_o_id, ol_d_id, ol_w_id := pkCols[0], pkCols[1], pkCols[2],
 			pkCols[3]
-		uniqueInt = db.distKey(ol_d_id, ol_w_id)*g_max_orderline*15 + (g_max_orderline-ol_o_id)*15 + ol_number
+		uniqueInt = DistKey(ol_d_id, ol_w_id)*g_max_orderline*15 + (
+			g_max_orderline-ol_o_id)*15 + ol_number
 	}
 
 	// concatenate table number to the front to ensure uniqueness
@@ -963,7 +964,7 @@ func (db *DB) calculateUniqueKeyInt(tblNum int, tblName string,
 func (db *DB) PutInPromotionMapAssumeLocked(key roachpb.Key,
 	cicadaAffiliatedKey CicadaAffiliatedKey) (wasSuccessfullyPut bool) {
 
-	if db.ExtractIndex(key) != 1 {
+	if ExtractIndex(key) != 1 {
 		return false
 	}
 	uniqueKeyInt := db.CalculateUniqueKeyIntFromRawKey(key)
@@ -1072,30 +1073,26 @@ func (db *DB) TableNum (name string) (tableNum int, exists bool) {
 	return tableNum, true
 }
 
-func (db *DB) ExtractTableNum(k roachpb.Key) (tableNum int) {
+func ExtractTableNum(k roachpb.Key) (tableNum int) {
 	return int(k[0] - 136)
 }
 
-func (db *DB) ExtractIndex(k roachpb.Key) (indexNum int) {
+func ExtractIndex(k roachpb.Key) (indexNum int) {
 	return int(k[1] - 136)
 }
 
 func (db *DB) NumPKCols(k roachpb.Key) (numPKCols int) {
-	index := db.ExtractIndex(k)
+	index := ExtractIndex(k)
 	if index == 1 {
 		// primary index
-		tableNum := db.ExtractTableNum(k)
+		tableNum := ExtractTableNum(k)
 		tableName, _ := db.TableName(tableNum)
 		switch tableName {
-		case WAREHOUSE:
-		case ITEM:
-		case HISTORY:
+		case WAREHOUSE, ITEM, HISTORY:
 			numPKCols = 1
-		case DISTRICT:
-		case STOCK:
+		case DISTRICT, STOCK:
 			numPKCols = 2
-		case CUSTOMER:
-		case ORDER:
+		case CUSTOMER, ORDER:
 		case NEW_ORDER:
 			numPKCols = 3
 		case ORDER_LINE:
@@ -1110,8 +1107,11 @@ func (db *DB) NumPKCols(k roachpb.Key) (numPKCols int) {
 	return numPKCols
 }
 
-func (db *DB) ExtractPrimaryKeys(k roachpb.Key,
-	_ int) (primaryKeyCols []int64) {
+func (db *DB) ExtractPrimaryKeys (k roachpb.Key) []int64 {
+	return ExtractPrimaryKeys(k)
+}
+
+func ExtractPrimaryKeys(k roachpb.Key) (primaryKeyCols []int64) {
 	const (
 		DEFAULT = iota
 		GREATER
@@ -1123,7 +1123,7 @@ func (db *DB) ExtractPrimaryKeys(k roachpb.Key,
 	var inProgressB256 int64 = 0
 
 	for i := 0; i < len(k); i++ {
-		if i == 0 || i == 1 || i == len(k)-1 {
+		if i == 0 || i == 1  {
 			// i == 0 is tableNum
 			// i == 1 is index
 			// i == last is a 0
@@ -1164,20 +1164,29 @@ func (db *DB) ExtractPrimaryKeys(k roachpb.Key,
 	return primaryKeyCols
 }
 
-func ExtractKey(key string) (tbl int64, idx int64, crdbCols []int64) {
-	components := strings.Split(key, "/")
-	//log.Warningf(context.Background(), "jenndebug components %+v\n", components)
-	//table, _ := strconv.Atoi(components[2])
-	// /Table/54/1/...
-	index, _ := strconv.Atoi(components[3])
-	crdbKeyCols := make([]int64, 0)
-	for _, keyCol := range components[4 : len(components)-1] {
-		col, _ := strconv.Atoi(keyCol)
-		crdbKeyCols = append(crdbKeyCols, int64(col))
-	}
-	//return int64(table), int64(index), crdbKeyCols
-	return 53, int64(index), crdbKeyCols
+func ExtractKey(key roachpb.Key) (tbl int64, idx int64,
+	pkCols []int64) {
+	tbl = int64(ExtractTableNum(key))
+	idx = int64(ExtractIndex(key))
+	pkCols = ExtractPrimaryKeys(key)
+
+	return tbl, idx, pkCols
 }
+
+//func ExtractKey(key string) (tbl int64, idx int64, crdbCols []int64) {
+//	components := strings.Split(key, "/")
+//	//log.Warningf(context.Background(), "jenndebug components %+v\n", components)
+//	//table, _ := strconv.Atoi(components[2])
+//	// /Table/54/1/...
+//	index, _ := strconv.Atoi(components[3])
+//	crdbKeyCols := make([]int64, 0)
+//	for _, keyCol := range components[4 : len(components)-1] {
+//		col, _ := strconv.Atoi(keyCol)
+//		crdbKeyCols = append(crdbKeyCols, int64(col))
+//	}
+//	//return int64(table), int64(index), crdbKeyCols
+//	return 53, int64(index), crdbKeyCols
+//}
 
 // sendUsingSender uses the specified sender to send the batch request.
 func (db *DB) sendUsingSender(
