@@ -2135,7 +2135,6 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 	// send request to Cicada
 	batchSendTxnResp, sendErr := c.BatchSendTxns(cicadaCtx,
 		&smdbrpc.BatchSendTxnsReq{Txns: txnReqs})
-	log.Errorf(ctx, "jenndebug submitted batch to cicada\n")
 
 	// handle reply
 	if sendErr != nil {
@@ -2167,7 +2166,6 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 				TxnResp: *txnResp,
 				SendErr: nil,
 			}
-			log.Errorf(ctx, "jenndebug txnResp %+v\n", *txnResp)
 		}
 	}
 }
@@ -2827,8 +2825,6 @@ func (s *Store) Promote(promoteKeys []roachpb.Key) (wereKeysPromoted map[string]
 		}
 		promoteKeyMetas[keyStr] = meta
 		cicadaRespIdx++
-		log.Errorf(ctx, "jenndebug sent to cicada key:[%s], value:%+v\n",
-			meta.Key, meta.Value)
 
 	}
 

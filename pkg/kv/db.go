@@ -891,6 +891,9 @@ func ConvertToWriteKey(key roachpb.Key) roachpb.Key {
 func (db *DB) GetFromPromotionMap(key roachpb.Key) (CicadaAffiliatedKey, bool) {
 
 	promoMapKey := db.CalculateUniqueKeyIntFromRawKey(key)
+	if promoMapKey == -1 {
+		return CicadaAffiliatedKey{}, false
+	}
 	db.promotionMapMu.RLock()
 	defer db.promotionMapMu.RUnlock()
 	idxIntoSlice, exists := db.promotionMap[promoMapKey]
@@ -918,7 +921,10 @@ func (db *DB) CalculateUniqueKeyIntFromRawKey(key roachpb.Key) (
 
 	tblNum := ExtractTableNum(key)
 	tblName, _ := db.TableName(tblNum)
-	pkCols := ExtractPrimaryKeys(key)[:db.NumPKCols(key)]
+	pkCols := ExtractPrimaryKeys(key)
+	if len(pkCols) < db.NumPKCols(key) {
+		return -1
+	}
 	uniqueKeyInt := CalculateUniqueKeyInt(tblNum, tblName, pkCols)
 
 	return uniqueKeyInt
@@ -929,21 +935,45 @@ func CalculateUniqueKeyInt(tblNum int, tblName string,
 
 	switch tblName {
 	case WAREHOUSE, KV, ITEM, HISTORY:
+		if len(pkCols) < 1 {
+			log.Fatalf(context.Background(), "jenndebug tblName %s, pkCols %+v\n",
+				tblName, pkCols)
+		}
 		uniqueInt = pkCols[0]
 	case DISTRICT:
+		if len(pkCols) < 2 {
+			log.Fatalf(context.Background(), "jenndebug tblName %s, pkCols %+v\n",
+				tblName, pkCols)
+		}
 		d_id, d_w_id := pkCols[0], pkCols[1]
 		uniqueInt = DistKey(d_id, d_w_id)
 	case CUSTOMER:
+		if len(pkCols) < 3 {
+			log.Fatalf(context.Background(), "jenndebug tblName %s, pkCols %+v\n",
+				tblName, pkCols)
+		}
 		c_id, c_d_id, c_w_id := pkCols[0], pkCols[1], pkCols[2]
 		uniqueInt = DistKey(c_d_id, c_w_id)*g_cust_per_dist + c_id
 	case STOCK:
+		if len(pkCols) < 2 {
+			log.Fatalf(context.Background(), "jenndebug tblName %s, pkCols %+v\n",
+				tblName, pkCols)
+		}
 		s_w_id, s_i_id := pkCols[0], pkCols[1]
 		uniqueInt = s_w_id*g_max_items + s_i_id
 	case ORDER, NEW_ORDER:
+		if len(pkCols) < 3 {
+			log.Fatalf(context.Background(), "jenndebug tblName %s, pkCols %+v\n",
+				tblName, pkCols)
+		}
 		o_id, o_d_id, o_w_id := pkCols[0], pkCols[1], pkCols[2]
 		uniqueInt = DistKey(o_d_id, o_w_id)*g_max_orderline + (
 			g_max_orderline - o_id)
 	case ORDER_LINE:
+		if len(pkCols) < 3 {
+			log.Fatalf(context.Background(), "jenndebug tblName %s, pkCols %+v\n",
+				tblName, pkCols)
+		}
 		ol_number, ol_o_id, ol_d_id, ol_w_id := pkCols[0], pkCols[1], pkCols[2],
 			pkCols[3]
 		uniqueInt = DistKey(ol_d_id, ol_w_id)*g_max_orderline*15 + (
