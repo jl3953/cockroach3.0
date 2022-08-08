@@ -2710,6 +2710,7 @@ func (rbServer *rebalanceServer) TestPromoteTPCCTables(_ context.Context,
 			log.Warningf(context.Background(), "jenndebug key %s not promoted\n", key)
 		}
 	}
+	log.Errorf(context.Background(), "jenndebug promoted warehouse\n")
 
 	return &smdbrpc.TestPromoteTPCCTablesResp{}, nil
 }
