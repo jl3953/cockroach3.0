@@ -1174,7 +1174,7 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 		log.Errorf(ctx, "jenndebug cicada write couldn't send txnReq %+v\n", sendErr)
 		return false, sendErr
 	} else if !*txnResp.IsCommitted {
-		//log.Warningf(ctx, "jenndebug cicada write txn didn't commit\n")
+		log.Errorf(ctx, "jenndebug cicada write txn didn't commit\n")
 		return false, nil
 	}
 	return true, nil
@@ -1400,10 +1400,10 @@ func (txn *Txn) Send(
 				didWritesCommit, sendErr := txn.oneTouchWritesCicada(ctx)
 				txn.ClearWriteHotkeys()
 				if sendErr != nil {
-					log.Error(ctx, "jenndebug cicada grpc send err %+v\n", sendErr)
+					log.Errorf(ctx, "jenndebug cicada grpc send err %+v\n", sendErr)
 					return nil, roachpb.NewError(roachpb.NewTransactionAbortedError(roachpb.ABORT_REASON_PUSHER_ABORTED))
 				} else if !didWritesCommit {
-					//log.Error(ctx, "jenndebug cicada 1-touch write failed to commit\n")
+					log.Errorf(ctx, "jenndebug cicada 1-touch write failed to commit\n")
 					return nil, roachpb.NewError(roachpb.NewTransactionAbortedError(roachpb.ABORT_REASON_PUSHER_ABORTED))
 				}
 			}
@@ -1466,7 +1466,7 @@ func (txn *Txn) Send(
 					if txn.IsDemotion() {
 						continue
 					}
-					//log.Warningf(ctx, "jenndebug warmkey %+v promoted to Cicada\n", key)
+					log.Errorf(ctx, "jenndebug warmkey %+v promoted to Cicada\n", key)
 					return nil, txn.constructInjectedRetryError(ctx,
 						"jenndebug cicada reads already promoted, need reroute")
 				}
