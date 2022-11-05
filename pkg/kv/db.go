@@ -40,16 +40,16 @@ import (
 // zero Timestamp.
 
 const (
-	WAREHOUSE = "warehouse"
-	DISTRICT  = "district"
-	CUSTOMER  = "customer"
-	ORDER     = "order"
+	WAREHOUSE  = "warehouse"
+	DISTRICT   = "district"
+	CUSTOMER   = "customer"
+	ORDER      = "order"
 	NEW_ORDER  = "new_order"
 	ORDER_LINE = "order_line"
 	STOCK      = "stock"
-	ITEM      = "item"
-	HISTORY   = "history"
-	KV        = "kv"
+	ITEM       = "item"
+	HISTORY    = "history"
+	KV         = "kv"
 )
 
 const (
@@ -439,12 +439,12 @@ func NewDBWithContext(
 			wrapped: factory.NonTransactionalSender(),
 		},
 		//promotionMap: make(map[int64]CicadaAffiliatedKey, 10000000),
-		promotionMap:        make(map[int64]int64, 50000000),
-		promotionMapList:    make([]CicadaAffiliatedKey, 50000000),
+		promotionMap:          make(map[int64]int64, 50000000),
+		promotionMapList:      make([]CicadaAffiliatedKey, 50000000),
 		promotionCurrentIndex: 0,
-		BatchChannel:        make(chan SubmitTxnWrapper, 50000000),
-		TableNumToTableName: make(map[int]string, 20),
-		TableNameToTableNum: make(map[string]int, 20),
+		BatchChannel:          make(chan SubmitTxnWrapper, 50000000),
+		TableNumToTableName:   make(map[int]string, 20),
+		TableNameToTableNum:   make(map[string]int, 20),
 	}
 	db.crs.db = db
 	return db
@@ -920,11 +920,16 @@ func (db *DB) CalculateUniqueKeyIntFromRawKey(key roachpb.Key) (
 	uniqueInt int64) {
 
 	tblNum := ExtractTableNum(key)
+	log.Warningf(context.Background(), "jenndebug tblNum %d := ExtractTableNum(key %+v)\n", tblNum, key)
 	tblName, _ := db.TableName(tblNum)
+	log.Warningf(context.Background(), "jenndebug tblName %s := db.TableName(tblNum %d)\n", tblName, tblNum)
 	pkCols := ExtractPrimaryKeys(key)
+	log.Warningf(context.Background(), "jenndebug pkCols %+v := ExtractPrimaryKeys(key %+v)\n", pkCols, key)
 	if len(pkCols) < db.NumPKCols(key) {
 		return -1
 	}
+
+	log.Warningf(context.Background(), "jenndebug uniqueKeyInt := CalculateUniqueKeyInt(tblNum %d, tblName %s, pkCols %+v\n", tblNum, tblName, pkCols)
 	uniqueKeyInt := CalculateUniqueKeyInt(tblNum, tblName, pkCols)
 
 	return uniqueKeyInt
@@ -932,6 +937,7 @@ func (db *DB) CalculateUniqueKeyIntFromRawKey(key roachpb.Key) (
 
 func CalculateUniqueKeyInt(tblNum int, tblName string,
 	pkCols []int64) (uniqueInt int64) {
+	log.Warningf(context.Background(), "jenndebug tblNum %d, tblName %s, pkCols %+v\n", tblNum, tblName, pkCols)
 
 	switch tblName {
 	case WAREHOUSE, KV, ITEM, HISTORY:
@@ -967,8 +973,7 @@ func CalculateUniqueKeyInt(tblNum int, tblName string,
 				tblName, pkCols)
 		}
 		o_id, o_d_id, o_w_id := pkCols[0], pkCols[1], pkCols[2]
-		uniqueInt = DistKey(o_d_id, o_w_id)*g_max_orderline + (
-			g_max_orderline - o_id)
+		uniqueInt = DistKey(o_d_id, o_w_id)*g_max_orderline + (g_max_orderline - o_id)
 	case ORDER_LINE:
 		if len(pkCols) < 3 {
 			log.Fatalf(context.Background(), "jenndebug tblName %s, pkCols %+v\n",
@@ -976,8 +981,7 @@ func CalculateUniqueKeyInt(tblNum int, tblName string,
 		}
 		ol_number, ol_o_id, ol_d_id, ol_w_id := pkCols[0], pkCols[1], pkCols[2],
 			pkCols[3]
-		uniqueInt = DistKey(ol_d_id, ol_w_id)*g_max_orderline*15 + (
-			g_max_orderline-ol_o_id)*15 + ol_number
+		uniqueInt = DistKey(ol_d_id, ol_w_id)*g_max_orderline*15 + (g_max_orderline-ol_o_id)*15 + ol_number
 	}
 
 	// concatenate table number to the front to ensure uniqueness
@@ -1000,8 +1004,8 @@ func (db *DB) PutInPromotionMapAssumeLocked(key roachpb.Key,
 	uniqueKeyInt := db.CalculateUniqueKeyIntFromRawKey(key)
 	if _, exists := db.promotionMap[uniqueKeyInt]; exists {
 		log.Warningf(context.Background(),
-			"jenndebug PutInPromotionMap already exists, key:[%+v], overwriting\n",
-			key)
+			"jenndebug PutInPromotionMap uniqueKeyInt %d already exists, key:[%+v], overwriting\n",
+			uniqueKeyInt, key)
 	}
 	db.promotionMap[uniqueKeyInt] = db.promotionCurrentIndex
 	db.promotionMapList[db.promotionCurrentIndex] = cicadaAffiliatedKey
@@ -1094,7 +1098,7 @@ func (db *DB) TableName(num int) (tableName string, exists bool) {
 	return tableName, true
 }
 
-func (db *DB) TableNum (name string) (tableNum int, exists bool) {
+func (db *DB) TableNum(name string) (tableNum int, exists bool) {
 	tableNum, exists = db.TableNameToTableNum[name]
 	if !exists {
 		return -1, false
@@ -1137,11 +1141,12 @@ func (db *DB) NumPKCols(k roachpb.Key) (numPKCols int) {
 	return numPKCols
 }
 
-func (db *DB) ExtractPrimaryKeys (k roachpb.Key) []int64 {
+func (db *DB) ExtractPrimaryKeys(k roachpb.Key) []int64 {
 	return ExtractPrimaryKeys(k)
 }
 
 func ExtractPrimaryKeys(k roachpb.Key) (primaryKeyCols []int64) {
+	log.Warningf(context.Background(), "jenndebug k %+v\n", []byte(k))
 	const (
 		DEFAULT = iota
 		GREATER
@@ -1153,7 +1158,7 @@ func ExtractPrimaryKeys(k roachpb.Key) (primaryKeyCols []int64) {
 	var inProgressB256 int64 = 0
 
 	for i := 0; i < len(k); i++ {
-		if i == 0 || i == 1  {
+		if i == 0 || i == 1 {
 			// i == 0 is tableNum
 			// i == 1 is index
 			// i == last is a 0
@@ -1182,7 +1187,7 @@ func ExtractPrimaryKeys(k roachpb.Key) (primaryKeyCols []int64) {
 			if b < 136 {
 				state = NEGATIVE
 				hopsUntilStateReversion = 136 - int(b)
-			} else if b < 245 {
+			} else if b < 246 {
 				primaryKeyCols = append(primaryKeyCols, int64(b-136))
 			} else {
 				state = GREATER

@@ -2609,8 +2609,35 @@ func (rbServer *rebalanceServer) PopulateCRDBTableNumMapping(_ context.
 		tableNum := tableNumMapping.TableNum
 		rbServer.store.db.MapTableNumToName(int(*tableNum), *tableName)
 		rbServer.store.db.MapTableNameToNum(*tableName, int(*tableNum))
+		log.Warningf(context.Background(), "jenndebug tableName %s, tableNum %d\n", *tableName, *tableNum)
 	}
 	t := true
+
+	ctx := context.Background()
+	s := rbServer.store
+	replies := make([]bool, len(s.crdbClientWrappers))
+	for i := 0; i < len(s.crdbClientWrappers); i++ {
+		go func(idx int) {
+			crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+			defer crdbCancel()
+
+			wrapper := s.crdbClientWrappers[idx]
+			_, err := wrapper.client.PopulateCRDBTableNumMapping(crdbCtx, req)
+			if err != nil {
+				log.Warningf(ctx, "PopulateCRDBTableNumMapping failed, sendErr %+v\n", err)
+				replies[idx] = false
+			} else {
+				replies[idx] = true
+			}
+		}(i)
+	}
+
+	f := false
+	for _, b := range replies {
+		if !b {
+			return &smdbrpc.PopulateCRDBTableNumMappingResp{IsPopulated: &f}, nil
+		}
+	}
 	return &smdbrpc.PopulateCRDBTableNumMappingResp{IsPopulated: &t}, nil
 }
 
@@ -2781,13 +2808,13 @@ func (s *Store) Promote(promoteKeys []roachpb.Key) (wereKeysPromoted map[string]
 			data := keyValue.Value.RawBytes
 			promoteKeysMetasMu.Lock()
 			promoteKeyMetas[promoteKey.String()] = PromoteKeyMeta{
-				Key:       promoteKey,
-				Txn:       txn,
-				TableNum:  int64(tableNum),
-				TableName: tableName,
-				IndexNum:  int64(kv.ExtractIndex(promoteKey)),
+				Key:            promoteKey,
+				Txn:            txn,
+				TableNum:       int64(tableNum),
+				TableName:      tableName,
+				IndexNum:       int64(kv.ExtractIndex(promoteKey)),
 				PrimaryKeyCols: kv.ExtractPrimaryKeys(promoteKey),
-				Value: data,
+				Value:          data,
 			}
 			promoteKeysMetasMu.Unlock()
 		}(newTxn, toBePromotedKey)
@@ -2816,13 +2843,13 @@ func (s *Store) Promote(promoteKeys []roachpb.Key) (wereKeysPromoted map[string]
 			Index:         &meta.IndexNum,
 			CicadaKeyCols: meta.PrimaryKeyCols,
 			Key:           meta.Key,
-			Timestamp:     &smdbrpc.HLCTimestamp{
+			Timestamp: &smdbrpc.HLCTimestamp{
 				Walltime:    &walltime,
 				Logicaltime: &logical,
 			},
-			Value:         meta.Value,
-			CrdbKeyCols:   nil,
-			TableName:     &meta.TableName,
+			Value:       meta.Value,
+			CrdbKeyCols: nil,
+			TableName:   &meta.TableName,
 		}
 		promoteKeyMetas[keyStr] = meta
 		cicadaRespIdx++
@@ -3137,7 +3164,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 						// if key is locked, and has not been promoted yet, add it to list of keys to be promoted
 						//table, idx, crdbKeyCols := kv.ExtractKey(roachpb.Key(kvVersion.Key).
 						//	String())
-							table, idx, crdbKeyCols := kv.ExtractKey(kvVersion.Key)
+						table, idx, crdbKeyCols := kv.ExtractKey(kvVersion.Key)
 						keysList[originalIdx] = smdbrpc.Key{
 							Table:         &table,
 							Index:         &idx,
