@@ -1142,14 +1142,14 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 			log.Fatalf(ctx, "jenndebug table %d has no name\n", table)
 		}
 		op := execinfrapb.Op{
-			Cmd:     &put,
-			Table:   &table,
-			Index:   &index,
+			Cmd:           &put,
+			Table:         &table,
+			Index:         &index,
 			CicadaKeyCols: pkCols,
-			Key:     writeKey,
-			Value:   val,
-			CrdbKeyCols: pkCols,
-			TableName: &tableName,
+			Key:           writeKey,
+			Value:         val,
+			CrdbKeyCols:   pkCols,
+			TableName:     &tableName,
 		}
 		for i := 0; i < cicadaAffiliatedKey.CicadaKeyColsLen; i++ {
 			op.CicadaKeyCols[i] = cicadaAffiliatedKey.CicadaKeyCols[i]

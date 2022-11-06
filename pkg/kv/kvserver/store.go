@@ -2129,7 +2129,7 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 	clientPtr, idx := s.DB().GetClientPtrAndItsIndex()
 	defer s.DB().ReturnClient(idx)
 	c := *clientPtr
-	cicadaCtx, cicadaCancel := context.WithTimeout(ctx, time.Second)
+	cicadaCtx, cicadaCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cicadaCancel()
 
 	// send request to Cicada
