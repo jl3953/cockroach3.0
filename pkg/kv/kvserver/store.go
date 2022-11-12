@@ -2616,8 +2616,11 @@ func (rbServer *rebalanceServer) PopulateCRDBTableNumMapping(_ context.
 	ctx := context.Background()
 	s := rbServer.store
 	replies := make([]bool, len(s.crdbClientWrappers))
+	var wg sync.WaitGroup
 	for i := 0; i < len(s.crdbClientWrappers); i++ {
+		wg.Add(1)
 		go func(idx int) {
+			defer wg.Done()
 			crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
 			defer crdbCancel()
 
@@ -2631,6 +2634,7 @@ func (rbServer *rebalanceServer) PopulateCRDBTableNumMapping(_ context.
 			}
 		}(i)
 	}
+	wg.Wait()
 
 	f := false
 	for _, b := range replies {
