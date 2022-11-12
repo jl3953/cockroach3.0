@@ -1087,6 +1087,7 @@ func IsUserKey(str string) bool {
 func (db *DB) TableName(num int) (tableName string, exists bool) {
 	tableName, exists = db.TableNumToTableName[num]
 	if !exists {
+		log.Warningf(context.Background(), "jenndebug tablename exists? %v\n", exists)
 		return "", false
 	}
 
