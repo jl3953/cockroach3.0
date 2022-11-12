@@ -920,16 +920,12 @@ func (db *DB) CalculateUniqueKeyIntFromRawKey(key roachpb.Key) (
 	uniqueInt int64) {
 
 	tblNum := ExtractTableNum(key)
-	log.Warningf(context.Background(), "jenndebug tblNum %d := ExtractTableNum(key %+v)\n", tblNum, key)
 	tblName, _ := db.TableName(tblNum)
-	log.Warningf(context.Background(), "jenndebug tblName %s := db.TableName(tblNum %d)\n", tblName, tblNum)
 	pkCols := ExtractPrimaryKeys(key)
-	log.Warningf(context.Background(), "jenndebug pkCols %+v := ExtractPrimaryKeys(key %+v)\n", pkCols, key)
 	if len(pkCols) < db.NumPKCols(key) {
 		return -1
 	}
 
-	log.Warningf(context.Background(), "jenndebug uniqueKeyInt := CalculateUniqueKeyInt(tblNum %d, tblName %s, pkCols %+v\n", tblNum, tblName, pkCols)
 	uniqueKeyInt := CalculateUniqueKeyInt(tblNum, tblName, pkCols)
 
 	return uniqueKeyInt
@@ -937,7 +933,6 @@ func (db *DB) CalculateUniqueKeyIntFromRawKey(key roachpb.Key) (
 
 func CalculateUniqueKeyInt(tblNum int, tblName string,
 	pkCols []int64) (uniqueInt int64) {
-	log.Warningf(context.Background(), "jenndebug tblNum %d, tblName %s, pkCols %+v\n", tblNum, tblName, pkCols)
 
 	switch tblName {
 	case WAREHOUSE, KV, ITEM, HISTORY:
@@ -1146,7 +1141,6 @@ func (db *DB) ExtractPrimaryKeys(k roachpb.Key) []int64 {
 }
 
 func ExtractPrimaryKeys(k roachpb.Key) (primaryKeyCols []int64) {
-	log.Warningf(context.Background(), "jenndebug k %+v\n", []byte(k))
 	const (
 		DEFAULT = iota
 		GREATER
