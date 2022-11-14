@@ -372,7 +372,7 @@ func NewServer(cfg Config, stopper *stop.Stopper) (*Server, error) {
 	dbCtx.Stopper = s.stopper
 	s.db = kv.NewDBWithContext(s.cfg.AmbientCtx, s.tcsFactory, s.clock, dbCtx)
 	// TODO jenndebug implementDemotion
-	s.db.CreateCicadaClients(15, "node-11:50051")
+	s.db.CreateCicadaClients(150, "node-11:50051")
 	//s.db.CreateCicadaClients(12, "localhost:50051")
 	//s.db.CreateCicadaClients(16, "node-2:50051")
 	nlActive, nlRenewal := s.cfg.NodeLivenessDurations()
