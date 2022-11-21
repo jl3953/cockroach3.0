@@ -88,7 +88,7 @@ type kv struct {
 	maxHotkey                            int64
 	keyspace                             int64
 	hash_randomize_keyspace              bool
-	enable_fixed_sized_encoding        bool
+	enable_fixed_sized_encoding          bool
 }
 
 func init() {
@@ -486,7 +486,7 @@ func (o *kvOp) run(ctx context.Context) error {
 				empty = false
 			}
 			if empty {
-				log.Warningf(ctx, "jenndebug empty key %d\n", argsInt[0])
+				//log.Warningf(ctx, "jenndebug empty key %d\n", argsInt[0])
 				atomic.AddInt64(o.numEmptyResults, 1)
 			}
 			if rowErr := rows.Err(); rowErr != nil {
