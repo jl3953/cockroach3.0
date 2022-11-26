@@ -1000,8 +1000,8 @@ func (db *DB) PutInPromotionMapAssumeLocked(key roachpb.Key,
 	log.Warningf(context.Background(), "jenndebug key %+v, uniqueKey %d\n", key, uniqueKeyInt)
 	if _, exists := db.promotionMap[uniqueKeyInt]; exists {
 		log.Warningf(context.Background(),
-			"jenndebug PutInPromotionMap uniqueKeyInt %d already exists, key:[%+v], overwriting\n",
-			uniqueKeyInt, key)
+			"jenndebug PutInPromotionMap uniqueKeyInt %d already exists, key:[%+v], %+v overwriting\n",
+			uniqueKeyInt, key, cicadaAffiliatedKey.CicadaKeyCols)
 	}
 	db.promotionMap[uniqueKeyInt] = db.promotionCurrentIndex
 	db.promotionMapList[db.promotionCurrentIndex] = cicadaAffiliatedKey
