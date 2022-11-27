@@ -997,7 +997,7 @@ func (db *DB) PutInPromotionMapAssumeLocked(key roachpb.Key,
 		return false
 	}
 	uniqueKeyInt := db.CalculateUniqueKeyIntFromRawKey(key)
-	log.Warningf(context.Background(), "jenndebug key %+v, uniqueKey %d, %+v\n", key, uniqueKeyInt, cicadaAffiliatedKey.CicadaKeyCols)
+	//log.Warningf(context.Background(), "jenndebug key %+v, uniqueKey %d, %+v\n", key, uniqueKeyInt, cicadaAffiliatedKey.CicadaKeyCols)
 	if _, exists := db.promotionMap[uniqueKeyInt]; exists {
 		log.Warningf(context.Background(),
 			"jenndebug PutInPromotionMap uniqueKeyInt %d already exists, key:[%+v], %+v overwriting\n",
