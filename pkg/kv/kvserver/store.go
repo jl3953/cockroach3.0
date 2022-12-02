@@ -2173,7 +2173,7 @@ func (s *Store) submitBatchToCicada(ctx context.Context,
 func (s *Store) batchTxnsToCicada(ctx context.Context) {
 
 	batchingInterval := 10 * time.Millisecond
-	batchSize := 5
+	batchSize := 3
 	log.Warningf(ctx, "jenndebug Cicada batchingInterval %+v, batchSize %+v\n",
 		batchingInterval, batchSize)
 
@@ -2612,36 +2612,36 @@ func (rbServer *rebalanceServer) PopulateCRDBTableNumMapping(_ context.
 		log.Warningf(context.Background(), "jenndebug tableName %s, tableNum %d\n", *tableName, *tableNum)
 	}
 	t := true
-
-	ctx := context.Background()
-	s := rbServer.store
-	replies := make([]bool, len(s.crdbClientWrappers))
-	var wg sync.WaitGroup
-	for i := 0; i < len(s.crdbClientWrappers); i++ {
-		wg.Add(1)
-		go func(idx int) {
-			defer wg.Done()
-			crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
-			defer crdbCancel()
-
-			wrapper := s.crdbClientWrappers[idx]
-			_, err := wrapper.client.PopulateCRDBTableNumMapping(crdbCtx, req)
-			if err != nil {
-				log.Warningf(ctx, "PopulateCRDBTableNumMapping failed, sendErr %+v\n", err)
-				replies[idx] = false
-			} else {
-				replies[idx] = true
-			}
-		}(i)
-	}
-	wg.Wait()
-
-	f := false
-	for _, b := range replies {
-		if !b {
-			return &smdbrpc.PopulateCRDBTableNumMappingResp{IsPopulated: &f}, nil
-		}
-	}
+	//
+	//ctx := context.Background()
+	//s := rbServer.store
+	//replies := make([]bool, len(s.crdbClientWrappers))
+	//var wg sync.WaitGroup
+	//for i := 0; i < len(s.crdbClientWrappers); i++ {
+	//	wg.Add(1)
+	//	go func(idx int) {
+	//		defer wg.Done()
+	//		crdbCtx, crdbCancel := context.WithTimeout(ctx, time.Second)
+	//		defer crdbCancel()
+	//
+	//		wrapper := s.crdbClientWrappers[idx]
+	//		_, err := wrapper.client.PopulateCRDBTableNumMapping(crdbCtx, req)
+	//		if err != nil {
+	//			log.Warningf(ctx, "PopulateCRDBTableNumMapping failed, sendErr %+v\n", err)
+	//			replies[idx] = false
+	//		} else {
+	//			replies[idx] = true
+	//		}
+	//	}(i)
+	//}
+	//wg.Wait()
+	//
+	//f := false
+	//for _, b := range replies {
+	//	if !b {
+	//		return &smdbrpc.PopulateCRDBTableNumMappingResp{IsPopulated: &f}, nil
+	//	}
+	//}
 	return &smdbrpc.PopulateCRDBTableNumMappingResp{IsPopulated: &t}, nil
 }
 
