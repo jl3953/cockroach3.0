@@ -153,6 +153,7 @@ def main():
     return -1
 
   if args.restartserver:
+    print("Restarting server...")
     total_servers = args.numservers
     processes = []
     for i in range(total_servers):
@@ -162,12 +163,15 @@ def main():
       p.wait()
 
   if args.initcluster:
+    print("Init cluster...")
     init_cluster()
 
   if args.inittpcc:
+    print("Init TPCC...")
     init_tpcc(args.warehouses)
 
   if args.maptablenums:
+    print("Map and write table nums...")
     tableNames = ["warehouse", "stock", "item", "history", "new_order",
                   "order_line", "district", "customer", "order"]
     mapping = query_table_num_from_names(tableNames)

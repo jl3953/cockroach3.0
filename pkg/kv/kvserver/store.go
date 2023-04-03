@@ -2609,7 +2609,7 @@ func (rbServer *rebalanceServer) PopulateCRDBTableNumMapping(_ context.
 		tableNum := tableNumMapping.TableNum
 		rbServer.store.db.MapTableNumToName(int(*tableNum), *tableName)
 		rbServer.store.db.MapTableNameToNum(*tableName, int(*tableNum))
-		log.Warningf(context.Background(), "jenndebug tableName %s, tableNum %d\n", *tableName, *tableNum)
+		log.Warningf(context.Background(), "jenndebug mapped tableName %s to tableNum %d\n", *tableName, *tableNum)
 	}
 	t := true
 	//
@@ -2962,6 +2962,7 @@ func (rbServer *rebalanceServer) UpdatePromotionMapWithoutLocking(_ context.
 		resp.WereSuccessfullyMigrated[i] = &smdbrpc.KeyMigrationResp{
 			IsSuccessfullyMigrated: &t,
 		}
+		log.Warningf(context.Background(), "jenndebug update promotion map %s\n", key)
 	}
 
 	return &resp, nil
@@ -3445,7 +3446,6 @@ func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
 
 	for i, kvVersion := range req.Keys {
 		key := roachpb.Key(kvVersion.Key)
-		//log.Warningf(context.Background(), "jenndebug promoted key %+v\n", key)
 		cicadaAffiliatedKey := kv.CicadaAffiliatedKey{
 			RoachKey:    [10]byte{},
 			RoachKeyLen: 0,
@@ -3469,8 +3469,8 @@ func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
 		resp.WereSuccessfullyMigrated[i] = &smdbrpc.KeyMigrationResp{
 			IsSuccessfullyMigrated: &t,
 		}
+		log.Warningf(context.Background(), "jenndebug promoted key %+v\n", key)
 	}
-
 	return &resp, nil
 }
 
