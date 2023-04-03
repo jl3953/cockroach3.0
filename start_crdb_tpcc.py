@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import argparse
+import datetime
+
 import psycopg2
+import csv
 import logging
 import subprocess
 import sys
@@ -89,6 +92,26 @@ def query_table_num_from_names(names, host="localhost"):
   return mapping
 
 
+def append_datetime_to_filename(csvfile):
+  unique = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+  name, ext = csvfile.split(".")
+  return name + "_" + unique + "." + ext
+
+
+def write_to_csv(mapping, csvfile):
+  """Writes mapping of table name to num to csv file."""
+
+  fname = append_datetime_to_filename(csvfile)
+  with open(fname, "w", newline='\n') as csvf:
+    fieldnames = ["tablename", "tablenum"]
+    writer = csv.DictWriter(csvf, fieldnames=fieldnames)
+
+    for name, num in mapping.items():
+      writer.writerow({"tablename": name, "tablenum": num})
+
+  return fname
+
+
 def main():
   parser = argparse.ArgumentParser(description='Process some integers.')
   parser.add_argument(
@@ -117,6 +140,13 @@ def main():
     "--maptablenums", default=False, action="store_true",
     help="map table numbers"
   )
+
+  parser.add_argument(
+    "--csvmappingfile", type=str,
+    default="/root/thermopylae_tests/scratch/tpcc_table_mapping.csv",
+    help="table to table num file"
+
+  )
   args = parser.parse_args()
   if not args.turnoncicada:
     print("TURN ON CICADA")
@@ -141,9 +171,12 @@ def main():
     tableNames = ["warehouse", "stock", "item", "history", "new_order",
                   "order_line", "district", "customer", "order"]
     mapping = query_table_num_from_names(tableNames)
+
     for name, num in mapping.items():
       print(name, num)
 
+    csvmappingfile = write_to_csv(mapping, args.csvmappingfile)
+    print(csvmappingfile)
     print("RUN THE POPULATION GO SCRIPT TOO!")
 
   return 0
