@@ -112,6 +112,19 @@ def write_to_csv(mapping, csvfile):
   return fname
 
 
+def run_go_promotion_script(cicadaAddr, crdbAddrs, csvmappingfile,
+                            numWarehouses):
+  opts = ["-cicadaAddr {}".format(cicadaAddr),
+          "-crdbAddrs {}".format(",".join(crdbAddrs)),
+          "-csvmappingfile {}".format(csvmappingfile),
+          "-warehouses {}".format(numWarehouses)]
+
+  cmd = "cd ~/smdbrpc/go && " \
+        "go run tpcc/*.go {}".format(" ".join(opts))
+
+  _ = call(cmd)
+
+
 def main():
   parser = argparse.ArgumentParser(description='Process some integers.')
   parser.add_argument(
@@ -145,8 +158,9 @@ def main():
     "--csvmappingfile", type=str,
     default="/root/thermopylae_tests/scratch/tpcc_table_mapping.csv",
     help="table to table num file"
-
   )
+
+
   args = parser.parse_args()
   if not args.turnoncicada:
     print("TURN ON CICADA")
@@ -181,7 +195,11 @@ def main():
 
     csvmappingfile = write_to_csv(mapping, args.csvmappingfile)
     print(csvmappingfile)
-    print("RUN THE POPULATION GO SCRIPT TOO!")
+
+    cicadaAddr = "localhost:50051"
+    crdbAddrs = ["localhost:50055"]
+    run_go_promotion_script(cicadaAddr, crdbAddrs, csvmappingfile,
+                            args.warehouses)
 
   return 0
 
