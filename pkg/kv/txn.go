@@ -1124,6 +1124,7 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 	for j := 0; j < len(txn.writeHotkeys); j += 2 {
 		writeKey := txn.writeHotkeys[j]
 		val := txn.writeHotkeys[j+1]
+		log.Warningf(ctx, "jenndebug writing to cicada %+v\n", val)
 		put := execinfrapb.Cmd_PUT
 		//table, index, crdbKeyCols := ExtractKey(roachpb.Key(writeKey).String())
 		table, index, pkCols := ExtractKey(writeKey)
@@ -1343,6 +1344,8 @@ func mergeCRDBCicadaResponses(ctx context.Context,
 				br.Responses[i].Value = &roachpb.ResponseUnion_Put{
 					Put: &roachpb.PutResponse{},
 				}
+				whatDidIPutIn := br.Responses[i].GetPut()
+				log.Warningf(ctx, "jenndebug mock putResp %+v\n", *whatDidIPutIn)
 			} else {
 				key := originalRequests[i].GetInner().Header().Key
 				if getReq := originalRequests[i].GetGet(); getReq != nil {
@@ -1395,7 +1398,7 @@ func (txn *Txn) Send(
 		warmKeysRequests = append(warmKeysRequests, req)
 		isInCicada[i] = false
 
-		if req.GetEndTxn() != nil {
+		if etReq := req.GetEndTxn(); etReq != nil && etReq.Commit == true {
 			if txn.HasWriteHotkeys() {
 				didWritesCommit, sendErr := txn.oneTouchWritesCicada(ctx)
 				txn.ClearWriteHotkeys()
@@ -1436,7 +1439,37 @@ func (txn *Txn) Send(
 	var pErr *roachpb.Error
 	if len(warmKeysRequests) > 0 {
 		ba.Requests = warmKeysRequests
+
+		containsUserKey := false
+		for i, req := range ba.Requests {
+			if key := req.GetInner().Header().Key; IsUserKey(key.String()) && ExtractTableNum(key) == 54 {
+				if req.GetScan() != nil {
+					log.Warningf(ctx, "jenndebug ScanReq %s, %+v, req %d\n", key, []byte(key), i)
+				} else if req.GetPut() != nil {
+					log.Warningf(ctx, "jenndebug PutReq %s, %+v, req %d\n", key, []byte(key), i)
+				} else if req.GetGet() != nil {
+					log.Warningf(ctx, "jenndebug GetReq %s, req %d\n", key, i)
+				} else {
+					log.Warningf(ctx, "jenndebug OtherReq %s, req %d\n", key, i)
+				}
+				containsUserKey = true
+			}
+		}
+
 		brCRDB, pErr = txn.db.sendUsingSender(ctx, ba, sender)
+
+		if containsUserKey && brCRDB != nil {
+			for i, resp := range brCRDB.Responses {
+				if getResp := resp.GetGet(); getResp != nil {
+					log.Warningf(ctx, "jenndebug getResp.Value %+v, %d resp\n", getResp.Value.RawBytes, i)
+				} else if putResp := resp.GetPut(); putResp != nil {
+					log.Warningf(ctx, "jenndebug putResp %+v, %d resp\n", *putResp, i)
+				} else if scanResp := resp.GetScan(); scanResp != nil {
+					log.Warningf(ctx, "jenndebug scanResp %+v\n", scanResp.BatchResponses)
+				}
+			}
+		}
+
 		if pErr != nil {
 			if retryErr, ok := pErr.GetDetail().(*roachpb.TransactionRetryWithProtoRefreshError); ok {
 				if requestTxnID != retryErr.TxnID {
@@ -1503,71 +1536,101 @@ func (txn *Txn) Send(
 	}
 	mergeCRDBCicadaResponses(ctx, isInCicada, originalRequests, brCRDB, brCicada, br)
 
+	log.Warningf(ctx, "jenndebug br %+v\n", br)
 	return br, pErr
 }
 
+func hasHeader(value []byte, isZero []byte) bool {
+	return isZero[1] == 't'
+}
+
 func reconstructValue(key []byte, value []byte, walltime int64, logicaltime int32, isZero []byte) [][]byte {
-	VAL_LEN_MARKER := 4
-	KEY_LEN_MARKER := 4
-	keyLen := len(key)
-	ZERO_LEN := 1
-	WALLTIME_LEN := 8
-	LOGICAL_LEN := 0
-	if logicaltime > 0 {
-		LOGICAL_LEN = 4
-	}
-	TIMESTAMP_BOOKEND_LEN := 1
-	valLen := len(value)
 
-	resp := make([]byte, VAL_LEN_MARKER+KEY_LEN_MARKER+keyLen+ZERO_LEN+
-		WALLTIME_LEN+LOGICAL_LEN+TIMESTAMP_BOOKEND_LEN+valLen)
-	respBookmark := 0
+	// written value has a header, just return the
+	if hasHeader(value, isZero) {
+		valLen := len(value)
+		resp := make([]byte, valLen)
+		respBookmark := 0
+		for j, b := range value {
+			resp[respBookmark] = b
+			if isZero[j] == 't' {
+				resp[respBookmark] = byte(0)
+			}
+			respBookmark++
+		}
 
-	uint32Bytes := make([]byte, VAL_LEN_MARKER)
-	binary.LittleEndian.PutUint32(uint32Bytes, uint32(valLen))
-	for _, b := range uint32Bytes {
-		resp[respBookmark] = b
-		respBookmark++
-	}
-	binary.LittleEndian.PutUint32(uint32Bytes, uint32(keyLen+ZERO_LEN+WALLTIME_LEN+LOGICAL_LEN+TIMESTAMP_BOOKEND_LEN))
-	for _, b := range uint32Bytes {
-		resp[respBookmark] = b
-		respBookmark++
-	}
-	for _, b := range key {
-		resp[respBookmark] = b
-		respBookmark++
-	}
-	// ZERO LEN
-	resp[respBookmark] = 0
-	respBookmark++
+		respSlice := make([][]byte, 1)
+		respSlice[0] = resp
+		log.Warningf(context.Background(), "jenndebug key %+v, respSlice %+v\n", key, respSlice)
+		return respSlice
 
-	uint64Byte := make([]byte, WALLTIME_LEN)
-	binary.BigEndian.PutUint64(uint64Byte, uint64(walltime))
-	for _, b := range uint64Byte {
-		resp[respBookmark] = b
-		respBookmark++
-	}
-	if LOGICAL_LEN > 0 {
-		binary.BigEndian.PutUint32(uint32Bytes, uint32(logicaltime))
+	} else {
+
+		// has no header, we must form one first
+
+		VAL_LEN_MARKER := 4
+		KEY_LEN_MARKER := 4
+		keyLen := len(key)
+		ZERO_LEN := 1
+		WALLTIME_LEN := 8
+		LOGICAL_LEN := 0
+		if logicaltime > 0 {
+			LOGICAL_LEN = 4
+		}
+		TIMESTAMP_BOOKEND_LEN := 1
+		valLen := len(value)
+
+		resp := make([]byte, VAL_LEN_MARKER+KEY_LEN_MARKER+keyLen+ZERO_LEN+
+			WALLTIME_LEN+LOGICAL_LEN+TIMESTAMP_BOOKEND_LEN+valLen)
+		respBookmark := 0
+
+		uint32Bytes := make([]byte, VAL_LEN_MARKER)
+		binary.LittleEndian.PutUint32(uint32Bytes, uint32(valLen))
 		for _, b := range uint32Bytes {
 			resp[respBookmark] = b
 			respBookmark++
 		}
-	}
-	resp[respBookmark] = byte(ZERO_LEN + WALLTIME_LEN + LOGICAL_LEN)
-	respBookmark++
-	for j, b := range value {
-		resp[respBookmark] = b
-		if isZero[j] == 't' {
-			resp[respBookmark] = byte(0)
+		binary.LittleEndian.PutUint32(uint32Bytes, uint32(keyLen+ZERO_LEN+WALLTIME_LEN+LOGICAL_LEN+TIMESTAMP_BOOKEND_LEN))
+		for _, b := range uint32Bytes {
+			resp[respBookmark] = b
+			respBookmark++
 		}
+		for _, b := range key {
+			resp[respBookmark] = b
+			respBookmark++
+		}
+		// ZERO LEN
+		resp[respBookmark] = 0
 		respBookmark++
-	}
 
-	respSlice := make([][]byte, 1)
-	respSlice[0] = resp
-	return respSlice
+		uint64Byte := make([]byte, WALLTIME_LEN)
+		binary.BigEndian.PutUint64(uint64Byte, uint64(walltime))
+		for _, b := range uint64Byte {
+			resp[respBookmark] = b
+			respBookmark++
+		}
+		if LOGICAL_LEN > 0 {
+			binary.BigEndian.PutUint32(uint32Bytes, uint32(logicaltime))
+			for _, b := range uint32Bytes {
+				resp[respBookmark] = b
+				respBookmark++
+			}
+		}
+		resp[respBookmark] = byte(ZERO_LEN + WALLTIME_LEN + LOGICAL_LEN)
+		respBookmark++
+		for j, b := range value {
+			resp[respBookmark] = b
+			if isZero[j] == 't' {
+				resp[respBookmark] = byte(0)
+			}
+			respBookmark++
+		}
+
+		respSlice := make([][]byte, 1)
+		respSlice[0] = resp
+		log.Warningf(context.Background(), "jenndebug key %+v, respSlice %+v\n", key, respSlice)
+		return respSlice
+	}
 }
 
 func (txn *Txn) handleErrIfRetryableLocked(ctx context.Context, err error) {
