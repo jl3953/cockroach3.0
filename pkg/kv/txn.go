@@ -55,6 +55,7 @@ type Txn struct {
 
 	hasWrittenYet     bool
 	writeHotkeys      [][]byte
+	insertHotkeys     [][]byte
 	readHotkeys       [][]byte
 	resultReadHotkeys [][]byte
 	isDemotion        bool
@@ -1116,6 +1117,7 @@ func (txn *Txn) IsRetryableErrMeantForTxn(
 	return errTxnID == txn.mu.ID
 }
 
+func (txn *Txn)
 func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool, err error) {
 
 	// Extract write keys that the txn has stored over the course of its lifetime
@@ -1124,7 +1126,6 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 	for j := 0; j < len(txn.writeHotkeys); j += 2 {
 		writeKey := txn.writeHotkeys[j]
 		val := txn.writeHotkeys[j+1]
-		log.Warningf(ctx, "jenndebug writing to cicada %+v\n", val)
 		put := execinfrapb.Cmd_PUT
 		//table, index, crdbKeyCols := ExtractKey(roachpb.Key(writeKey).String())
 		table, index, pkCols := ExtractKey(writeKey)
@@ -1134,13 +1135,36 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 		//	promotionMap.Load(mapKeyStr)
 		cicadaAffiliatedKey, isInPromotionMap := txn.DB().GetFromPromotionMap(writeKey)
 		if !isInPromotionMap {
-			log.Fatalf(ctx, "jenndebug why is this key not %s\n",
-				roachpb.Key(writeKey).String())
+			//log.Fatalf(ctx, "jenndebug why is this key not %s\n",
+			//	roachpb.Key(writeKey).String())
+			roachKeyLen := len(writeKey)
+			roachKey := [10]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+			for i, b := range writeKey {
+				roachKey[i] = b
+			}
+
+			cicadaKeyCols := [4]int64{0, 0, 0, 0}
+			pks := ExtractPrimaryKeys(writeKey)
+			cicadaKeyColsLen := len(pks)
+			for i, col := range pks {
+				cicadaKeyCols[i] = col
+			}
+			cicadaAffiliatedKey = CicadaAffiliatedKey{
+				RoachKey:    roachKey,
+				RoachKeyLen: roachKeyLen,
+				PromotionTimestamp: hlc.Timestamp{
+					WallTime: 0,
+					Logical:  0,
+				},
+				CicadaKeyCols:    cicadaKeyCols,
+				CicadaKeyColsLen: cicadaKeyColsLen,
+			}
 		}
 		//cicadaAffiliatedKey := cicadaAffiliatedKeyInterface.(CicadaAffiliatedKey)
 		tableName, exists := txn.DB().TableName(int(table))
 		if !exists {
-			log.Fatalf(ctx, "jenndebug table %d has no name\n", table)
+			//log.Fatalf(ctx, "jenndebug table %d has no name\n", table)
+			tableName = ORDER
 		}
 		op := execinfrapb.Op{
 			Cmd:           &put,
@@ -1201,6 +1225,7 @@ func (txn *Txn) constructCicadaReadOp(
 		roachKey[i] = cicadaAffiliatedKey.RoachKey[i]
 	}
 
+	log.Warningf(context.Background(), "jenndebug what key are you extracting %s %+v\n", roachKey, []byte(roachKey))
 	table, index, pkCols := ExtractKey(roachKey)
 	tableName, exists := txn.DB().TableName(int(table))
 	if !exists {
@@ -1300,7 +1325,6 @@ func (txn *Txn) readsCicada(ctx context.Context, ops []*execinfrapb.Op,
 	}
 	txnResp, sendErr := txn.submitTxnToCicada(ctx, txnReq)
 	if sendErr != nil {
-		log.Warningf(ctx, "jenndebug cicada read could not send txnReq %+v\n", sendErr)
 		return false, sendErr
 	} else if !*txnResp.IsCommitted {
 		return false, nil
@@ -1344,16 +1368,22 @@ func mergeCRDBCicadaResponses(ctx context.Context,
 				br.Responses[i].Value = &roachpb.ResponseUnion_Put{
 					Put: &roachpb.PutResponse{},
 				}
-				whatDidIPutIn := br.Responses[i].GetPut()
-				log.Warningf(ctx, "jenndebug mock putResp %+v\n", *whatDidIPutIn)
+			} else if cputReq := originalRequests[i].GetConditionalPut(); cputReq != nil {
+				br.Responses[i].Value = &roachpb.ResponseUnion_ConditionalPut{
+					ConditionalPut: &roachpb.ConditionalPutResponse{},
+				}
+			} else if iputReq := originalRequests[i].GetInitPut(); iputReq != nil {
+				br.Responses[i].Value = &roachpb.ResponseUnion_InitPut{
+					InitPut: &roachpb.InitPutResponse{},
+				}
 			} else {
 				key := originalRequests[i].GetInner().Header().Key
 				if getReq := originalRequests[i].GetGet(); getReq != nil {
 					log.Fatalf(ctx, "jenndebug get key %+v, %+v\n",
 						key, getReq)
-				} else if cput := originalRequests[i].GetConditionalPut(); cput != nil {
-					log.Fatalf(ctx, "jenndebug cput key %+v, %+v\n",
-						key, getReq)
+					//} else if cput := originalRequests[i].GetConditionalPut(); cput != nil {
+					//	log.Fatalf(ctx, "jenndebug cput key %+v, %+v\n",
+					//		key, getReq)
 				} else {
 					log.Fatalf(ctx, "jenndebug wut is this req key %+v\n", key)
 				}
@@ -1414,12 +1444,20 @@ func (txn *Txn) Send(
 
 		if key := req.GetInner().Header().Key; IsUserKey(key.String()) {
 			if cicadaAffiliatedKey, isPromoted := txn.DB().IsKeyInCicadaAtTimestamp(
-				key, txn.ProvisionalCommitTimestamp()); isPromoted && !txn.IsDemotion() {
+				key, txn.ProvisionalCommitTimestamp()); (isPromoted && !txn.IsDemotion()) || ExtractTableNum(key) == 57 {
 				// remove from default CRDB path
 				if putReq := req.GetPut(); putReq != nil {
 					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
 					isInCicada[i] = true
 					txn.AddWriteHotkeys([][]byte{putReq.Key, putReq.Value.RawBytes})
+				} else if conditionalPutReq := req.GetConditionalPut(); conditionalPutReq != nil {
+					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
+					isInCicada[i] = true
+					txn.AddWriteHotkeys([][]byte{conditionalPutReq.Key, conditionalPutReq.Value.RawBytes})
+				} else if initPutReq := req.GetConditionalPut(); initPutReq != nil {
+					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
+					isInCicada[i] = true
+					txn.AddWriteHotkeys([][]byte{initPutReq.Key, initPutReq.Value.RawBytes})
 				} else if scanReq := req.GetScan(); scanReq != nil {
 					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
 					isInCicada[i] = true
@@ -1442,13 +1480,23 @@ func (txn *Txn) Send(
 
 		containsUserKey := false
 		for i, req := range ba.Requests {
-			if key := req.GetInner().Header().Key; IsUserKey(key.String()) && ExtractTableNum(key) == 54 {
+			if key := req.GetInner().Header().Key; IsUserKey(key.String()) && ExtractTableNum(key) == 57 {
 				if req.GetScan() != nil {
 					log.Warningf(ctx, "jenndebug ScanReq %s, %+v, req %d\n", key, []byte(key), i)
 				} else if req.GetPut() != nil {
 					log.Warningf(ctx, "jenndebug PutReq %s, %+v, req %d\n", key, []byte(key), i)
 				} else if req.GetGet() != nil {
 					log.Warningf(ctx, "jenndebug GetReq %s, req %d\n", key, i)
+				} else if conditionalPutReq := req.GetConditionalPut(); conditionalPutReq != nil {
+					if expVal := conditionalPutReq.ExpValue; expVal != nil {
+						log.Warningf(ctx, "jenndebug ConditionalPutreq %s, val %+v, expVal %+v, req %d\n",
+							key, conditionalPutReq.Value.RawBytes, *expVal, i)
+					} else {
+						log.Warningf(ctx, "jenndebug ConditionalPutreq %s, val %+v, expVal nil, req %d\n",
+							key, conditionalPutReq.Value.RawBytes, i)
+					}
+				} else if req.GetInitPut() != nil {
+					log.Warningf(ctx, "jenndebug InitPutreq %s, req %d\n", key, i)
 				} else {
 					log.Warningf(ctx, "jenndebug OtherReq %s, req %d\n", key, i)
 				}
@@ -1465,7 +1513,15 @@ func (txn *Txn) Send(
 				} else if putResp := resp.GetPut(); putResp != nil {
 					log.Warningf(ctx, "jenndebug putResp %+v, %d resp\n", *putResp, i)
 				} else if scanResp := resp.GetScan(); scanResp != nil {
-					log.Warningf(ctx, "jenndebug scanResp %+v\n", scanResp.BatchResponses)
+					var key roachpb.Key = nil
+					if len(scanResp.Rows) > 0 {
+						key = scanResp.Rows[0].Key
+					}
+					log.Warningf(ctx, "jenndebug key %s, scanResp %+v\n", key, scanResp.BatchResponses)
+				} else if conditionalPutResp := resp.GetConditionalPut(); conditionalPutResp != nil {
+					log.Warningf(ctx, "jenndebug conditionalPutresp %+v, %d resp\n", *conditionalPutResp, i)
+				} else if initPutResp := resp.GetInitPut(); initPutResp != nil {
+					log.Warningf(ctx, "jenndebug initPutresp %+v, %d resp\n", *initPutResp, i)
 				}
 			}
 		}
@@ -1536,7 +1592,6 @@ func (txn *Txn) Send(
 	}
 	mergeCRDBCicadaResponses(ctx, isInCicada, originalRequests, brCRDB, brCicada, br)
 
-	log.Warningf(ctx, "jenndebug br %+v\n", br)
 	return br, pErr
 }
 
@@ -1561,7 +1616,6 @@ func reconstructValue(key []byte, value []byte, walltime int64, logicaltime int3
 
 		respSlice := make([][]byte, 1)
 		respSlice[0] = resp
-		log.Warningf(context.Background(), "jenndebug key %+v, respSlice %+v\n", key, respSlice)
 		return respSlice
 
 	} else {
@@ -1628,7 +1682,6 @@ func reconstructValue(key []byte, value []byte, walltime int64, logicaltime int3
 
 		respSlice := make([][]byte, 1)
 		respSlice[0] = resp
-		log.Warningf(context.Background(), "jenndebug key %+v, respSlice %+v\n", key, respSlice)
 		return respSlice
 	}
 }
@@ -2114,6 +2167,10 @@ func (txn *Txn) ContactHotshard(writeHotkeys [][]byte,
 
 func (txn *Txn) ClearWriteHotkeys() {
 	txn.writeHotkeys = make([][]byte, 0)
+}
+
+func (txn *Txn) clearInsertHotkeys() {
+	txn.insertHotkeys = make([][]byte, 0)
 }
 
 func (txn *Txn) ClearReadHotkeys() {

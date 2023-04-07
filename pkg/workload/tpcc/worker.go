@@ -188,21 +188,24 @@ func (w *worker) run(ctx context.Context) error {
 	// but don't account for them in the histogram.
 	start := timeutil.Now()
 	if _, err := tx.run(context.Background(), warehouseID); err != nil {
-		return errors.Wrapf(err, "error in %s", txInfo.name)
-	}
-	if ctx.Err() == nil {
-		elapsed := timeutil.Since(start)
-		w.hists.Get(txInfo.name).Record(elapsed)
-	}
+		//fmt.Printf("error in %s, %+v\n", txInfo.name, err)
+		//return errors.Wrapf(err, "error in %s", txInfo.name)
+		return ctx.Err()
+	} else {
+		if ctx.Err() == nil {
+			elapsed := timeutil.Since(start)
+			w.hists.Get(txInfo.name).Record(elapsed)
+		}
 
-	// 5.2.5.4: Think time is taken independently from a negative exponential
-	// distribution. Think time = -log(r) * u, where r is a uniform random number
-	// between 0 and 1 and u is the mean think time per operation.
-	// Each distribution is truncated at 10 times its mean value.
-	thinkTime := -math.Log(rand.Float64()) * txInfo.thinkTime
-	if thinkTime > (txInfo.thinkTime * 10) {
-		thinkTime = txInfo.thinkTime * 10
+		// 5.2.5.4: Think time is taken independently of a negative exponential
+		// distribution. Think time = -log(r) * u, where r is a uniform random number
+		// between 0 and 1 and u is the mean think time per operation.
+		// Each distribution is truncated at 10 times its mean value.
+		thinkTime := -math.Log(rand.Float64()) * txInfo.thinkTime
+		if thinkTime > (txInfo.thinkTime * 10) {
+			thinkTime = txInfo.thinkTime * 10
+		}
+		time.Sleep(time.Duration(thinkTime * float64(time.Second) * w.config.waitFraction))
+		return ctx.Err()
 	}
-	time.Sleep(time.Duration(thinkTime * float64(time.Second) * w.config.waitFraction))
-	return ctx.Err()
 }
