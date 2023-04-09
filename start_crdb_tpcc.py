@@ -117,7 +117,8 @@ def run_go_promotion_script(cicadaAddr, crdbAddrs, csvmappingfile,
   opts = ["-cicadaAddr {}".format(cicadaAddr),
           "-crdbAddrs {}".format(",".join(crdbAddrs)),
           "-csvmappingfile {}".format(csvmappingfile),
-          "-warehouses {}".format(numWarehouses)]
+          # "-warehouses {}".format(numWarehouses),
+          ]
 
   cmd = "cd ~/smdbrpc/go && " \
         "go run tpcc/*.go {}".format(" ".join(opts))

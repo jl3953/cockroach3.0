@@ -205,6 +205,8 @@ enum Cmd {
   GET = 0;
   SCAN = 1;
   PUT = 2;
+  CONDITIONAL_PUT = 3;
+  INIT_PUT = 4;
 }
 
 message Key {
@@ -236,6 +238,9 @@ message TxnReq {
   optional bool is_test = 4;
   optional bool is_demoted_test_field = 5;
   optional int32 txn_id = 6;
+  optional int32 thread_id = 7;
+  optional bool is_lower_ts = 8;
+  required bool will_insert_new_keys = 9;
 }
 
 message TxnResp {

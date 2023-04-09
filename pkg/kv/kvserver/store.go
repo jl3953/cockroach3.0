@@ -2666,13 +2666,13 @@ func (rbServer *rebalanceServer) TestAddKeyToPromotionMap(_ context.Context,
 	testPromotionKeyReq *smdbrpc.TestPromotionKeyReq) (*smdbrpc.TestPromotionKeyResp, error) {
 	//keyStr := string(testPromotionKeyReq.Key)
 	cicadaAffiliatedKey := kv.CicadaAffiliatedKey{
-		RoachKey:    [10]byte{},
+		RoachKey:    [64]byte{},
 		RoachKeyLen: 0,
 		PromotionTimestamp: hlc.Timestamp{
 			WallTime: *testPromotionKeyReq.PromotionTimestamp.Walltime,
 			Logical:  *testPromotionKeyReq.PromotionTimestamp.Logicaltime,
 		},
-		CicadaKeyCols:    [4]int64{},
+		CicadaKeyCols:    [32]int64{},
 		CicadaKeyColsLen: 0,
 	}
 	for i, b := range testPromotionKeyReq.Key {
@@ -2941,13 +2941,13 @@ func (rbServer *rebalanceServer) UpdatePromotionMapWithoutLocking(_ context.
 	for i, kvVersion := range req.Keys {
 		key := roachpb.Key(kvVersion.Key)
 		cicadaAffiliatedKey := kv.CicadaAffiliatedKey{
-			RoachKey:    [10]byte{},
+			RoachKey:    [64]byte{},
 			RoachKeyLen: 0,
 			PromotionTimestamp: hlc.Timestamp{
 				WallTime: *kvVersion.Timestamp.Walltime,
 				Logical:  *kvVersion.Timestamp.Logicaltime,
 			},
-			CicadaKeyCols:    [4]int64{},
+			CicadaKeyCols:    [32]int64{},
 			CicadaKeyColsLen: 0,
 		}
 		for j, b := range key {
@@ -2997,13 +2997,13 @@ func (s *Store) UpdateAllPromotionMapsWithoutLocking(
 	for _, kvVersion := range req.Keys {
 		key := roachpb.Key(kvVersion.Key)
 		cicadaAffiliatedKey := kv.CicadaAffiliatedKey{
-			RoachKey:    [10]byte{},
+			RoachKey:    [64]byte{},
 			RoachKeyLen: 0,
 			PromotionTimestamp: hlc.Timestamp{
 				WallTime: *kvVersion.Timestamp.Walltime,
 				Logical:  *kvVersion.Timestamp.Logicaltime,
 			},
-			CicadaKeyCols:    [4]int64{},
+			CicadaKeyCols:    [32]int64{},
 			CicadaKeyColsLen: 0,
 		}
 		for j, b := range key {
@@ -3307,7 +3307,7 @@ func (rbServer *rebalanceServer) PromoteKeys(_ context.Context,
 	// update this node's promotion map
 	for _, promotedKey := range promotionReqToCicada.Keys {
 		cicadaKey := kv.CicadaAffiliatedKey{
-			RoachKey:    [10]byte{},
+			RoachKey:    [64]byte{},
 			RoachKeyLen: 0,
 			PromotionTimestamp: hlc.Timestamp{
 				WallTime: *promotedKey.Timestamp.Walltime,
@@ -3447,13 +3447,13 @@ func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
 	for i, kvVersion := range req.Keys {
 		key := roachpb.Key(kvVersion.Key)
 		cicadaAffiliatedKey := kv.CicadaAffiliatedKey{
-			RoachKey:    [10]byte{},
+			RoachKey:    [64]byte{},
 			RoachKeyLen: 0,
 			PromotionTimestamp: hlc.Timestamp{
 				WallTime: *kvVersion.Timestamp.Walltime,
 				Logical:  *kvVersion.Timestamp.Logicaltime,
 			},
-			CicadaKeyCols:    [4]int64{},
+			CicadaKeyCols:    [32]int64{},
 			CicadaKeyColsLen: 0,
 		}
 		for j, b := range key {

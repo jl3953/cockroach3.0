@@ -313,11 +313,47 @@ type ExtractTxnWrapper struct {
 }
 
 type CicadaAffiliatedKey struct {
-	RoachKey           [10]byte
+	RoachKey           [64]byte
 	RoachKeyLen        int
 	PromotionTimestamp hlc.Timestamp
-	CicadaKeyCols      [4]int64
+	CicadaKeyCols      [32]int64
 	CicadaKeyColsLen   int
+}
+
+func NewCicadaAffiliatedKey(key roachpb.Key, isReadKey bool) CicadaAffiliatedKey {
+
+	writeKey := key
+	if isReadKey {
+		writeKey = TrulyConvertToWriteKey(key)
+	}
+
+	roachLen := len(writeKey)
+	if roachLen > 20 {
+		log.Fatalf(context.Background(), "jenndebug why is this key so long %+v\n", []byte(key))
+	}
+	roachKey := [64]byte{}
+	for i, b := range writeKey {
+		roachKey[i] = b
+	}
+
+	cicadaKeyCols := [32]int64{0, 0, 0, 0}
+	pkCols := ExtractPrimaryKeys(writeKey)
+	for i, pkCol := range pkCols {
+		cicadaKeyCols[i] = pkCol
+	}
+	cicadaKeyColsLen := len(pkCols)
+	cicadaAffiliatedKey := CicadaAffiliatedKey{
+		RoachKey:    roachKey,
+		RoachKeyLen: roachLen,
+		PromotionTimestamp: hlc.Timestamp{
+			WallTime: 0,
+			Logical:  0,
+		},
+		CicadaKeyCols:    cicadaKeyCols,
+		CicadaKeyColsLen: cicadaKeyColsLen,
+	}
+
+	return cicadaAffiliatedKey
 }
 
 type ConnectionObjectWrapper struct {
@@ -873,6 +909,21 @@ func (db *DB) send(
 //	return strings.Join(components, "/")
 //}
 
+//func isReadKey(key roachpb.Key) bool {
+//	pkCols := ExtractPrimaryKeys(key)
+//	extraCols := len(strings.Split("/Table/tableNum/indexNum", "/"))
+//	return len(strings.Split(key.String(), "/")) == extraCols+len(pkCols)
+//}
+
+func TrulyConvertToWriteKey(key roachpb.Key) roachpb.Key {
+	result := make([]byte, len(key)+1)
+	for i, ch := range key {
+		result[i] = ch
+	}
+	result[len(result)-1] = byte(136)
+	return result
+}
+
 func ConvertToWriteKey(key roachpb.Key) roachpb.Key {
 
 	isReadKey := len(strings.Split(key.String(), "/")) == 5
@@ -880,12 +931,7 @@ func ConvertToWriteKey(key roachpb.Key) roachpb.Key {
 		return key
 	}
 
-	result := make([]byte, len(key)+1)
-	for i, ch := range key {
-		result[i] = ch
-	}
-	result[len(result)-1] = byte(136)
-	return result
+	return TrulyConvertToWriteKey(key)
 }
 
 func (db *DB) GetFromPromotionMap(key roachpb.Key) (CicadaAffiliatedKey, bool) {
@@ -920,19 +966,21 @@ func (db *DB) CalculateUniqueKeyIntFromRawKey(key roachpb.Key) (
 	uniqueInt int64) {
 
 	tblNum := ExtractTableNum(key)
+	index := ExtractIndex(key)
 	tblName, _ := db.TableName(tblNum)
 	pkCols := ExtractPrimaryKeys(key)
 	if len(pkCols) < db.NumPKCols(key) {
 		return -1
 	}
 
-	uniqueKeyInt := CalculateUniqueKeyInt(tblNum, tblName, pkCols)
+	log.Warningf(context.Background(), "jenndebug calculate %+v, %+v\n", key, []byte(key))
+	uniqueKeyInt := CalculateUniqueKeyInt(tblNum, tblName, pkCols, int64(index))
 
 	return uniqueKeyInt
 }
 
 func CalculateUniqueKeyInt(tblNum int, tblName string,
-	pkCols []int64) (uniqueInt int64) {
+	pkCols []int64, index int64) (uniqueInt int64) {
 
 	switch tblName {
 	case WAREHOUSE, KV, ITEM, HISTORY:
@@ -968,7 +1016,7 @@ func CalculateUniqueKeyInt(tblNum int, tblName string,
 				tblName, pkCols)
 		}
 		o_id, o_d_id, o_w_id := pkCols[0], pkCols[1], pkCols[2]
-		uniqueInt = DistKey(o_d_id, o_w_id)*g_max_orderline + (g_max_orderline - o_id)
+		uniqueInt = DistKey(o_d_id, o_w_id)*g_max_orderline + (g_max_orderline - o_id) + index
 	case ORDER_LINE:
 		if len(pkCols) < 3 {
 			log.Fatalf(context.Background(), "jenndebug tblName %s, pkCols %+v\n",
