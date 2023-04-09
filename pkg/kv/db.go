@@ -1104,6 +1104,7 @@ func (db *DB) IsKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) (Cicad
 	//if val, alreadyExists := db.promotionMap.Load(mapStr); alreadyExists {
 	//	cicadaKey := val.(CicadaAffiliatedKey)
 	if cicadaKey, alreadyExists := db.GetFromPromotionMap(key); alreadyExists {
+		//log.Warningf(context.Background(), "jenndebug checking %s, %+v\n", key, []byte(key))
 
 		// no timestamp given
 		if ts.WallTime == 0 {

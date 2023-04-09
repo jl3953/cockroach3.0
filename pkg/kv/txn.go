@@ -1126,15 +1126,15 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 
 	// Extract write keys that the txn has stored over the course of its lifetime
 	// TODO jenndebug remove duplicates
-	if txn.HasWriteHotkeys() && txn.HasInsertHotkeys() {
-		for i := 0; i < len(txn.writeHotkeys); i += 2 {
-			log.Warningf(ctx, "jenndebug writeHotkey %s, %+v\n", roachpb.Key(txn.writeHotkeys[i]), txn.writeHotkeys[i])
-		}
-		for i := 0; i < len(txn.insertHotkeys); i += 2 {
-			log.Warningf(ctx, "jenndebug insertHotkey %s, %+v\n", roachpb.Key(txn.insertHotkeys[i]), txn.insertHotkeys[i])
-		}
-		log.Fatalf(ctx, "jenndebug txn has both write and insert hotkeys, write %+v, insert %+v\n", txn.writeHotkeys, txn.insertHotkeys)
-	}
+	//if txn.HasWriteHotkeys() && txn.HasInsertHotkeys() {
+	//	for i := 0; i < len(txn.writeHotkeys); i += 2 {
+	//		log.Warningf(ctx, "jenndebug writeHotkey %s, %+v\n", roachpb.Key(txn.writeHotkeys[i]), txn.writeHotkeys[i])
+	//	}
+	//	for i := 0; i < len(txn.insertHotkeys); i += 2 {
+	//		log.Warningf(ctx, "jenndebug insertHotkey %s, %+v\n", roachpb.Key(txn.insertHotkeys[i]), txn.insertHotkeys[i])
+	//	}
+	//	log.Fatalf(ctx, "jenndebug txn has both write and insert hotkeys, write %+v, insert %+v\n", txn.writeHotkeys, txn.insertHotkeys)
+	//}
 
 	writeOps := make([]*execinfrapb.Op, 0)
 	if txn.HasWriteHotkeys() {
@@ -1303,7 +1303,7 @@ func (txn *Txn) constructCicadaReadOp(
 		roachKey[i] = cicadaAffiliatedKey.RoachKey[i]
 	}
 
-	log.Warningf(context.Background(), "jenndebug what key are you extracting %s %+v\n", roachKey, []byte(roachKey))
+	//log.Warningf(context.Background(), "jenndebug what key are you extracting %s %+v\n", roachKey, []byte(roachKey))
 	table, index, pkCols := ExtractKey(roachKey)
 	tableName, exists := txn.DB().TableName(int(table))
 	if !exists {
@@ -1569,7 +1569,7 @@ func (txn *Txn) Send(
 		isInCicada[i] = false
 
 		if etReq := req.GetEndTxn(); etReq != nil && etReq.Commit == true {
-			//log.Warningf(ctx, "jenndebut txn.Id %d, commit\n", txn.SomeNum())
+			log.Warningf(ctx, "jenndebut txn.Id %d, commit\n", txn.SomeNum())
 			if txn.HasWriteHotkeys() || txn.HasInsertHotkeys() {
 				didWritesCommit, sendErr := txn.oneTouchWritesCicada(ctx)
 				txn.ClearWriteHotkeys()
@@ -1584,7 +1584,7 @@ func (txn *Txn) Send(
 			}
 		}
 
-		if key := req.GetInner().Header().Key; IsUserKey(key.String()) {
+		if key := req.GetInner().Header().Key; IsUserKey(key.String()) && len(originalRequests) <= 2 {
 			if cicadaAffiliatedKey, isPromoted := txn.DB().IsKeyInCicadaAtTimestamp(
 				key, txn.ProvisionalCommitTimestamp()); isPromoted && !txn.IsDemotion() {
 				// remove from default CRDB path
@@ -1601,45 +1601,59 @@ func (txn *Txn) Send(
 					isInCicada[i] = true
 					txn.AddInsertHotkeys([][]byte{initPutReq.Key, initPutReq.Value.RawBytes})
 				} else if scanReq := req.GetScan(); scanReq != nil {
-					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
-					isInCicada[i] = true
-					op := txn.constructCicadaReadOp(cicadaAffiliatedKey)
-					ops = append(ops, &op)
-				}
-			} else if ExtractTableNum(key) == 1000 {
-				if putReq := req.GetPut(); putReq != nil {
-					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
-					isInCicada[i] = true
-					txn.AddWriteHotkeys([][]byte{putReq.Key, putReq.Value.RawBytes})
-				} else if conditionalPutReq := req.GetConditionalPut(); conditionalPutReq != nil {
-					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
-					isInCicada[i] = true
-					txn.AddInsertHotkeysAndIncrementScanCounter([][]byte{conditionalPutReq.Key, conditionalPutReq.Value.RawBytes})
-				} else if initPutReq := req.GetInitPut(); initPutReq != nil {
-					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
-					isInCicada[i] = true
-					txn.AddInsertHotkeys([][]byte{initPutReq.Key, initPutReq.Value.RawBytes})
-				} else if scanReq := req.GetScan(); scanReq != nil {
-					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
-					brSelfBuffer = &roachpb.BatchResponse{
-						Responses: make([]roachpb.ResponseUnion, 1),
-					}
-					if txn.scanCounter > 0 {
-						txn.scanCounter--
-						txn.ScanFromBuffer(brSelfBuffer)
+					if tableName, _ := txn.DB().TableName(ExtractTableNum(key)); ORDER == tableName {
+						warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
+						brSelfBuffer = &roachpb.BatchResponse{
+							Responses: make([]roachpb.ResponseUnion, 1),
+						}
+						if txn.scanCounter > 0 {
+							txn.scanCounter--
+							txn.ScanFromBuffer(brSelfBuffer)
+						} else {
+							txn.PopulateReadFromBuffer(brSelfBuffer)
+						}
 					} else {
-						txn.PopulateReadFromBuffer(brSelfBuffer)
+						warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
+						isInCicada[i] = true
+						op := txn.constructCicadaReadOp(cicadaAffiliatedKey)
+						ops = append(ops, &op)
 					}
-
-					//isInCicada[i] = true
-					//cicadaAffiliatedKey = NewCicadaAffiliatedKey(key, true)
-					//op := txn.constructCicadaReadOp(cicadaAffiliatedKey)
-					//ops = append(ops, &op)
 				}
+				//} else if ExtractTableNum(key) == 1000 {
+				//	if putReq := req.GetPut(); putReq != nil {
+				//		warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
+				//		isInCicada[i] = true
+				//		txn.AddWriteHotkeys([][]byte{putReq.Key, putReq.Value.RawBytes})
+				//	} else if conditionalPutReq := req.GetConditionalPut(); conditionalPutReq != nil {
+				//		warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
+				//		isInCicada[i] = true
+				//		txn.AddInsertHotkeysAndIncrementScanCounter([][]byte{conditionalPutReq.Key, conditionalPutReq.Value.RawBytes})
+				//	} else if initPutReq := req.GetInitPut(); initPutReq != nil {
+				//		warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
+				//		isInCicada[i] = true
+				//		txn.AddInsertHotkeys([][]byte{initPutReq.Key, initPutReq.Value.RawBytes})
+				//	} else if scanReq := req.GetScan(); scanReq != nil {
+				//		warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
+				//		brSelfBuffer = &roachpb.BatchResponse{
+				//			Responses: make([]roachpb.ResponseUnion, 1),
+				//		}
+				//		if txn.scanCounter > 0 {
+				//			txn.scanCounter--
+				//			txn.ScanFromBuffer(brSelfBuffer)
+				//		} else {
+				//			txn.PopulateReadFromBuffer(brSelfBuffer)
+				//		}
+				//
+				//		//isInCicada[i] = true
+				//		//cicadaAffiliatedKey = NewCicadaAffiliatedKey(key, true)
+				//		//op := txn.constructCicadaReadOp(cicadaAffiliatedKey)
+				//		//ops = append(ops, &op)
+				//	}
 			}
 		}
 	}
 	if brSelfBuffer != nil {
+		log.Warningf(ctx, "jenndebug txn.Id %d, brSelfBuffer %+v\n", txn.SomeNum(), brSelfBuffer)
 		return brSelfBuffer, nil
 	}
 
@@ -1738,21 +1752,21 @@ func (txn *Txn) Send(
 		}
 	}
 
-	// check if any warm keys are in warm key batch. If there are, retry the txn
-	for _, req := range warmKeysRequests {
-		if key := req.GetInner().Header().Key; IsUserKey(key.String()) {
-			if req.GetScan() != nil || req.GetPut() != nil {
-				if _, isPromoted := txn.DB().IsKeyInCicadaAtTimestamp(key, txn.ProvisionalCommitTimestamp()); isPromoted {
-					if txn.IsDemotion() {
-						continue
-					}
-					log.Errorf(ctx, "jenndebug warmkey %+v promoted to Cicada\n", key)
-					return nil, txn.constructInjectedRetryError(ctx,
-						"jenndebug cicada reads already promoted, need reroute")
-				}
-			}
-		}
-	}
+	//// check if any warm keys are in warm key batch. If there are, retry the txn
+	//for _, req := range warmKeysRequests {
+	//	if key := req.GetInner().Header().Key; IsUserKey(key.String()) {
+	//		if req.GetScan() != nil || req.GetPut() != nil {
+	//			if _, isPromoted := txn.DB().IsKeyInCicadaAtTimestamp(key, txn.ProvisionalCommitTimestamp()); isPromoted {
+	//				if txn.IsDemotion() {
+	//					continue
+	//				}
+	//				log.Errorf(ctx, "jenndebug warmkey %+v promoted to Cicada\n", key)
+	//				return nil, txn.constructInjectedRetryError(ctx,
+	//					"jenndebug cicada reads already promoted, need reroute")
+	//			}
+	//		}
+	//	}
+	//}
 	if onlyCRDBRequestsThisSend := !containsTrue(isInCicada); onlyCRDBRequestsThisSend {
 		return brCRDB, pErr
 	}
@@ -1783,6 +1797,7 @@ func (txn *Txn) Send(
 	}
 	mergeCRDBCicadaResponses(ctx, isInCicada, originalRequests, brCRDB, brCicada, brSelfBuffer, br)
 
+	log.Warningf(ctx, "jenndebug txn.Id %d made it %+v\n", txn.SomeNum(), br)
 	return br, pErr
 }
 
