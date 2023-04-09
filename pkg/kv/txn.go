@@ -1650,6 +1650,13 @@ func (txn *Txn) Send(
 				//		//op := txn.constructCicadaReadOp(cicadaAffiliatedKey)
 				//		//ops = append(ops, &op)
 				//	}
+			} else if tableName, _ := txn.DB().TableName(ExtractTableNum(key)); ORDER == tableName && 2 == ExtractIndex(key) && len(txn.DB().promotionMap) > 1000 {
+				if initPutReq := req.GetInitPut(); initPutReq != nil {
+					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
+					isInCicada[i] = true
+					//txn.AddInsertHotkeys([][]byte{initPutReq.Key, initPutReq.Value.RawBytes})
+					//log.Warningf(ctx, "jenndebug am I getting here %s %+v\n", key, []byte(key))
+				}
 			}
 		}
 	}
