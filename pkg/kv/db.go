@@ -1103,15 +1103,27 @@ func (db *DB) IsKeyInCicadaAtTimestamp(key roachpb.Key, ts hlc.Timestamp) (Cicad
 	//mapStr := writeKey.String()
 	//if val, alreadyExists := db.promotionMap.Load(mapStr); alreadyExists {
 	//	cicadaKey := val.(CicadaAffiliatedKey)
+
+	//if tableName, _ := db.TableName(ExtractTableNum(key)); WAREHOUSE == tableName {
+	//	log.Warningf(context.Background(), "jenndebug checking %s, %+v\n", key, []byte(key))
+	//}
 	if cicadaKey, alreadyExists := db.GetFromPromotionMap(key); alreadyExists {
-		//log.Warningf(context.Background(), "jenndebug checking %s, %+v\n", key, []byte(key))
+		//if tableName, _ := db.TableName(ExtractTableNum(key)); WAREHOUSE == tableName {
+		//	log.Warningf(context.Background(), "jenndebug did i make it in %s, %+v\n", key, []byte(key))
+		//}
 
 		// no timestamp given
 		if ts.WallTime == 0 {
+			//if tableName, _ := db.TableName(ExtractTableNum(key)); WAREHOUSE == tableName {
+			//	log.Warningf(context.Background(), "jenndebug am i true %s, %+v\n", key, []byte(key))
+			//}
 			return cicadaKey, true
 		}
 
 		if cicadaKey.PromotionTimestamp.Less(ts) {
+			//if tableName, _ := db.TableName(ExtractTableNum(key)); WAREHOUSE == tableName {
+			//	log.Warningf(context.Background(), "jenndebug am i still true %s, %+v\n", key, []byte(key))
+			//}
 			return cicadaKey, true
 		}
 	}

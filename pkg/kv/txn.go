@@ -1274,7 +1274,7 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 		log.Errorf(ctx, "jenndebug cicada write txn didn't commit\n")
 		return false, nil
 	}
-	log.Warningf(ctx, "jenndebug cicada write txn committed\n")
+	//log.Warningf(ctx, "jenndebug cicada write txn committed\n")
 	return true, nil
 }
 
@@ -1294,8 +1294,8 @@ func (txn *Txn) constructCicadaReadOp(
 	cicadaAffiliatedKey CicadaAffiliatedKey) execinfrapb.Op {
 
 	if txn.HasWriteHotkeys() || txn.HasInsertHotkeys() {
-		log.Warningf(context.Background(), "jenndebug hasWriteHotkeys %+v, insertHotkeys %+v\n",
-			txn.writeHotkeys, txn.insertHotkeys)
+		//log.Warningf(context.Background(), "jenndebug hasWriteHotkeys %+v, insertHotkeys %+v, %s\n",
+		//	txn.writeHotkeys, txn.insertHotkeys, roachpb.Key(txn.insertHotkeys[0]))
 	}
 	get := execinfrapb.Cmd_GET
 	roachKey := make([]byte, cicadaAffiliatedKey.RoachKeyLen)
@@ -1303,7 +1303,7 @@ func (txn *Txn) constructCicadaReadOp(
 		roachKey[i] = cicadaAffiliatedKey.RoachKey[i]
 	}
 
-	//log.Warningf(context.Background(), "jenndebug what key are you extracting %s %+v\n", roachKey, []byte(roachKey))
+	//log.Warningf(context.Background(), "jenndebug cicadaRead extracting key %s %+v\n", roachKey, []byte(roachKey))
 	table, index, pkCols := ExtractKey(roachKey)
 	tableName, exists := txn.DB().TableName(int(table))
 	if !exists {
@@ -1569,7 +1569,7 @@ func (txn *Txn) Send(
 		isInCicada[i] = false
 
 		if etReq := req.GetEndTxn(); etReq != nil && etReq.Commit == true {
-			log.Warningf(ctx, "jenndebut txn.Id %d, commit\n", txn.SomeNum())
+			//log.Warningf(ctx, "jenndebut txn.Id %d, commit\n", txn.SomeNum())
 			if txn.HasWriteHotkeys() || txn.HasInsertHotkeys() {
 				didWritesCommit, sendErr := txn.oneTouchWritesCicada(ctx)
 				txn.ClearWriteHotkeys()
@@ -1613,6 +1613,7 @@ func (txn *Txn) Send(
 							txn.PopulateReadFromBuffer(brSelfBuffer)
 						}
 					} else {
+						//log.Warningf(ctx, "jenndebug reading tableName %s, tableNum %d\n", tableName, ExtractTableNum(key))
 						warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
 						isInCicada[i] = true
 						op := txn.constructCicadaReadOp(cicadaAffiliatedKey)
@@ -1653,7 +1654,7 @@ func (txn *Txn) Send(
 		}
 	}
 	if brSelfBuffer != nil {
-		log.Warningf(ctx, "jenndebug txn.Id %d, brSelfBuffer %+v\n", txn.SomeNum(), brSelfBuffer)
+		//log.Warningf(ctx, "jenndebug txn.Id %d, brSelfBuffer %+v\n", txn.SomeNum(), brSelfBuffer)
 		return brSelfBuffer, nil
 	}
 
@@ -1797,7 +1798,7 @@ func (txn *Txn) Send(
 	}
 	mergeCRDBCicadaResponses(ctx, isInCicada, originalRequests, brCRDB, brCicada, brSelfBuffer, br)
 
-	log.Warningf(ctx, "jenndebug txn.Id %d made it %+v\n", txn.SomeNum(), br)
+	//log.Warningf(ctx, "jenndebug txn.Id %d made it %+v\n", txn.SomeNum(), br)
 	return br, pErr
 }
 
@@ -2275,14 +2276,14 @@ func (txn *Txn) AddWriteHotkeys(hotkeys [][]byte) {
 func (txn *Txn) AddInsertHotkeys(hotkeys [][]byte) {
 	txn.insertHotkeys = append(txn.insertHotkeys, hotkeys...)
 
-	key := roachpb.Key(hotkeys[0])
-	value := hotkeys[1]
-	ts := txn.ProvisionalCommitTimestamp()
+	//key := roachpb.Key(hotkeys[0])
+	//value := hotkeys[1]
+	//ts := txn.ProvisionalCommitTimestamp()
 
-	data := reconstructValue(key, value, ts.WallTime, ts.Logical, bytes.Repeat([]byte("f"), len(value)))
+	//data := reconstructValue(key, value, ts.WallTime, ts.Logical, bytes.Repeat([]byte("f"), len(value)))
 
-	log.Warningf(context.Background(), "jenndebug txn.Id %d, AddInsertHotkeys %s, %+v, %+v\n",
-		txn.SomeNum(), roachpb.Key(hotkeys[0]), hotkeys[0], data)
+	//log.Warningf(context.Background(), "jenndebug txn.Id %d, AddInsertHotkeys %s, %+v, %+v\n",
+	//txn.SomeNum(), roachpb.Key(hotkeys[0]), hotkeys[0], data)
 }
 
 func (txn *Txn) AddInsertHotkeysAndIncrementScanCounter(hotkeys [][]byte) {
