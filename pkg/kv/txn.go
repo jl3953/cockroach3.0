@@ -1202,7 +1202,8 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 		for j := 0; j < len(txn.insertHotkeys); j += 2 {
 			writeKey := txn.insertHotkeys[j]
 			val := txn.insertHotkeys[j+1]
-			initPut := execinfrapb.Cmd_INIT_PUT
+			//initPut := execinfrapb.Cmd_INIT_PUT
+			initPut := execinfrapb.Cmd_PUT
 			table, index, pkCols := ExtractKey(writeKey)
 
 			roachKeyLen := len(writeKey)

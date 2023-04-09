@@ -973,7 +973,7 @@ func (db *DB) CalculateUniqueKeyIntFromRawKey(key roachpb.Key) (
 		return -1
 	}
 
-	log.Warningf(context.Background(), "jenndebug calculate %+v, %+v\n", key, []byte(key))
+	//log.Warningf(context.Background(), "jenndebug calculate %+v, %+v\n", key, []byte(key))
 	uniqueKeyInt := CalculateUniqueKeyInt(tblNum, tblName, pkCols, int64(index))
 
 	return uniqueKeyInt
