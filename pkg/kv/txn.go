@@ -1675,69 +1675,71 @@ func (txn *Txn) Send(
 	if len(warmKeysRequests) > 0 {
 		ba.Requests = warmKeysRequests
 
-		//containsUserKey := false
-		//for i, req := range ba.Requests {
-		//	if key := req.GetInner().Header().Key; IsUserKey(key.String()) && ExtractTableNum(key) == 57 {
-		//		if req.GetScan() != nil {
-		//			log.Warningf(ctx, "jenndebug txn.Id %d, ScanReq %s, %+v, req %d\n", txn.SomeNum(), key, []byte(key), i)
-		//		} else if req.GetPut() != nil {
-		//			log.Warningf(ctx, "jenndebug txn.Id %d, PutReq %s, %+v, req %d\n", txn.SomeNum(), key, []byte(key), i)
-		//		} else if req.GetGet() != nil {
-		//			log.Warningf(ctx, "jenndebug GetReq %s, req %d\n", key, i)
-		//		} else if conditionalPutReq := req.GetConditionalPut(); conditionalPutReq != nil {
-		//			if expVal := conditionalPutReq.ExpValue; expVal != nil {
-		//				log.Warningf(ctx, "jenndebug txn.Id %d, ConditionalPutreq %s, val %+v, expVal %+v, req %d\n",
-		//					txn.SomeNum(), key, conditionalPutReq.Value.RawBytes, *expVal, i)
-		//			} else {
-		//				log.Warningf(ctx, "jenndebug txn.Id %d, ConditionalPutreq %s, val %+v, expVal nil, req %d\n",
-		//					txn.SomeNum(), key, conditionalPutReq.Value.RawBytes, i)
-		//			}
-		//		} else if req.GetInitPut() != nil {
-		//			log.Warningf(ctx, "jenndebug txn.Id %d, InitPutreq %s, req %d\n", txn.SomeNum(), key, i)
-		//		} else {
-		//			log.Warningf(ctx, "jenndebug OtherReq %s, req %d\n", key, i)
-		//		}
-		//		containsUserKey = true
-		//	}
-		//}
+		containsUserKey := false
+		for i, req := range ba.Requests {
+			if key := req.GetInner().Header().Key; IsUserKey(key.String()) && ExtractTableNum(key) == 54 {
+				if req.GetScan() != nil {
+					log.Warningf(ctx, "jenndebug txn.Id %d, ScanReq %s, %+v, req %d\n", txn.SomeNum(), key, []byte(key), i)
+				} else if req.GetPut() != nil {
+					log.Warningf(ctx, "jenndebug txn.Id %d, PutReq %s, %+v, req %d\n", txn.SomeNum(), key, []byte(key), i)
+				} else if req.GetGet() != nil {
+					log.Warningf(ctx, "jenndebug GetReq %s, req %d\n", key, i)
+				} else if conditionalPutReq := req.GetConditionalPut(); conditionalPutReq != nil {
+					if expVal := conditionalPutReq.ExpValue; expVal != nil {
+						log.Warningf(ctx, "jenndebug txn.Id %d, ConditionalPutreq %s, val %+v, expVal %+v, req %d\n",
+							txn.SomeNum(), key, conditionalPutReq.Value.RawBytes, *expVal, i)
+					} else {
+						log.Warningf(ctx, "jenndebug txn.Id %d, ConditionalPutreq %s, val %+v, expVal nil, req %d\n",
+							txn.SomeNum(), key, conditionalPutReq.Value.RawBytes, i)
+					}
+				} else if req.GetInitPut() != nil {
+					log.Warningf(ctx, "jenndebug txn.Id %d, InitPutreq %s, req %d\n", txn.SomeNum(), key, i)
+				} else {
+					log.Warningf(ctx, "jenndebug OtherReq %s, req %d\n", key, i)
+				}
+				containsUserKey = true
+			}
+		}
 		//log.Warningf(ctx, "jenndebug txn.Id %d also made it here\n", txn.SomeNum())
 
 		brCRDB, pErr = txn.db.sendUsingSender(ctx, ba, sender)
 
-		//if containsUserKey && brCRDB != nil {
-		//	for i, resp := range brCRDB.Responses {
-		//		if getResp := resp.GetGet(); getResp != nil {
-		//			log.Warningf(ctx, "jenndebug getResp.Value %+v, %d resp\n", getResp.Value.RawBytes, i)
-		//		} else if putResp := resp.GetPut(); putResp != nil {
-		//			log.Warningf(ctx, "jenndebug txn.Id %d, putResp %+v, %d resp\n", txn.SomeNum(), *putResp, i)
-		//		} else if scanResp := resp.GetScan(); scanResp != nil {
-		//			var key roachpb.Key = nil
-		//			if len(scanResp.Rows) > 0 {
-		//				key = scanResp.Rows[0].Key
-		//			}
-		//			intent := "empty slice"
-		//			if scanResp.IntentRows == nil {
-		//				intent = "nil"
-		//			}
-		//			batch := "empty slice"
-		//			if scanResp.BatchResponses == nil {
-		//				batch = "nil"
-		//			}
-		//			rangeInfos := "empty slice"
-		//			if scanResp.Header().RangeInfos == nil {
-		//				rangeInfos = "nil"
-		//			}
-		//			log.Warningf(ctx, "jenndebug txn.Id %d, key %s, scanResp.Rows %+v, scanResp.Intent %+v, "+
-		//				"scanResp.BatchResponses %+v, ts %d, %d, header %+v\n",
-		//				txn.SomeNum(), key, scanResp.Rows, intent, batch, txn.ProvisionalCommitTimestamp().WallTime,
-		//				txn.ProvisionalCommitTimestamp().Logical, rangeInfos)
-		//		} else if conditionalPutResp := resp.GetConditionalPut(); conditionalPutResp != nil {
-		//			log.Warningf(ctx, "jenndebug conditionalPutresp %+v, %d resp\n", *conditionalPutResp, i)
-		//			//} else if initPutResp := resp.GetInitPut(); initPutResp != nil {
-		//			//	log.Warningf(ctx, "jenndebug initPutresp %+v, %d resp\n", *initPutResp, i)
-		//		}
-		//	}
-		//}
+		if containsUserKey && brCRDB != nil {
+			for i, resp := range brCRDB.Responses {
+				if getResp := resp.GetGet(); getResp != nil {
+					log.Warningf(ctx, "jenndebug getResp.Value %+v, %d resp\n", getResp.Value.RawBytes, i)
+				} else if putResp := resp.GetPut(); putResp != nil {
+					log.Warningf(ctx, "jenndebug txn.Id %d, putResp %+v, %d resp\n", txn.SomeNum(), *putResp, i)
+				} else if scanResp := resp.GetScan(); scanResp != nil {
+					//var key roachpb.Key = nil
+					//if len(scanResp.Rows) > 0 {
+					//	key = scanResp.Rows[0].Key
+					//}
+					//intent := "empty slice"
+					//if scanResp.IntentRows == nil {
+					//	intent = "nil"
+					//}
+					//batch := "empty slice"
+					//if scanResp.BatchResponses == nil {
+					//	batch = "nil"
+					//}
+					//rangeInfos := "empty slice"
+					//if scanResp.Header().RangeInfos == nil {
+					//	rangeInfos = "nil"
+					//}
+					//log.Warningf(ctx, "jenndebug txn.Id %d, key %s, scanResp.Rows %+v, scanResp.Intent %+v, "+
+					//	"scanResp.BatchResponses %+v, ts %d, %d, header %+v\n",
+					//	txn.SomeNum(), key, scanResp.Rows, intent, batch, txn.ProvisionalCommitTimestamp().WallTime,
+					//	txn.ProvisionalCommitTimestamp().Logical, scanResp.Header())
+					log.Warningf(ctx, "jenndebug txn.Id %d, scanResp %+v, scanResp.BatchResponses %+v\n", txn.SomeNum(), scanResp,
+						scanResp.BatchResponses)
+				} else if conditionalPutResp := resp.GetConditionalPut(); conditionalPutResp != nil {
+					log.Warningf(ctx, "jenndebug conditionalPutresp %+v, %d resp\n", *conditionalPutResp, i)
+					//} else if initPutResp := resp.GetInitPut(); initPutResp != nil {
+					//	log.Warningf(ctx, "jenndebug initPutresp %+v, %d resp\n", *initPutResp, i)
+				}
+			}
+		}
 
 		if pErr != nil {
 			if retryErr, ok := pErr.GetDetail().(*roachpb.TransactionRetryWithProtoRefreshError); ok {
