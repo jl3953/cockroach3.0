@@ -62,21 +62,21 @@ service HotshardGateway {
   rpc DemoteKey (KeyMigrationReq) returns (KeyMigrationResp) {}
   rpc DemoteKeys (MultiKeyMigrationReq) returns (MultiKeyMigrationResp) {}
 
+  rpc DeleteFromInProgressDemotionMap (DeleteFromInProgressDemotionMapReq) returns (DeleteFromInProgressDemotionMapResp) {}
+  rpc DeleteFromPromotionMap (DeleteFromPromotionMapReq) returns (DeleteFromPromotionMapResp) {}
   rpc LockPromotionMap (LockPromotionMapReq) returns (LockPromotionMapResp) {}
   rpc PopulateCRDBTableNumMapping (PopulateCRDBTableNumMappingReq) returns (PopulateCRDBTableNumMappingResp) {}
   rpc PromoteKey (KeyMigrationReq) returns (KeyMigrationResp) {}
   rpc PromoteKeys (PromoteKeysReq) returns (PromoteKeysResp) {}
   rpc PromoteKeysToCicada(PromoteKeysToCicadaReq) returns (PromoteKeysToCicadaResp) {}
   rpc QueryTableNumFromName(QueryTableNumFromNameReq) returns
-      (QueryTableNumFromNameResp) {}
+    (QueryTableNumFromNameResp) {}
   rpc UnlockPromotionMap (UnlockPromotionMapReq) returns
     (UnlockPromotionMapResp) {}
   rpc UpdatePromotionMap (PromoteKeysReq) returns (PromoteKeysResp) {}
   rpc UpdatePromotionMapWithoutLocking (PromoteKeysReq) returns
     (PromoteKeysResp) {}
-  rpc DeleteFromPromotionMap (DeleteFromPromotionMapReq) returns (DeleteFromPromotionMapResp) {}
   rpc UpdateInProgressDemotionMap (UpdateInProgressDemotionMapReq) returns (UpdateInProgressDemotionMapResp) {}
-  rpc DeleteFromInProgressDemotionMap (DeleteFromInProgressDemotionMapReq) returns (DeleteFromInProgressDemotionMapResp) {}
 
   rpc RequestCRDBKeyStats(KeyStatsRequest) returns (CRDBKeyStatsResponse) {}
   rpc SendTxn(TxnReq) returns (TxnResp) {}
@@ -92,6 +92,60 @@ service HotshardGateway {
 
   rpc RequestCicadaStats (CalculateCicadaReq) returns (CicadaStatsResponse) {}
 
+  rpc ReplicateLog (ReplicateLogReq) returns (ReplicateLogResp) {}
+  rpc AckReplicateLog (AckReplicateLogReq) returns (AckReplicateLogResp) {}
+  rpc Replay (ReplayReq) returns (ReplayResp) {}
+  rpc QueryThreadMetas (QueryThreadMetasReq) returns (QueryThreadMetasResp) {}
+
+  rpc QueryBackupMeta (QueryBackupMetaReq) returns (QueryBackupMetaResp) {}
+
+  rpc TriggerReplay (TriggerReplayReq) returns (TriggerReplayResp) {}
+  rpc ReplayOnTail (ReplayOnTailReq) returns (ReplayOnTailResp) {}
+
+  rpc CheckBackupState(BatchSendTxnsReq) returns (BatchSendTxnsResp) {}
+
+  rpc ReleaseMe(ReleaseMeReq) returns (ReleaseMeResp) {}
+
+}
+
+message ReleaseMeReq {
+  required HLCTimestamp watermark = 1;
+  required int32 threadId = 2;
+}
+
+message ReleaseMeResp {
+}
+
+message TriggerReplayReq {}
+message TriggerReplayResp{}
+
+message ReplayOnTailReq {
+  required HLCTimestamp global_watermark = 1;
+}
+message ReplayOnTailResp {}
+
+message QueryBackupMetaReq {}
+message QueryBackupMetaResp {
+  required int32 num_pending_txns = 1;
+}
+
+message QueryThreadMetasReq {
+  required bool include_global_watermark = 1;
+  required bool include_watermarks = 2;
+  required bool include_logs = 3;
+  repeated int32 thread_ids = 4;
+
+}
+
+message ThreadMeta {
+  required int32 thread_id = 1;
+  optional HLCTimestamp watermark = 2;
+  repeated TxnReq log = 3;
+}
+
+message QueryThreadMetasResp {
+   optional HLCTimestamp global_watermark = 1;
+   repeated ThreadMeta thread_metas = 2;
 }
 
 message BatchSendTxnsReq {
@@ -143,6 +197,41 @@ message QueryTableNumFromNameResp {
 
 message QueryTableMapResp {
   repeated TableNumMapping tableNumMappings = 1;
+}
+
+message ReplicateLogReq {
+  repeated TxnReq txns = 1;
+  required HLCTimestamp currentRT = 2;
+}
+
+message ReplicateLogResp {
+  required HLCTimestamp watermark = 1;
+  repeated HLCTimestamp lowerTimestamps = 2;
+}
+
+message AckReplicateLogReq {
+  required int32 thread = 1;
+  required HLCTimestamp watermark = 2;
+}
+
+message AckReplicateLogResp {
+  // nothing
+}
+
+message ReplayReq {
+  required HLCTimestamp RT = 1;
+}
+
+message ReplayResp {
+  required bool succeeded = 1;
+}
+
+message AckReplayReq {
+  required bool succeeded = 1;
+}
+
+message AckReplayResp {
+  // nothing, this is an async request
 }
 
 message TestPromotionKeyReq {
@@ -250,13 +339,13 @@ message TxnResp {
 }
 
 message CalculateCicadaReq {
-  optional double cpu_target = 1;		// ideal % cpu usage
-  optional double cpu_ceiling = 2; 		// max allowable % cpu usage
-  optional double cpu_floor = 3; 		// min allowable % cpu usage
-  optional double mem_target = 4; 		// ideal mem usage
-  optional double mem_ceiling = 5; 		// max allowable mem usage
-  optional double mem_floor = 6; 		// min allowable mem usage
-  optional double percentile_n = 7; 	// the percentile of keys newly promoted keys have to beat
+  optional double cpu_target = 1;       // ideal % cpu usage
+  optional double cpu_ceiling = 2;      // max allowable % cpu usage
+  optional double cpu_floor = 3;        // min allowable % cpu usage
+  optional double mem_target = 4;       // ideal mem usage
+  optional double mem_ceiling = 5;      // max allowable mem usage
+  optional double mem_floor = 6;        // min allowable mem usage
+  optional double percentile_n = 7;     // the percentile of keys newly promoted keys have to beat
   optional HLCTimestamp timestamp = 8;
 }
 
@@ -314,8 +403,8 @@ message KeyMigrationReq {
 }
 
 message KeyMigrationResp {
-	//  optional bytes key = 1;
-	//  optional bool is_successfully_migrated = 2;
+    //  optional bytes key = 1;
+    //  optional bool is_successfully_migrated = 2;
   optional bool is_successfully_migrated = 1;
 }
 
