@@ -62,21 +62,21 @@ service HotshardGateway {
   rpc DemoteKey (KeyMigrationReq) returns (KeyMigrationResp) {}
   rpc DemoteKeys (MultiKeyMigrationReq) returns (MultiKeyMigrationResp) {}
 
-  rpc DeleteFromInProgressDemotionMap (DeleteFromInProgressDemotionMapReq) returns (DeleteFromInProgressDemotionMapResp) {}
-  rpc DeleteFromPromotionMap (DeleteFromPromotionMapReq) returns (DeleteFromPromotionMapResp) {}
   rpc LockPromotionMap (LockPromotionMapReq) returns (LockPromotionMapResp) {}
   rpc PopulateCRDBTableNumMapping (PopulateCRDBTableNumMappingReq) returns (PopulateCRDBTableNumMappingResp) {}
   rpc PromoteKey (KeyMigrationReq) returns (KeyMigrationResp) {}
   rpc PromoteKeys (PromoteKeysReq) returns (PromoteKeysResp) {}
   rpc PromoteKeysToCicada(PromoteKeysToCicadaReq) returns (PromoteKeysToCicadaResp) {}
   rpc QueryTableNumFromName(QueryTableNumFromNameReq) returns
-    (QueryTableNumFromNameResp) {}
+      (QueryTableNumFromNameResp) {}
   rpc UnlockPromotionMap (UnlockPromotionMapReq) returns
     (UnlockPromotionMapResp) {}
   rpc UpdatePromotionMap (PromoteKeysReq) returns (PromoteKeysResp) {}
   rpc UpdatePromotionMapWithoutLocking (PromoteKeysReq) returns
     (PromoteKeysResp) {}
+  rpc DeleteFromPromotionMap (DeleteFromPromotionMapReq) returns (DeleteFromPromotionMapResp) {}
   rpc UpdateInProgressDemotionMap (UpdateInProgressDemotionMapReq) returns (UpdateInProgressDemotionMapResp) {}
+  rpc DeleteFromInProgressDemotionMap (DeleteFromInProgressDemotionMapReq) returns (DeleteFromInProgressDemotionMapResp) {}
 
   rpc RequestCRDBKeyStats(KeyStatsRequest) returns (CRDBKeyStatsResponse) {}
   rpc SendTxn(TxnReq) returns (TxnResp) {}
@@ -296,6 +296,7 @@ enum Cmd {
   PUT = 2;
   CONDITIONAL_PUT = 3;
   INIT_PUT = 4;
+  INCREMENT = 5;
 }
 
 message Key {
@@ -403,8 +404,8 @@ message KeyMigrationReq {
 }
 
 message KeyMigrationResp {
-    //  optional bytes key = 1;
-    //  optional bool is_successfully_migrated = 2;
+  //  optional bytes key = 1;
+  //  optional bool is_successfully_migrated = 2;
   optional bool is_successfully_migrated = 1;
 }
 
