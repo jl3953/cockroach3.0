@@ -1679,9 +1679,11 @@ func (txn *Txn) Send(
 		for i, req := range ba.Requests {
 			if key := req.GetInner().Header().Key; IsUserKey(key.String()) && ExtractTableNum(key) == 54 {
 				if req.GetScan() != nil {
-					log.Warningf(ctx, "jenndebug txn.Id %d, ScanReq %s, %+v, req %d\n", txn.SomeNum(), key, []byte(key), i)
+					log.Warningf(ctx, "jenndebug txn.Id %d, ScanReq %s, %+v, req %d, req.getScan()\n",
+						txn.SomeNum(), key, []byte(key), i, *req.GetScan())
 				} else if req.GetPut() != nil {
-					log.Warningf(ctx, "jenndebug txn.Id %d, PutReq %s, %+v, req %d\n", txn.SomeNum(), key, []byte(key), i)
+					log.Warningf(ctx, "jenndebug txn.Id %d, PutReq %s, %+v, req %d, req.GetPut()\n", txn.SomeNum(), key,
+						[]byte(key), i, *req.GetPut())
 				} else if req.GetGet() != nil {
 					log.Warningf(ctx, "jenndebug GetReq %s, req %d\n", key, i)
 				} else if conditionalPutReq := req.GetConditionalPut(); conditionalPutReq != nil {
@@ -1711,10 +1713,10 @@ func (txn *Txn) Send(
 				} else if putResp := resp.GetPut(); putResp != nil {
 					log.Warningf(ctx, "jenndebug txn.Id %d, putResp %+v, %d resp\n", txn.SomeNum(), *putResp, i)
 				} else if scanResp := resp.GetScan(); scanResp != nil {
-					//var key roachpb.Key = nil
-					//if len(scanResp.Rows) > 0 {
-					//	key = scanResp.Rows[0].Key
-					//}
+					var key roachpb.Key = nil
+					if len(scanResp.Rows) > 0 {
+						key = scanResp.Rows[0].Key
+					}
 					//intent := "empty slice"
 					//if scanResp.IntentRows == nil {
 					//	intent = "nil"
@@ -1731,8 +1733,8 @@ func (txn *Txn) Send(
 					//	"scanResp.BatchResponses %+v, ts %d, %d, header %+v\n",
 					//	txn.SomeNum(), key, scanResp.Rows, intent, batch, txn.ProvisionalCommitTimestamp().WallTime,
 					//	txn.ProvisionalCommitTimestamp().Logical, scanResp.Header())
-					log.Warningf(ctx, "jenndebug txn.Id %d, scanResp %+v, scanResp.BatchResponses %+v\n", txn.SomeNum(), scanResp,
-						scanResp.BatchResponses)
+					log.Warningf(ctx, "jenndebug txn.Id %d, scanResp %+v, %+v, scanResp.BatchResponses %+v\n",
+						txn.SomeNum(), key, scanResp, scanResp.BatchResponses)
 				} else if conditionalPutResp := resp.GetConditionalPut(); conditionalPutResp != nil {
 					log.Warningf(ctx, "jenndebug conditionalPutresp %+v, %d resp\n", *conditionalPutResp, i)
 					//} else if initPutResp := resp.GetInitPut(); initPutResp != nil {
