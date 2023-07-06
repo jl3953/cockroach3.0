@@ -347,19 +347,6 @@ func (n *newOrder) run(ctx context.Context, wID int) (interface{}, error) {
 			}
 			rows.Close()
 
-			// Insert row into the orders and new orders table.
-			if _, err := n.insertOrder.ExecTx(
-				ctx, tx,
-				d.oID, d.dID, d.wID, d.cID, d.oEntryD.Format("2006-01-02 15:04:05"), d.oOlCnt, allLocal,
-			); err != nil {
-				return err
-			}
-			if _, err := n.insertNewOrder.ExecTx(
-				ctx, tx, d.oID, d.dID, d.wID,
-			); err != nil {
-				return err
-			}
-
 			// Update the stock table for each item.
 			if _, err := tx.ExecEx(
 				ctx,
@@ -395,6 +382,19 @@ func (n *newOrder) run(ctx context.Context, wID int) (interface{}, error) {
 			if err := n.selectCustomerInfo.QueryRowTx(
 				ctx, tx, d.wID, d.dID, d.cID,
 			).Scan(&d.cDiscount, &d.cLast, &d.cCredit); err != nil {
+				return err
+			}
+
+			// Insert row into the orders and new orders table.
+			if _, err := n.insertOrder.ExecTx(
+				ctx, tx,
+				d.oID, d.dID, d.wID, d.cID, d.oEntryD.Format("2006-01-02 15:04:05"), d.oOlCnt, allLocal,
+			); err != nil {
+				return err
+			}
+			if _, err := n.insertNewOrder.ExecTx(
+				ctx, tx, d.oID, d.dID, d.wID,
+			); err != nil {
 				return err
 			}
 
