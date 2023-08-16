@@ -1290,6 +1290,31 @@ func (txn *Txn) constructInjectedRetryError(ctx context.Context, errMsg string) 
 	return roachpb.NewErrorWithTxn(retryableErr, &transaction)
 }
 
+func (txn *Txn) constructIncrementOp(cicadaKey CicadaAffiliatedKey) execinfrapb.Op {
+	increment := execinfrapb.Cmd_INCREMENT
+	roachKey := make([]byte, cicadaKey.RoachKeyLen)
+	for i := 0; i < len(roachKey); i++ {
+		roachKey[i] = cicadaKey.RoachKey[i]
+	}
+
+	table, index, pkcols := ExtractKey(roachKey)
+	tableName, exists := txn.DB().TableName(int(table))
+	if !exists {
+		log.Fatalf(context.Background(), "jenndebug table %d has no name in increment\n", table)
+	}
+	op := execinfrapb.Op{
+		Cmd:           &increment,
+		Table:         &table,
+		Index:         &index,
+		CicadaKeyCols: cicadaKey.CicadaKeyCols[0:cicadaKey.CicadaKeyColsLen],
+		Key:           roachKey,
+		Value:         nil,
+		CrdbKeyCols:   pkcols,
+		TableName:     &tableName,
+	}
+	return op
+}
+
 func (txn *Txn) constructCicadaReadOp(
 	cicadaAffiliatedKey CicadaAffiliatedKey) execinfrapb.Op {
 
@@ -1386,7 +1411,7 @@ func (txn *Txn) submitTxnToCicada(_ context.Context,
 	return extractTxnWrapper.TxnResp, extractTxnWrapper.SendErr
 }
 
-func (txn *Txn) readsCicada(ctx context.Context, ops []*execinfrapb.Op,
+func (txn *Txn) readsOrIncrementsCicada(ctx context.Context, ops []*execinfrapb.Op,
 	brCicada *roachpb.BatchResponse) (didReadsSucceed bool, err error) {
 
 	// query Cicada
@@ -1590,7 +1615,10 @@ func (txn *Txn) Send(
 				if putReq := req.GetPut(); putReq != nil {
 					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
 					isInCicada[i] = true
-					txn.AddWriteHotkeys([][]byte{putReq.Key, putReq.Value.RawBytes})
+
+					if tableName, _ := txn.DB().TableName(ExtractTableNum(key)); DISTRICT != tableName {
+						txn.AddWriteHotkeys([][]byte{putReq.Key, putReq.Value.RawBytes})
+					}
 				} else if conditionalPutReq := req.GetConditionalPut(); conditionalPutReq != nil {
 					warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
 					isInCicada[i] = true
@@ -1611,6 +1639,11 @@ func (txn *Txn) Send(
 						} else {
 							txn.PopulateReadFromBuffer(brSelfBuffer)
 						}
+					} else if tableName, _ = txn.DB().TableName(ExtractTableNum(key)); DISTRICT == tableName {
+						warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
+						isInCicada[i] = true
+						op := txn.constructIncrementOp(cicadaAffiliatedKey)
+						ops = append(ops, &op)
 					} else {
 						//log.Warningf(ctx, "jenndebug reading tableName %s, tableNum %d, key %+v\n", tableName, ExtractTableNum(key), key)
 						warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
@@ -1674,73 +1707,73 @@ func (txn *Txn) Send(
 	if len(warmKeysRequests) > 0 {
 		ba.Requests = warmKeysRequests
 
-		//containsUserKey := false
-		//for i, req := range ba.Requests {
-		//	if key := req.GetInner().Header().Key; IsUserKey(key.String()) && ExtractTableNum(key) == 54 {
-		//		if req.GetScan() != nil {
-		//			log.Warningf(ctx, "jenndebug txn.Id %d, ScanReq %s, %+v, req %d, req.getScan()\n",
-		//				txn.SomeNum(), key, []byte(key), i, *req.GetScan())
-		//		} else if req.GetPut() != nil {
-		//			log.Warningf(ctx, "jenndebug txn.Id %d, PutReq %s, %+v, req %d, req.GetPut()\n", txn.SomeNum(), key,
-		//				[]byte(key), i, *req.GetPut())
-		//		} else if req.GetGet() != nil {
-		//			log.Warningf(ctx, "jenndebug GetReq %s, req %d\n", key, i)
-		//		} else if conditionalPutReq := req.GetConditionalPut(); conditionalPutReq != nil {
-		//			if expVal := conditionalPutReq.ExpValue; expVal != nil {
-		//				log.Warningf(ctx, "jenndebug txn.Id %d, ConditionalPutreq %s, val %+v, expVal %+v, req %d\n",
-		//					txn.SomeNum(), key, conditionalPutReq.Value.RawBytes, *expVal, i)
-		//			} else {
-		//				log.Warningf(ctx, "jenndebug txn.Id %d, ConditionalPutreq %s, val %+v, expVal nil, req %d\n",
-		//					txn.SomeNum(), key, conditionalPutReq.Value.RawBytes, i)
-		//			}
-		//		} else if req.GetInitPut() != nil {
-		//			log.Warningf(ctx, "jenndebug txn.Id %d, InitPutreq %s, req %d\n", txn.SomeNum(), key, i)
-		//		} else {
-		//			log.Warningf(ctx, "jenndebug OtherReq %s, req %d\n", key, i)
-		//		}
-		//		containsUserKey = true
-		//	}
-		//}
+		containsUserKey := false
+		for i, req := range ba.Requests {
+			if key := req.GetInner().Header().Key; IsUserKey(key.String()) && ExtractTableNum(key) == 54 {
+				if req.GetScan() != nil {
+					log.Warningf(ctx, "jenndebug txn.Id %d, ScanReq %s, %+v, req %d, req.getScan()\n",
+						txn.SomeNum(), key, []byte(key), i, *req.GetScan())
+				} else if req.GetPut() != nil {
+					log.Warningf(ctx, "jenndebug txn.Id %d, PutReq %s, %+v, req %d, req.GetPut()\n", txn.SomeNum(), key,
+						[]byte(key), i, *req.GetPut())
+				} else if req.GetGet() != nil {
+					log.Warningf(ctx, "jenndebug GetReq %s, req %d\n", key, i)
+				} else if conditionalPutReq := req.GetConditionalPut(); conditionalPutReq != nil {
+					if expVal := conditionalPutReq.ExpValue; expVal != nil {
+						log.Warningf(ctx, "jenndebug txn.Id %d, ConditionalPutreq %s, val %+v, expVal %+v, req %d\n",
+							txn.SomeNum(), key, conditionalPutReq.Value.RawBytes, *expVal, i)
+					} else {
+						log.Warningf(ctx, "jenndebug txn.Id %d, ConditionalPutreq %s, val %+v, expVal nil, req %d\n",
+							txn.SomeNum(), key, conditionalPutReq.Value.RawBytes, i)
+					}
+				} else if req.GetInitPut() != nil {
+					log.Warningf(ctx, "jenndebug txn.Id %d, InitPutreq %s, req %d\n", txn.SomeNum(), key, i)
+				} else {
+					log.Warningf(ctx, "jenndebug OtherReq %s, req %d\n", key, i)
+				}
+				containsUserKey = true
+			}
+		}
 		//log.Warningf(ctx, "jenndebug txn.Id %d also made it here\n", txn.SomeNum())
 
 		brCRDB, pErr = txn.db.sendUsingSender(ctx, ba, sender)
 
-		//if containsUserKey && brCRDB != nil {
-		//	for i, resp := range brCRDB.Responses {
-		//		if getResp := resp.GetGet(); getResp != nil {
-		//			log.Warningf(ctx, "jenndebug getResp.Value %+v, %d resp\n", getResp.Value.RawBytes, i)
-		//		} else if putResp := resp.GetPut(); putResp != nil {
-		//			log.Warningf(ctx, "jenndebug txn.Id %d, putResp %+v, %d resp\n", txn.SomeNum(), *putResp, i)
-		//		} else if scanResp := resp.GetScan(); scanResp != nil {
-		//			var key roachpb.Key = nil
-		//			if len(scanResp.Rows) > 0 {
-		//				key = scanResp.Rows[0].Key
-		//			}
-		//			//intent := "empty slice"
-		//			//if scanResp.IntentRows == nil {
-		//			//	intent = "nil"
-		//			//}
-		//			//batch := "empty slice"
-		//			//if scanResp.BatchResponses == nil {
-		//			//	batch = "nil"
-		//			//}
-		//			//rangeInfos := "empty slice"
-		//			//if scanResp.Header().RangeInfos == nil {
-		//			//	rangeInfos = "nil"
-		//			//}
-		//			//log.Warningf(ctx, "jenndebug txn.Id %d, key %s, scanResp.Rows %+v, scanResp.Intent %+v, "+
-		//			//	"scanResp.BatchResponses %+v, ts %d, %d, header %+v\n",
-		//			//	txn.SomeNum(), key, scanResp.Rows, intent, batch, txn.ProvisionalCommitTimestamp().WallTime,
-		//			//	txn.ProvisionalCommitTimestamp().Logical, scanResp.Header())
-		//			log.Warningf(ctx, "jenndebug txn.Id %d, scanResp %+v, %+v, scanResp.BatchResponses %+v\n",
-		//				txn.SomeNum(), key, scanResp, scanResp.BatchResponses)
-		//		} else if conditionalPutResp := resp.GetConditionalPut(); conditionalPutResp != nil {
-		//			log.Warningf(ctx, "jenndebug conditionalPutresp %+v, %d resp\n", *conditionalPutResp, i)
-		//			//} else if initPutResp := resp.GetInitPut(); initPutResp != nil {
-		//			//	log.Warningf(ctx, "jenndebug initPutresp %+v, %d resp\n", *initPutResp, i)
-		//		}
-		//	}
-		//}
+		if containsUserKey && brCRDB != nil {
+			for i, resp := range brCRDB.Responses {
+				if getResp := resp.GetGet(); getResp != nil {
+					log.Warningf(ctx, "jenndebug getResp.Value %+v, %d resp\n", getResp.Value.RawBytes, i)
+				} else if putResp := resp.GetPut(); putResp != nil {
+					log.Warningf(ctx, "jenndebug txn.Id %d, putResp %+v, %d resp\n", txn.SomeNum(), *putResp, i)
+				} else if scanResp := resp.GetScan(); scanResp != nil {
+					var key roachpb.Key = nil
+					if len(scanResp.Rows) > 0 {
+						key = scanResp.Rows[0].Key
+					}
+					intent := "empty slice"
+					if scanResp.IntentRows == nil {
+						intent = "nil"
+					}
+					batch := "empty slice"
+					if scanResp.BatchResponses == nil {
+						batch = "nil"
+					}
+					//rangeInfos := "empty slice"
+					//if scanResp.Header().RangeInfos == nil {
+					//	rangeInfos = "nil"
+					//}
+					log.Warningf(ctx, "jenndebug txn.Id %d, key %s, scanResp.Rows %+v, scanResp.Intent %+v, "+
+						"scanResp.BatchResponses %+v, ts %d, %d, header %+v\n",
+						txn.SomeNum(), key, scanResp.Rows, intent, batch, txn.ProvisionalCommitTimestamp().WallTime,
+						txn.ProvisionalCommitTimestamp().Logical, scanResp.Header())
+					log.Warningf(ctx, "jenndebug txn.Id %d, scanResp %+v, %+v, scanResp.BatchResponses %+v\n",
+						txn.SomeNum(), key, scanResp, scanResp.BatchResponses)
+				} else if conditionalPutResp := resp.GetConditionalPut(); conditionalPutResp != nil {
+					log.Warningf(ctx, "jenndebug conditionalPutresp %+v, %d resp\n", *conditionalPutResp, i)
+				} else if initPutResp := resp.GetInitPut(); initPutResp != nil {
+					log.Warningf(ctx, "jenndebug initPutresp %+v, %d resp\n", *initPutResp, i)
+				}
+			}
+		}
 
 		if pErr != nil {
 			if retryErr, ok := pErr.GetDetail().(*roachpb.TransactionRetryWithProtoRefreshError); ok {
@@ -1788,7 +1821,7 @@ func (txn *Txn) Send(
 		brCicada = &roachpb.BatchResponse{
 			Responses: make([]roachpb.ResponseUnion, len(ops)),
 		}
-		didReadsSucceed, sendErr := txn.readsCicada(ctx, ops, brCicada)
+		didReadsSucceed, sendErr := txn.readsOrIncrementsCicada(ctx, ops, brCicada)
 		if sendErr != nil {
 			log.Errorf(ctx, "jenndebug cicada reads never went through %+v\n", sendErr)
 			populateScansWithEmptyResp(brCicada)
