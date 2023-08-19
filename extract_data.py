@@ -29,6 +29,48 @@ def extract_line_order(line):
   return index, pkCols, data_string
 
 
+def extract_line_district(line):
+  """Sample line:
+  W230408 23:46:13.009232 3961 kv/txn.go:2268  jenndebug txn.Id 371425202687
+  , AddInsertHotkeys /Table/57/1/0/6/-1877/0, [193 137 136 142 134 248 171 136]
+  , [[193 137 136 142 134 248 171 136 0 23 84 26 98 231 24 1
+   151 9 95 47 180 96 10 67 164 35 24 202 131 202 187 8 0 19 20 19 18 19 2]]"""
+
+  comma_sep = line.split(",")
+
+  # table
+  table_string = comma_sep[
+    1].strip()  # AddInsertHotkeys /Table/57/1/0/6/-1877/0
+  print("table_string", table_string)
+  table = table_string.split(
+    " ")  # [" AddInsertHotkeys", "/Table/57/1/0/6/-1877/0"]
+  print("table", table)
+  table_components = table[1].split(
+    "/")  # ["", "Table", "57", "1", "0", "6", "-1877", "0"]
+  print("table_components", table_components)
+  index = int(table_components[3])  # 1
+  print("index", index)
+  pkCols = [int(i) for i in
+            table_components[4:len(table_components) - 1]]  # [0, 6, -1877]
+  print("pkCols", pkCols)
+
+  table_encoding = comma_sep[2].strip(" \n[]")
+  delim = "0 23"
+  timestamp = "82 214 157 17 98 43 159 9"
+  header = " ".join([table_encoding, delim, timestamp])
+  header_len = "{0} 0 0 0".format(len(header.split(" ")))
+
+  # value
+  data_string = comma_sep[-1].strip(" \n[]")
+  print("data_string", data_string)
+  val_len = "{0} 0 0 0".format(len(data_string.split(" ")))
+
+  full_data = " ".join([val_len, header_len, header, data_string])
+  print("full data", full_data)
+
+  return index, pkCols, full_data
+
+
 def extract_line_warehouse(line):
   comma_sep = line.split(",")
 
@@ -58,8 +100,10 @@ def extract_line(table, line):
     return extract_line_warehouse(line)
   elif table == "order":
     return extract_line_order(line)
+  elif table == "district":
+    return extract_line_district(line)
   else:
-    print("nope")
+    print("table", table, " isn't an option")
     return ""
 
 
@@ -80,6 +124,7 @@ def main():
   all = []
   with open(args.datafile, "r") as infile:
     for line in infile:
+      print(line)
       index, pkCols, byteData = extract_line(args.table, line)
       all.append((index, pkCols, byteData))
 

@@ -1708,30 +1708,30 @@ func (txn *Txn) Send(
 
 		//containsUserKey := false
 		//for i, req := range ba.Requests {
-		//if key := req.GetInner().Header().Key; IsUserKey(key.String()) && ExtractTableNum(key) == 54 {
-		//if req.GetScan() != nil {
-		//log.Warningf(ctx, "jenndebug txn.Id %d, ScanReq %s, %+v, req %d, req.getScan()\n",
-		//	txn.SomeNum(), key, []byte(key), i, *req.GetScan())
-		//} else if req.GetPut() != nil {
-		//log.Warningf(ctx, "jenndebug txn.Id %d, PutReq %s, %+v, req %d, req.GetPut()\n", txn.SomeNum(), key,
-		//	[]byte(key), i, *req.GetPut())
-		//} else if req.GetGet() != nil {
-		//log.Warningf(ctx, "jenndebug GetReq %s, req %d\n", key, i)
-		//} else if conditionalPutReq := req.GetConditionalPut(); conditionalPutReq != nil {
-		//if expVal := conditionalPutReq.ExpValue; expVal != nil {
-		//log.Warningf(ctx, "jenndebug txn.Id %d, ConditionalPutreq %s, val %+v, expVal %+v, req %d\n",
-		//	txn.SomeNum(), key, conditionalPutReq.Value.RawBytes, *expVal, i)
-		//} else {
-		//log.Warningf(ctx, "jenndebug txn.Id %d, ConditionalPutreq %s, val %+v, expVal nil, req %d\n",
-		//	txn.SomeNum(), key, conditionalPutReq.Value.RawBytes, i)
-		//}
-		//} else if req.GetInitPut() != nil {
-		//log.Warningf(ctx, "jenndebug txn.Id %d, InitPutreq %s, req %d\n", txn.SomeNum(), key, i)
-		//} else {
-		//log.Warningf(ctx, "jenndebug OtherReq %s, req %d\n", key, i)
-		//}
-		//containsUserKey = true
-		//}
+		//	if key := req.GetInner().Header().Key; IsUserKey(key.String()) && ExtractTableNum(key) == 54 {
+		//		if req.GetScan() != nil {
+		//			log.Warningf(ctx, "jenndebug txn.Id %d, ScanReq %s, %+v, req %d, req.getScan()\n",
+		//				txn.SomeNum(), key, []byte(key), i, *req.GetScan())
+		//		} else if req.GetPut() != nil {
+		//			log.Warningf(ctx, "jenndebug txn.Id %d, PutReq %s, %+v, req %d, req.GetPut()\n", txn.SomeNum(), key,
+		//				[]byte(key), i, *req.GetPut())
+		//		} else if req.GetGet() != nil {
+		//			log.Warningf(ctx, "jenndebug GetReq %s, req %d\n", key, i)
+		//		} else if conditionalPutReq := req.GetConditionalPut(); conditionalPutReq != nil {
+		//			if expVal := conditionalPutReq.ExpValue; expVal != nil {
+		//				log.Warningf(ctx, "jenndebug txn.Id %d, ConditionalPutreq %s, val %+v, expVal %+v, req %d\n",
+		//					txn.SomeNum(), key, conditionalPutReq.Value.RawBytes, *expVal, i)
+		//			} else {
+		//				log.Warningf(ctx, "jenndebug txn.Id %d, ConditionalPutreq %s, %+v, [%+v]\n",
+		//					txn.SomeNum(), key, []byte(key), conditionalPutReq.Value.RawBytes)
+		//			}
+		//		} else if req.GetInitPut() != nil {
+		//			log.Warningf(ctx, "jenndebug txn.Id %d, InitPutreq %s, req %d\n", txn.SomeNum(), key, i)
+		//		} else {
+		//			log.Warningf(ctx, "jenndebug OtherReq %s, req %d\n", key, i)
+		//		}
+		//		//containsUserKey = true
+		//	}
 		//}
 		//log.Warningf(ctx, "jenndebug txn.Id %d also made it here\n", txn.SomeNum())
 
