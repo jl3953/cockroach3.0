@@ -960,7 +960,7 @@ func (db *DB) UnlockPromotionMap() {
 }
 
 func DistKey(d_id, d_w_id int64) int64 {
-	return d_w_id*DIST_PER_WARE*10 + d_id
+	return d_w_id*DIST_PER_WARE + d_id
 }
 func (db *DB) CalculateUniqueKeyIntFromRawKey(key roachpb.Key) (
 	uniqueInt int64) {
@@ -994,7 +994,7 @@ func CalculateUniqueKeyInt(tblNum int, tblName string,
 			log.Fatalf(context.Background(), "jenndebug tblName %s, pkCols %+v\n",
 				tblName, pkCols)
 		}
-		d_id, d_w_id := pkCols[0], pkCols[1]
+		d_w_id, d_id := pkCols[0], pkCols[1]
 		uniqueInt = DistKey(d_id, d_w_id)
 	case CUSTOMER:
 		if len(pkCols) < 3 {
