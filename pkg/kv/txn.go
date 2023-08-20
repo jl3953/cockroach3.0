@@ -1312,7 +1312,6 @@ func (txn *Txn) constructIncrementOp(cicadaKey CicadaAffiliatedKey) execinfrapb.
 		CrdbKeyCols:   pkcols,
 		TableName:     &tableName,
 	}
-	log.Warningf(context.Background(), "jenndebug cicada keycols %+v\n", cicadaKey.CicadaKeyCols)
 	return op
 }
 
