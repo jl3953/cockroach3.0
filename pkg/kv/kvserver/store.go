@@ -3469,7 +3469,7 @@ func (rbServer *rebalanceServer) UpdatePromotionMap(_ context.Context,
 		resp.WereSuccessfullyMigrated[i] = &smdbrpc.KeyMigrationResp{
 			IsSuccessfullyMigrated: &t,
 		}
-		log.Warningf(context.Background(), "jenndebug promoted key %+v, %+v\n", key, []byte(key))
+		log.Warningf(context.Background(), "jenndebug promoted key %+v, %+v, cicadaKey %+v\n", key, []byte(key), cicadaAffiliatedKey)
 	}
 	return &resp, nil
 }
