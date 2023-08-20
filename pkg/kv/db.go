@@ -960,7 +960,7 @@ func (db *DB) UnlockPromotionMap() {
 }
 
 func DistKey(d_id, d_w_id int64) int64 {
-	return d_w_id*DIST_PER_WARE + d_id
+	return d_w_id*DIST_PER_WARE*10 + d_id
 }
 func (db *DB) CalculateUniqueKeyIntFromRawKey(key roachpb.Key) (
 	uniqueInt int64) {
