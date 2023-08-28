@@ -1645,7 +1645,6 @@ func (txn *Txn) Send(
 						op := txn.constructIncrementOp(cicadaAffiliatedKey)
 						ops = append(ops, &op)
 					} else {
-						log.Warningf(ctx, "jenndebug cicada read key %+v\n", cicadaAffiliatedKey.RoachKey)
 						warmKeysRequests = warmKeysRequests[:len(warmKeysRequests)-1]
 						isInCicada[i] = true
 						op := txn.constructCicadaReadOp(cicadaAffiliatedKey)
