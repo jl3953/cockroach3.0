@@ -1279,7 +1279,7 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 }
 
 func (txn *Txn) constructInjectedRetryError(ctx context.Context, errMsg string) *roachpb.Error {
-	//log.Warningf(ctx, "errMsg %s\n", errMsg)
+	log.Warningf(ctx, "errMsg %s\n", errMsg)
 	retryableErr := txn.GenerateForcedRetryableError(ctx, errMsg)
 	transaction := roachpb.MakeTransaction(
 		txn.DebugName(),
