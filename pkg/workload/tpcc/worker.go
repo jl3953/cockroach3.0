@@ -12,7 +12,6 @@ package tpcc
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -179,7 +178,7 @@ func (w *worker) run(ctx context.Context) error {
 	w.permIdx++
 
 	warehouseID := w.warehouse
-	fmt.Printf("jenndebug warehouseId %d, modulo %+v\n", warehouseID, w.config.warehouseModulo)
+	//fmt.Printf("jenndebug warehouseId %d, modulo %+v\n", warehouseID, w.config.warehouseModulo)
 	// Wait out the entire keying and think time even if the context is
 	// expired. This prevents all workers from immediately restarting when
 	// the workload's ramp period expires, which can overload a cluster.
