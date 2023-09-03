@@ -85,7 +85,8 @@ type tpcc struct {
 		syncutil.Mutex
 		values [][]int
 	}
-	localsPool *sync.Pool
+	localsPool      *sync.Pool
+	warehouseModulo int
 }
 
 type waitSetter struct {
@@ -196,6 +197,7 @@ var tpccMeta = workload.Meta{
 		g.flags.BoolVar(&g.serializable, `serializable`, false, `Force serializable mode`)
 		g.flags.BoolVar(&g.split, `split`, false, `Split tables`)
 		g.flags.BoolVar(&g.expensiveChecks, `expensive-checks`, false, `Run expensive checks`)
+		g.flags.IntVar(&g.warehouseModulo, `warehouseModulo`, -1, `warehouse modulo`)
 		g.connFlags = workload.NewConnFlags(&g.flags)
 
 		// Hardcode this since it doesn't seem like anyone will want to change
@@ -679,6 +681,9 @@ func (w *tpcc) Ops(
 	for workerIdx := 0; workerIdx < w.workers; workerIdx++ {
 		workerIdx := workerIdx
 		warehouse := w.wPart.totalElems[workerIdx%len(w.wPart.totalElems)]
+		if w.warehouseModulo != -1 {
+			warehouse = w.warehouseModulo
+		}
 		p := w.wPart.partElemsMap[warehouse]
 
 		// This isn't part of our local partition.
