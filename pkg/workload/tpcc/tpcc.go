@@ -681,9 +681,9 @@ func (w *tpcc) Ops(
 	for workerIdx := 0; workerIdx < w.workers; workerIdx++ {
 		workerIdx := workerIdx
 		warehouse := w.wPart.totalElems[workerIdx%len(w.wPart.totalElems)]
-		if w.warehouseModulo != -1 {
-			warehouse = w.warehouseModulo
-		}
+		//if w.warehouseModulo != -1 {
+		//	warehouse = w.warehouseModulo
+		//}
 		p := w.wPart.partElemsMap[warehouse]
 
 		// This isn't part of our local partition.
