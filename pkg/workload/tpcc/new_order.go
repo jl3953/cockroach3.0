@@ -132,7 +132,6 @@ func createNewOrder(
 func (n *newOrder) run(ctx context.Context, wID int) (interface{}, error) {
 	atomic.AddUint64(&n.config.auditor.newOrderTransactions, 1)
 
-	fmt.Printf("jenndebug wId %d\n", wID)
 	rng := rand.New(rand.NewSource(uint64(timeutil.Now().UnixNano())))
 	d := newOrderData{
 		wID:    wID,
