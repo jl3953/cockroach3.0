@@ -12,6 +12,7 @@ package tpcc
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -177,6 +178,7 @@ func (w *worker) run(ctx context.Context) error {
 	tx := w.txs[opIdx]
 	w.permIdx++
 
+	fmt.Printf("jenndebug modulo %d warehouse %d\n", w.config.warehouseModulo, w.warehouse)
 	warehouseID := w.warehouse
 	//fmt.Printf("jenndebug warehouseId %d, modulo %+v\n", warehouseID, w.config.warehouseModulo)
 	// Wait out the entire keying and think time even if the context is
