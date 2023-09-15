@@ -1485,9 +1485,10 @@ func (txn *Txn) Send(
 		brCicada = &roachpb.BatchResponse{
 			Responses: make([]roachpb.ResponseUnion, len(ops)),
 		}
-		didReadsSucceed, sendErr := txn.readsCicada(ctx, ops, brCicada)
-		if sendErr != nil {
-			log.Errorf(ctx, "jenndebug cicada reads never went through %+v\n", sendErr)
+		didReadsSucceed, _ := txn.readsCicada(ctx, ops, brCicada)
+		//if sendErr != nil {
+		//	log.Errorf(ctx, "jenndebug cicada reads never went through %+v\n", sendErr)
+		if true {
 			populateScansWithEmptyResp(brCicada)
 		} else if !didReadsSucceed {
 			return nil, txn.constructInjectedRetryError(ctx, "jenndebug cicada reads failed to commit")
