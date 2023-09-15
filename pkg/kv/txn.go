@@ -1158,25 +1158,25 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 	}
 
 	// query Cicada
-	//f := false
-	//wall := txn.ProvisionalCommitTimestamp().WallTime
-	//logical := txn.ProvisionalCommitTimestamp().Logical
-	//txnReq := execinfrapb.TxnReq{
-	//	Ops: writeOps,
-	//	Timestamp: &execinfrapb.HLCTimestamp{
-	//		Walltime:    &wall,
-	//		Logicaltime: &logical,
-	//	},
-	//	IsPromotion: &f,
-	//}
-	//txnResp, sendErr := txn.submitTxnToCicada(ctx, txnReq)
-	//if sendErr != nil {
-	//	log.Errorf(ctx, "jenndebug cicada write couldn't send txnReq %+v\n", sendErr)
-	//	return false, sendErr
-	//} else if !*txnResp.IsCommitted {
-	//	log.Errorf(ctx, "jenndebug cicada write txn didn't commit\n")
-	//	return false, nil
-	//}
+	f := false
+	wall := txn.ProvisionalCommitTimestamp().WallTime
+	logical := txn.ProvisionalCommitTimestamp().Logical
+	txnReq := execinfrapb.TxnReq{
+		Ops: writeOps,
+		Timestamp: &execinfrapb.HLCTimestamp{
+			Walltime:    &wall,
+			Logicaltime: &logical,
+		},
+		IsPromotion: &f,
+	}
+	txnResp, sendErr := txn.submitTxnToCicada(ctx, txnReq)
+	if sendErr != nil {
+		log.Errorf(ctx, "jenndebug cicada write couldn't send txnReq %+v\n", sendErr)
+		return false, sendErr
+	} else if !*txnResp.IsCommitted {
+		log.Errorf(ctx, "jenndebug cicada write txn didn't commit\n")
+		return false, nil
+	}
 	return true, nil
 }
 
@@ -1286,33 +1286,31 @@ func (txn *Txn) readsCicada(ctx context.Context, ops []*execinfrapb.Op,
 	brCicada *roachpb.BatchResponse) (didReadsSucceed bool, err error) {
 
 	// query Cicada
-	//f := false
+	f := false
 	wall := txn.ProvisionalCommitTimestamp().WallTime
 	logical := txn.ProvisionalCommitTimestamp().Logical
-	//txnReq := execinfrapb.TxnReq{
-	//	Ops: ops,
-	//	Timestamp: &execinfrapb.HLCTimestamp{
-	//		Walltime:    &wall,
-	//		Logicaltime: &logical,
-	//	},
-	//	IsPromotion: &f,
-	//}
-	//txnResp, sendErr := txn.submitTxnToCicada(ctx, txnReq)
-	//if sendErr != nil {
-	//	log.Warningf(ctx, "jenndebug cicada read could not send txnReq %+v\n", sendErr)
-	//	return false, sendErr
-	//} else if !*txnResp.IsCommitted {
-	//	return false, nil
-	//}
+	txnReq := execinfrapb.TxnReq{
+		Ops: ops,
+		Timestamp: &execinfrapb.HLCTimestamp{
+			Walltime:    &wall,
+			Logicaltime: &logical,
+		},
+		IsPromotion: &f,
+	}
+	txnResp, sendErr := txn.submitTxnToCicada(ctx, txnReq)
+	if sendErr != nil {
+		log.Warningf(ctx, "jenndebug cicada read could not send txnReq %+v\n", sendErr)
+		return false, sendErr
+	} else if !*txnResp.IsCommitted {
+		return false, nil
+	}
 
 	// populate responses from Cicada
-	//for i, kvPair := range txnResp.Responses {
-	for i, op := range ops {
+	for i, kvPair := range txnResp.Responses {
 		brCicada.Responses[i].Value = &roachpb.ResponseUnion_Scan{
 			Scan: &roachpb.ScanResponse{
-				BatchResponses: reconstructValue(op.Key, []byte("jennifer"), wall, logical, []byte("ffffffff")),
-				//BatchResponses: reconstructValue(kvPair.Key, kvPair.Value,
-				//	*kvPair.Walltime, *kvPair.Logicaltime, kvPair.IsZero),
+				BatchResponses: reconstructValue(kvPair.Key, kvPair.Value,
+					*kvPair.Walltime, *kvPair.Logicaltime, kvPair.IsZero),
 			},
 		}
 	}
@@ -1485,10 +1483,9 @@ func (txn *Txn) Send(
 		brCicada = &roachpb.BatchResponse{
 			Responses: make([]roachpb.ResponseUnion, len(ops)),
 		}
-		didReadsSucceed, _ := txn.readsCicada(ctx, ops, brCicada)
-		//if sendErr != nil {
-		//	log.Errorf(ctx, "jenndebug cicada reads never went through %+v\n", sendErr)
-		if true {
+		didReadsSucceed, sendErr := txn.readsCicada(ctx, ops, brCicada)
+		if sendErr != nil {
+			log.Errorf(ctx, "jenndebug cicada reads never went through %+v\n", sendErr)
 			populateScansWithEmptyResp(brCicada)
 		} else if !didReadsSucceed {
 			return nil, txn.constructInjectedRetryError(ctx, "jenndebug cicada reads failed to commit")
