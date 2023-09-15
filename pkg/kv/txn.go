@@ -1286,31 +1286,33 @@ func (txn *Txn) readsCicada(ctx context.Context, ops []*execinfrapb.Op,
 	brCicada *roachpb.BatchResponse) (didReadsSucceed bool, err error) {
 
 	// query Cicada
-	f := false
+	//f := false
 	wall := txn.ProvisionalCommitTimestamp().WallTime
 	logical := txn.ProvisionalCommitTimestamp().Logical
-	txnReq := execinfrapb.TxnReq{
-		Ops: ops,
-		Timestamp: &execinfrapb.HLCTimestamp{
-			Walltime:    &wall,
-			Logicaltime: &logical,
-		},
-		IsPromotion: &f,
-	}
-	txnResp, sendErr := txn.submitTxnToCicada(ctx, txnReq)
-	if sendErr != nil {
-		log.Warningf(ctx, "jenndebug cicada read could not send txnReq %+v\n", sendErr)
-		return false, sendErr
-	} else if !*txnResp.IsCommitted {
-		return false, nil
-	}
+	//txnReq := execinfrapb.TxnReq{
+	//	Ops: ops,
+	//	Timestamp: &execinfrapb.HLCTimestamp{
+	//		Walltime:    &wall,
+	//		Logicaltime: &logical,
+	//	},
+	//	IsPromotion: &f,
+	//}
+	//txnResp, sendErr := txn.submitTxnToCicada(ctx, txnReq)
+	//if sendErr != nil {
+	//	log.Warningf(ctx, "jenndebug cicada read could not send txnReq %+v\n", sendErr)
+	//	return false, sendErr
+	//} else if !*txnResp.IsCommitted {
+	//	return false, nil
+	//}
 
 	// populate responses from Cicada
-	for i, kvPair := range txnResp.Responses {
+	//for i, kvPair := range txnResp.Responses {
+	for i, op := range ops {
 		brCicada.Responses[i].Value = &roachpb.ResponseUnion_Scan{
 			Scan: &roachpb.ScanResponse{
-				BatchResponses: reconstructValue(kvPair.Key, kvPair.Value,
-					*kvPair.Walltime, *kvPair.Logicaltime, kvPair.IsZero),
+				BatchResponses: reconstructValue(op.Key, []byte("jennifer"), wall, logical, []byte("ffffffff")),
+				//BatchResponses: reconstructValue(kvPair.Key, kvPair.Value,
+				//	*kvPair.Walltime, *kvPair.Logicaltime, kvPair.IsZero),
 			},
 		}
 	}
