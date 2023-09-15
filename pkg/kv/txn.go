@@ -1158,25 +1158,25 @@ func (txn *Txn) oneTouchWritesCicada(ctx context.Context) (didWritesCommit bool,
 	}
 
 	// query Cicada
-	f := false
-	wall := txn.ProvisionalCommitTimestamp().WallTime
-	logical := txn.ProvisionalCommitTimestamp().Logical
-	txnReq := execinfrapb.TxnReq{
-		Ops: writeOps,
-		Timestamp: &execinfrapb.HLCTimestamp{
-			Walltime:    &wall,
-			Logicaltime: &logical,
-		},
-		IsPromotion: &f,
-	}
-	txnResp, sendErr := txn.submitTxnToCicada(ctx, txnReq)
-	if sendErr != nil {
-		log.Errorf(ctx, "jenndebug cicada write couldn't send txnReq %+v\n", sendErr)
-		return false, sendErr
-	} else if !*txnResp.IsCommitted {
-		log.Errorf(ctx, "jenndebug cicada write txn didn't commit\n")
-		return false, nil
-	}
+	//f := false
+	//wall := txn.ProvisionalCommitTimestamp().WallTime
+	//logical := txn.ProvisionalCommitTimestamp().Logical
+	//txnReq := execinfrapb.TxnReq{
+	//	Ops: writeOps,
+	//	Timestamp: &execinfrapb.HLCTimestamp{
+	//		Walltime:    &wall,
+	//		Logicaltime: &logical,
+	//	},
+	//	IsPromotion: &f,
+	//}
+	//txnResp, sendErr := txn.submitTxnToCicada(ctx, txnReq)
+	//if sendErr != nil {
+	//	log.Errorf(ctx, "jenndebug cicada write couldn't send txnReq %+v\n", sendErr)
+	//	return false, sendErr
+	//} else if !*txnResp.IsCommitted {
+	//	log.Errorf(ctx, "jenndebug cicada write txn didn't commit\n")
+	//	return false, nil
+	//}
 	return true, nil
 }
 
