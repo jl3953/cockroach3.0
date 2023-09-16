@@ -908,6 +908,12 @@ func (txn *Txn) Send(
 	requestTxnID := txn.mu.ID
 	sender := txn.mu.sender
 	txn.mu.Unlock()
+
+	for _, req := range ba.Requests {
+		if endTxnOp := req.GetEndTxn(); endTxnOp != nil && !endTxnOp.Commit {
+			log.Warningf(ctx, "jenndebug aborted\n")
+		}
+	}
 	br, pErr := txn.db.sendUsingSender(ctx, ba, sender)
 	if pErr == nil {
 		return br, nil
