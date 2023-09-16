@@ -133,7 +133,6 @@ func (n *newOrder) run(ctx context.Context, wID int) (interface{}, error) {
 	atomic.AddUint64(&n.config.auditor.newOrderTransactions, 1)
 
 	rng := rand.New(rand.NewSource(uint64(timeutil.Now().UnixNano())))
-
 	d := newOrderData{
 		wID:    wID,
 		dID:    int(randInt(rng, 1, 10)),
@@ -213,26 +212,11 @@ func (n *newOrder) run(ctx context.Context, wID int) (interface{}, error) {
 	err = crdb.ExecuteInTx(
 		ctx, (*workload.PgxTx)(tx),
 		func() error {
-			// Select the district tax rate and next available order number, bumping it.
-			var dNextOID int
-			if err := n.updateDistrict.QueryRowTx(
-				ctx, tx, d.wID, d.dID,
-			).Scan(&d.dTax, &dNextOID); err != nil {
-				return err
-			}
-			d.oID = dNextOID - 1
 
 			// Select the warehouse tax rate.
 			if err := n.selectWarehouseTax.QueryRowTx(
 				ctx, tx, wID,
 			).Scan(&d.wTax); err != nil {
-				return err
-			}
-
-			// Select the customer's discount, last name and credit.
-			if err := n.selectCustomerInfo.QueryRowTx(
-				ctx, tx, d.wID, d.dID, d.cID,
-			).Scan(&d.cDiscount, &d.cLast, &d.cCredit); err != nil {
 				return err
 			}
 
@@ -362,6 +346,44 @@ func (n *newOrder) run(ctx context.Context, wID int) (interface{}, error) {
 			}
 			rows.Close()
 
+			// Update the stock table for each item.
+			if _, err := tx.ExecEx(
+				ctx,
+				fmt.Sprintf(`
+					UPDATE stock
+					SET
+						s_quantity = CASE (s_i_id, s_w_id) %[1]s ELSE crdb_internal.force_error('', 'unknown case') END,
+						s_ytd = CASE (s_i_id, s_w_id) %[2]s END,
+						s_order_cnt = CASE (s_i_id, s_w_id) %[3]s END,
+						s_remote_cnt = CASE (s_i_id, s_w_id) %[4]s END
+					WHERE (s_i_id, s_w_id) IN (%[5]s)`,
+					strings.Join(sQuantityUpdateCases, " "),
+					strings.Join(sYtdUpdateCases, " "),
+					strings.Join(sOrderCntUpdateCases, " "),
+					strings.Join(sRemoteCntUpdateCases, " "),
+					strings.Join(stockIDs, ", "),
+				),
+				nil, /* options */
+			); err != nil {
+				return err
+			}
+
+			// Select the district tax rate and next available order number, bumping it.
+			var dNextOID int
+			if err := n.updateDistrict.QueryRowTx(
+				ctx, tx, d.wID, d.dID,
+			).Scan(&d.dTax, &dNextOID); err != nil {
+				return err
+			}
+			d.oID = dNextOID - 1
+
+			// Select the customer's discount, last name and credit.
+			if err := n.selectCustomerInfo.QueryRowTx(
+				ctx, tx, d.wID, d.dID, d.cID,
+			).Scan(&d.cDiscount, &d.cLast, &d.cCredit); err != nil {
+				return err
+			}
+
 			// Insert row into the orders and new orders table.
 			if _, err := n.insertOrder.ExecTx(
 				ctx, tx,
@@ -374,28 +396,6 @@ func (n *newOrder) run(ctx context.Context, wID int) (interface{}, error) {
 			); err != nil {
 				return err
 			}
-
-			// Update the stock table for each item.
-			//if _, err := tx.ExecEx(
-			//	ctx,
-			//	fmt.Sprintf(`
-			//		UPDATE stock
-			//		SET
-			//			s_quantity = CASE (s_i_id, s_w_id) %[1]s ELSE crdb_internal.force_error('', 'unknown case') END,
-			//			s_ytd = CASE (s_i_id, s_w_id) %[2]s END,
-			//			s_order_cnt = CASE (s_i_id, s_w_id) %[3]s END,
-			//			s_remote_cnt = CASE (s_i_id, s_w_id) %[4]s END
-			//		WHERE (s_i_id, s_w_id) IN (%[5]s)`,
-			//		strings.Join(sQuantityUpdateCases, " "),
-			//		strings.Join(sYtdUpdateCases, " "),
-			//		strings.Join(sOrderCntUpdateCases, " "),
-			//		strings.Join(sRemoteCntUpdateCases, " "),
-			//		strings.Join(stockIDs, ", "),
-			//	),
-			//	nil, /* options */
-			//); err != nil {
-			//	return err
-			//}
 
 			// Insert a new order line for each item in the order.
 			olValsStrings := make([]string, d.oOlCnt)
