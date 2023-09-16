@@ -347,26 +347,26 @@ func (n *newOrder) run(ctx context.Context, wID int) (interface{}, error) {
 			rows.Close()
 
 			// Update the stock table for each item.
-			if _, err := tx.ExecEx(
-				ctx,
-				fmt.Sprintf(`
-					UPDATE stock
-					SET
-						s_quantity = CASE (s_i_id, s_w_id) %[1]s ELSE crdb_internal.force_error('', 'unknown case') END,
-						s_ytd = CASE (s_i_id, s_w_id) %[2]s END,
-						s_order_cnt = CASE (s_i_id, s_w_id) %[3]s END,
-						s_remote_cnt = CASE (s_i_id, s_w_id) %[4]s END
-					WHERE (s_i_id, s_w_id) IN (%[5]s)`,
-					strings.Join(sQuantityUpdateCases, " "),
-					strings.Join(sYtdUpdateCases, " "),
-					strings.Join(sOrderCntUpdateCases, " "),
-					strings.Join(sRemoteCntUpdateCases, " "),
-					strings.Join(stockIDs, ", "),
-				),
-				nil, /* options */
-			); err != nil {
-				return err
-			}
+			//if _, err := tx.ExecEx(
+			//	ctx,
+			//	fmt.Sprintf(`
+			//		UPDATE stock
+			//		SET
+			//			s_quantity = CASE (s_i_id, s_w_id) %[1]s ELSE crdb_internal.force_error('', 'unknown case') END,
+			//			s_ytd = CASE (s_i_id, s_w_id) %[2]s END,
+			//			s_order_cnt = CASE (s_i_id, s_w_id) %[3]s END,
+			//			s_remote_cnt = CASE (s_i_id, s_w_id) %[4]s END
+			//		WHERE (s_i_id, s_w_id) IN (%[5]s)`,
+			//		strings.Join(sQuantityUpdateCases, " "),
+			//		strings.Join(sYtdUpdateCases, " "),
+			//		strings.Join(sOrderCntUpdateCases, " "),
+			//		strings.Join(sRemoteCntUpdateCases, " "),
+			//		strings.Join(stockIDs, ", "),
+			//	),
+			//	nil, /* options */
+			//); err != nil {
+			//	return err
+			//}
 
 			// Select the district tax rate and next available order number, bumping it.
 			var dNextOID int
